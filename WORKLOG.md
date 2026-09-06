@@ -1,3 +1,10 @@
+### 2026-09-07 07:2x（#242/#243/#244 群聊串群三连收口+撤回查看安全化——用户问「群聊模式有什么缺陷」后代码核查自查出、经用户确认修复；已构建·本次构建者：AI-A 本会话）
+- [AI-A 域+跨域 build.mjs]（**改动文件：src/js/group-chat.js（三处修复：①#242 串群——scheduleReply/gcContinueSay 捕获来源群 gid 穿透 memberReply，新增 gcDeliverReply/gcReadGroupKey/gcWriteGroupKey 统一投递（同群原路径，跨群读改写来源群存储键不碰当前 msgs/DOM，群已删丢弃），retractGcMsg(idx,gid) 跨群落来源群存储，打字指示 show/hide 加 gid===curGid 守卫+进群/切群 hideTyping 清共享指示器残留；②#243——loadMsgs 的 idbGet 回调首行加 key!==groupMsgKey(curGid) 整包丢弃守卫；③#244——retractGcMsg 撤回前存渲染快照 rec.orig（无 DOM 走 gcRetractFallbackHtml 安全回退：媒体占位/文本 escTxtBr），渲染分支 dataset.orig 不再兜底直出 rec.text）；build.mjs（哨兵+4=524）；FIX-REGRESSION.md（+#242/#243/#244 三行）**；构建状态：**已构建·sw 视 version.json·本会话（AI-A）执行**）。
+- 根因回顾：①#242=v3.26.x 多群聊分组引入可达缺陷——回复/撤回 setTimeout 链在执行时刻读模块级 curGid，发消息后切群：回复写进新群+原群丢失、撤回 myIdx 撤错消息；②#243=loadMsgs 的 IDB 异步回填只比长度不校验 key，旧群回调切群后 resolve 整包覆盖 msgs 并被下次保存回写污染新群键；③#244=群聊撤回「点击查看」v3.9.x 上线时未对齐单聊 chat.js retractMsg 的渲染快照方案，innerHTML 直出原始 rec.text（多行丢换行/媒体点开整屏 base64/字卡含 HTML 被当标签执行）。
+- 验证：node --check 过；--check-sentinels 524 全绿哑 0（构建后同）；群聊家族脚本：verify-group-chat-fixes 19/19、gc-settings 26/26、gc-color 14/14、gc-continue 1/1、voice-quote-gc 7/7、group-decision 13/13、gc-input 12/12；gc-send 4/5、gc-more 12/15、gc-pool-scope 9/10 三脚本失败项经 stash 红绿对照与 HEAD 逐条一致=TASKS #130 在册口径过期存量，本批零新增回归；布局 verify 10/10。
+- 【跨域声明】build.mjs 仅 FIX_SENTINELS 数组尾部追加 4 条（group-chat.js 域配套防回归锚，同 #237/#238 惯例）；未触碰他人文件，本口开工时树净（69d6992 之后）。
+- 【真机:待验证】（任意机型）：①A 群发消息立刻切 B 群→回复只进 A 群不串 B；②两群快速连切 5~10 次不串不胀；③撤回概率拉满→点「撤回了一条消息」文本带换行还原、表情/图片不铺 base64。
+
 ### 2026-09-07 05:1x（#238 第 2 轮：备忘提醒从每日一次放宽为至少隔 2 天——用户反馈「不用提醒太频繁」）
 - [AI-A 域]（**改动文件：src/js/memo-app.js（闸门 done 日标记→last 时间戳，命中后至少隔 2 天再提醒；v1 done='YYYY-MM-DD' 自动迁移为该日 23:59:59 时间戳不丢起点；概率 toast/注释同步）；build.mjs（#238 间隔闸哨兵 needle 更新）；src/template.html（介绍行改「命中后至少隔 2 天一次，不频扰」）；FIX-REGRESSION.md（#238 行补 2 轮记录）；**构建状态：已构建·sw 视 version.json·本会话（AI-A）执行**）。
 - 频率现状：默认概率 2%/4 分钟一掷+2 天间隔闸+23-6 静默 ≈ 两三天最多催一次；概率调 100% 也被间隔闸限住。

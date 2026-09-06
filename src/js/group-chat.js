@@ -466,6 +466,10 @@
     try {
       if (window.idbGet) {
         window.idbGet(key).then(v => {
+          // FIX 串群 #243：idbGet 异步回来时可能已切群/重进（本回调还挂在旧 key 上）——
+          // key 不再是当前群的键就整包丢弃；否则旧群数据会覆盖当前群 msgs 并被下次
+          // 保存回写进新群的存储键（A 群历史灌进 B 群）
+          if (key !== groupMsgKey(curGid)) return;
           if (v === undefined || v === null) return;
           try { const a = JSON.parse(v); if (Array.isArray(a) && a.length >= msgs.length) { msgs = a; renderAll(); } } catch (e) {}
         }).catch(() => {});
@@ -583,7 +587,10 @@
     if (rec.retracted) {
       // v3.10.x：补齐点击查看原消息（与聊天页 bindToggle 一致）——原仅显示提示文本，
       // 无 cursor:pointer 且未绑 onclick，用户反馈"群聊无法点击查看撤回的消息"。
-      b.dataset.orig = rec.orig || rec.text;
+      // FIX 撤回查看 #244：原 `rec.orig || rec.text` 在点击时 innerHTML 直出原始文本——
+      // 多行丢换行、图片/表情/语音点开整屏 base64、字卡含 HTML 会被当标签执行（注入）。
+      // 对齐单聊 chat.js retractMsg（撤回时存渲染快照 rec.orig）；无快照走安全回退。
+      b.dataset.orig = rec.orig || gcRetractFallbackHtml(rec);
       const who = rec.side === 'out' ? '我' : memberName(rec.cid);
       b.innerHTML = '<span style="opacity:.6;font-size:12px;cursor:pointer">' + who + '撤回了一条消息</span>';
       b.style.cursor = 'pointer';
@@ -996,11 +1003,77 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   }
   function showTyping(name) { if (typingEl) { typingEl.textContent = (name || '成员') + ' 正在输入…'; typingEl.hidden = false; } }
   function hideTyping() { if (typingEl) typingEl.hidden = true; }
+  // ---- FIX 串群 #242：成员回复/撤回绑定来源群 ----
+  // 定时器在调度时捕获 curGid，落库一律写来源群；来源群仍是当前群才做 DOM 渲染/
+  // 音效/打字指示，否则静默写入该群存储（切回可见）。此前 msgs.push/saveMsgs 都在
+  // 定时器执行时刻读当前 curGid——发消息后切群，回复会写进新群（串群）且原群永久
+  // 丢回复；群已删除则丢弃（同删除群聊「消息一并删除」语义）。
+  function gcGroupAlive(gid) { return groups.some(g => g.id === gid); }
+  function gcReadGroupKey(gid) {
+    let arr = [];
+    try { arr = JSON.parse(localStorage.getItem(groupMsgKey(gid)) || '[]'); } catch (e) {}
+    return Array.isArray(arr) ? arr : [];
+  }
+  function gcWriteGroupKey(gid, arr) {
+    const data = JSON.stringify(arr);
+    localStorage.setItem(groupMsgKey(gid), data);
+    try { if (window.idbSet) window.idbSet(groupMsgKey(gid), data); } catch (e) {}
+  }
+  // 投递一条回复到指定群：同群走原路径（渲染+音效），跨群只落存储。返回该消息在
+  // 来源群数组中的下标（供撤回定时器定位），失败返回 -1
+  function gcDeliverReply(gid, rec, sfx) {
+    if (!gcGroupAlive(gid)) return -1;
+    if (gid === curGid) {
+      msgs.push(rec);
+      saveMsgs();
+      renderMsg(rec, msgs.length - 1);
+      followGcBottom();
+      if (sfx && window.playSfx) window.playSfx(sfx);
+      return msgs.length - 1;
+    }
+    try {
+      const arr = gcReadGroupKey(gid);
+      arr.push(rec);
+      gcWriteGroupKey(gid, arr);
+      return arr.length - 1;
+    } catch (e) { return -1; }
+  }
+  // FIX 撤回查看 #244：无渲染快照时的安全回退（存量撤回记录/跨群撤回）——
+  // 媒体给占位、文本走转义，绝不 innerHTML 直出原始 rec.text
+  function gcRetractFallbackHtml(rec) {
+    const ph = (t) => '<span style="opacity:.6;font-size:12px">' + t + '</span>';
+    if (rec.type === 'image') return ph('[图片]');
+    if (rec.type === 'sticker') return ph('[表情包]');
+    if (rec.type === 'voice') return ph('[语音]');
+    if (rec.parts && rec.parts.length) {
+      const imgs = rec.parts.filter(p => p.k === 'img').length;
+      const txt = rec.parts.filter(p => p.k === 'text').map(p => p.v).join(' ');
+      return (imgs ? ph('[图片]') : '') +
+        (txt ? '<span style="opacity:.85;word-break:break-word">' + escTxtBr(txt) + '</span>' : '');
+    }
+    return '<span style="opacity:.85;word-break:break-word">' + escTxtBr(rec.text || '') + '</span>';
+  }
   // v3.9.x：单条成员消息撤回（标记 + 局部重渲染）
-  function retractGcMsg(idx) {
+  // FIX 串群 #242：带来源群 gid——不是当前群时落到该群存储，绝不写错群；
+  // FIX 撤回查看 #244：撤回前先存渲染快照 rec.orig（同单聊 chat.js retractMsg 语义），
+  // 点击查看用快照，不再回退直出原始文本
+  function retractGcMsg(idx, gid) {
+    if (gid !== undefined && gid !== curGid) {
+      try {
+        const arr = gcReadGroupKey(gid);
+        if (arr[idx] && !arr[idx].retracted) {
+          arr[idx].orig = gcRetractFallbackHtml(arr[idx]);
+          arr[idx].retracted = true;
+          gcWriteGroupKey(gid, arr);
+        }
+      } catch (e) {}
+      return;
+    }
     if (idx < 0 || idx >= msgs.length) return;
     const rec = msgs[idx];
     if (!rec || rec.retracted) return;
+    const el = body.querySelector('.msg[data-gc-idx="' + idx + '"] .msg-bubble');
+    rec.orig = el ? el.innerHTML : gcRetractFallbackHtml(rec);
     rec.retracted = true;
     saveMsgs();
     const target = body.querySelector('.msg[data-gc-idx="' + idx + '"]');
@@ -1011,23 +1084,20 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   }
   // v3.9.x：成员回复——按群聊回复设置：回复速度/条数/拍一拍/表情包/emoji/图片/语音/
   // 颜文字/引用/撤回（含撤回补发），与聊天页被动回复语义一致
-  function memberReply(cid, quoteText) {
+  function memberReply(cid, quoteText, gid) {
+    if (gid === undefined) gid = curGid; // FIX 串群 #242：未传时兜底当前群
     const c = gcCfg();
     const name = memberName(cid);
     const rsMin = Math.max(1, Number(c['gc-rs-min']) || 1);
     const rsMax = Math.max(rsMin, Number(c['gc-rs-max']) || rsMin);
     const delay = (rsMin + Math.random() * Math.max(1, rsMax - rsMin)) * 1000;
-    showTyping(name);
+    if (gid === curGid) showTyping(name);
     setTimeout(() => {
-      hideTyping();
+      if (gid === curGid) hideTyping();
       // 拍一拍分支（同聊天页：命中则不回文字，直接拍）
       if (hit(c['gc-touch-prob'])) {
         const rec = { side: 'in', cid: cid, name: name, text: gcPokeText(cid), special: 'poke', ts: Date.now() };
-        msgs.push(rec);
-        saveMsgs();
-        renderMsg(rec, msgs.length - 1);
-        followGcBottom();
-        if (window.playSfx) window.playSfx('in');
+        gcDeliverReply(gid, rec, 'in'); // FIX 串群 #242：落回来源群
         return;
       }
       // 回复条数（min/max 调反时兜底至少 1 条）
@@ -1039,7 +1109,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
       const wantQuote = hit(c['gc-quote-prob']) && !!quoteText;
       for (let i = 0; i < count; i++) {
         setTimeout(() => {
-          hideTyping();
+          if (gid === curGid) hideTyping();
           (async () => {
           // v3.27.x：生成前先确保该成员字卡池就绪——成员桌面大键可能被启动回填
           // 挂起，同步读池是空库会让成员一直发 FALLBACK_REPLIES 兜底（上限 2.5s）
@@ -1060,21 +1130,16 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
               if (window.addChatCount) window.addChatCount();
             } catch (e) {}
           }
-          msgs.push(rec);
-          saveMsgs();
-          renderMsg(rec, msgs.length - 1);
-          followGcBottom();
-          if (window.playSfx) window.playSfx('in');
-          if (i < count - 1) showTyping(name);
-          const myIdx = msgs.length - 1;
+          const myIdx = gcDeliverReply(gid, rec, 'in'); // FIX 串群 #242：落回来源群
+          if (i < count - 1 && gid === curGid) showTyping(name);
           // 撤回 + 撤回补发
           if (hit(c['gc-rc-prob'])) {
             setTimeout(() => {
-              retractGcMsg(myIdx);
+              retractGcMsg(myIdx, gid); // FIX 串群 #242：撤回落回来源群
               if (hit(c['gc-rc-refix'])) {
-                showTyping(name);
+                if (gid === curGid) showTyping(name);
                 setTimeout(() => {
-                  hideTyping();
+                  if (gid === curGid) hideTyping();
                   (async () => {
                   try { await gcHydrateWait(cid); } catch (e) {}
                   const rep2 = gcGenReply(cid, c);
@@ -1088,11 +1153,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
                       }
                     } catch (e) {}
                   }
-                  msgs.push(rec2);
-                  saveMsgs();
-                  renderMsg(rec2, msgs.length - 1);
-                  followGcBottom();
-                  if (window.playSfx) window.playSfx('in');
+                  gcDeliverReply(gid, rec2, 'in'); // FIX 串群 #242：补发落回来源群
                   })();
                 }, 700);
               }
@@ -1105,6 +1166,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   }
   // v3.9.x：@ 的成员必定回复；其余成员按「每个联系人回复概率」独立掷骰，命中才回
   function scheduleReply(userText) {
+    const gid = curGid; // FIX 串群 #242：捕获调度时的群，回复/撤回一律落回发起群
     const members = getMembers();
     if (!members.length) return;
     const c = gcCfg();
@@ -1123,7 +1185,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     if (!targets.length) return;
     // 各成员独立排期回复（成员间错开更自然）
     targets.forEach((cid, i) => {
-      setTimeout(() => memberReply(cid, userText), i * (1200 + Math.random() * 1600));
+      setTimeout(() => memberReply(cid, userText, gid), i * (1200 + Math.random() * 1600));
     });
   }
 
@@ -1143,6 +1205,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     updateGroupName();
     loadMsgs();
     renderAll();
+    hideTyping(); // FIX 串群 #242 家族：打字指示器全局共享，进群清掉其他群残留
     syncGcInputBtns(); // 进入群聊时按当前桌面设置刷新语音/继续说/批量按钮显隐
   }
   if (backBtn) backBtn.addEventListener('click', () => {
@@ -1276,6 +1339,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     saveCurGid();
     msgs = [];
     loadMsgs();
+    hideTyping(); // FIX 串群 #242 家族：切群清掉上一群打字指示残留
     refreshGroupViews();
     try { renderGroupsPanel(); } catch (e) {}
   }
@@ -2227,6 +2291,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   }
   // 「继续说」：和聊天页 continueChat 同语义——强制让成员回复（无 @ 时随机 1-2 个，不按回复概率过滤）
   function gcContinueSay() {
+    const gid = curGid; // FIX 串群 #242：同 scheduleReply 绑定来源群
     const members = getMembers();
     if (!members.length) return;
     const mentioned = [];
@@ -2238,7 +2303,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
       ? mentioned.slice()
       : members.slice(0, Math.max(1, Math.min(2, members.length))).map(m => m.id);
     chosen.forEach((cid, i) => {
-      setTimeout(() => memberReply(cid, ''), i * (1200 + Math.random() * 1600));
+      setTimeout(() => memberReply(cid, '', gid), i * (1200 + Math.random() * 1600));
     });
     if (window.playSfx) window.playSfx('in');
   }

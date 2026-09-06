@@ -8817,9 +8817,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788736729077">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.516</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 07:18<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788737313245">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.517</b></span>
+        <span class="sv-deploy">部署于 2026-09-07 07:28<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9975,7 +9975,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.516</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.517</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10266,7 +10266,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.516</span>
+              <span class="lic-ver">v3.26.517</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -32902,6 +32902,7 @@ if (!Array.isArray(msgs)) msgs = [];
 try {
 if (window.idbGet) {
 window.idbGet(key).then(v => {
+if (key !== groupMsgKey(curGid)) return;
 if (v === undefined || v === null) return;
 try { const a = JSON.parse(v); if (Array.isArray(a) && a.length >= msgs.length) { msgs = a; renderAll(); } } catch (e) {}
 }).catch(() => {});
@@ -32999,7 +33000,7 @@ return m;
 }
 const quoteStr = rec.quote ? gcQuoteHtml(rec.quote) : '';
 if (rec.retracted) {
-b.dataset.orig = rec.orig || rec.text;
+b.dataset.orig = rec.orig || gcRetractFallbackHtml(rec);
 const who = rec.side === 'out' ? '我' : memberName(rec.cid);
 b.innerHTML = '<span style="opacity:.6;font-size:12px;cursor:pointer">' + who + '撤回了一条消息</span>';
 b.style.cursor = 'pointer';
@@ -33362,10 +33363,64 @@ return text;
 }
 function showTyping(name) { if (typingEl) { typingEl.textContent = (name || '成员') + ' 正在输入…'; typingEl.hidden = false; } }
 function hideTyping() { if (typingEl) typingEl.hidden = true; }
-function retractGcMsg(idx) {
+function gcGroupAlive(gid) { return groups.some(g => g.id === gid); }
+function gcReadGroupKey(gid) {
+let arr = [];
+try { arr = JSON.parse(localStorage.getItem(groupMsgKey(gid)) || '[]'); } catch (e) {}
+return Array.isArray(arr) ? arr : [];
+}
+function gcWriteGroupKey(gid, arr) {
+const data = JSON.stringify(arr);
+localStorage.setItem(groupMsgKey(gid), data);
+try { if (window.idbSet) window.idbSet(groupMsgKey(gid), data); } catch (e) {}
+}
+function gcDeliverReply(gid, rec, sfx) {
+if (!gcGroupAlive(gid)) return -1;
+if (gid === curGid) {
+msgs.push(rec);
+saveMsgs();
+renderMsg(rec, msgs.length - 1);
+followGcBottom();
+if (sfx && window.playSfx) window.playSfx(sfx);
+return msgs.length - 1;
+}
+try {
+const arr = gcReadGroupKey(gid);
+arr.push(rec);
+gcWriteGroupKey(gid, arr);
+return arr.length - 1;
+} catch (e) { return -1; }
+}
+function gcRetractFallbackHtml(rec) {
+const ph = (t) => '<span style="opacity:.6;font-size:12px">' + t + '</span>';
+if (rec.type === 'image') return ph('[图片]');
+if (rec.type === 'sticker') return ph('[表情包]');
+if (rec.type === 'voice') return ph('[语音]');
+if (rec.parts && rec.parts.length) {
+const imgs = rec.parts.filter(p => p.k === 'img').length;
+const txt = rec.parts.filter(p => p.k === 'text').map(p => p.v).join(' ');
+return (imgs ? ph('[图片]') : '') +
+(txt ? '<span style="opacity:.85;word-break:break-word">' + escTxtBr(txt) + '</span>' : '');
+}
+return '<span style="opacity:.85;word-break:break-word">' + escTxtBr(rec.text || '') + '</span>';
+}
+function retractGcMsg(idx, gid) {
+if (gid !== undefined && gid !== curGid) {
+try {
+const arr = gcReadGroupKey(gid);
+if (arr[idx] && !arr[idx].retracted) {
+arr[idx].orig = gcRetractFallbackHtml(arr[idx]);
+arr[idx].retracted = true;
+gcWriteGroupKey(gid, arr);
+}
+} catch (e) {}
+return;
+}
 if (idx < 0 || idx >= msgs.length) return;
 const rec = msgs[idx];
 if (!rec || rec.retracted) return;
+const el = body.querySelector('.msg[data-gc-idx="' + idx + '"] .msg-bubble');
+rec.orig = el ? el.innerHTML : gcRetractFallbackHtml(rec);
 rec.retracted = true;
 saveMsgs();
 const target = body.querySelector('.msg[data-gc-idx="' + idx + '"]');
@@ -33374,22 +33429,19 @@ const m = renderMsg(rec, idx);
 target.parentNode.replaceChild(m, target);
 }
 }
-function memberReply(cid, quoteText) {
+function memberReply(cid, quoteText, gid) {
+if (gid === undefined) gid = curGid; // FIX 串群 #242：未传时兜底当前群
 const c = gcCfg();
 const name = memberName(cid);
 const rsMin = Math.max(1, Number(c['gc-rs-min']) || 1);
 const rsMax = Math.max(rsMin, Number(c['gc-rs-max']) || rsMin);
 const delay = (rsMin + Math.random() * Math.max(1, rsMax - rsMin)) * 1000;
-showTyping(name);
+if (gid === curGid) showTyping(name);
 setTimeout(() => {
-hideTyping();
+if (gid === curGid) hideTyping();
 if (hit(c['gc-touch-prob'])) {
 const rec = { side: 'in', cid: cid, name: name, text: gcPokeText(cid), special: 'poke', ts: Date.now() };
-msgs.push(rec);
-saveMsgs();
-renderMsg(rec, msgs.length - 1);
-followGcBottom();
-if (window.playSfx) window.playSfx('in');
+gcDeliverReply(gid, rec, 'in'); // FIX 串群 #242：落回来源群
 return;
 }
 const rpMin = Math.max(1, Number(c['gc-reply-min']) || 1);
@@ -33398,7 +33450,7 @@ const count = (c['gc-py-en'] === 1) ? randInt(rpMin, rpMax) : 1;
 const wantQuote = hit(c['gc-quote-prob']) && !!quoteText;
 for (let i = 0; i < count; i++) {
 setTimeout(() => {
-hideTyping();
+if (gid === curGid) hideTyping();
 (async () => {
 try { await gcHydrateWait(cid); } catch (e) {}
 const rep = gcGenReply(cid, c);
@@ -33415,20 +33467,15 @@ rec.mood = chain.map(it => ({ tag: typeName[it.type] || '情绪', label: it.cont
 if (window.addChatCount) window.addChatCount();
 } catch (e) {}
 }
-msgs.push(rec);
-saveMsgs();
-renderMsg(rec, msgs.length - 1);
-followGcBottom();
-if (window.playSfx) window.playSfx('in');
-if (i < count - 1) showTyping(name);
-const myIdx = msgs.length - 1;
+const myIdx = gcDeliverReply(gid, rec, 'in'); // FIX 串群 #242：落回来源群
+if (i < count - 1 && gid === curGid) showTyping(name);
 if (hit(c['gc-rc-prob'])) {
 setTimeout(() => {
-retractGcMsg(myIdx);
+retractGcMsg(myIdx, gid); // FIX 串群 #242：撤回落回来源群
 if (hit(c['gc-rc-refix'])) {
-showTyping(name);
+if (gid === curGid) showTyping(name);
 setTimeout(() => {
-hideTyping();
+if (gid === curGid) hideTyping();
 (async () => {
 try { await gcHydrateWait(cid); } catch (e) {}
 const rep2 = gcGenReply(cid, c);
@@ -33442,11 +33489,7 @@ rec2.mood = chain2.map(it => ({ tag: typeName2[it.type] || '情绪', label: it.c
 }
 } catch (e) {}
 }
-msgs.push(rec2);
-saveMsgs();
-renderMsg(rec2, msgs.length - 1);
-followGcBottom();
-if (window.playSfx) window.playSfx('in');
+gcDeliverReply(gid, rec2, 'in'); // FIX 串群 #242：补发落回来源群
 })();
 }, 700);
 }
@@ -33458,6 +33501,7 @@ if (window.playSfx) window.playSfx('in');
 }, delay);
 }
 function scheduleReply(userText) {
+const gid = curGid; // FIX 串群 #242：捕获调度时的群，回复/撤回一律落回发起群
 const members = getMembers();
 if (!members.length) return;
 const c = gcCfg();
@@ -33474,7 +33518,7 @@ targets = members.filter(() => hit(c['gc-prob'])).map(m => m.id);
 }
 if (!targets.length) return;
 targets.forEach((cid, i) => {
-setTimeout(() => memberReply(cid, userText), i * (1200 + Math.random() * 1600));
+setTimeout(() => memberReply(cid, userText, gid), i * (1200 + Math.random() * 1600));
 });
 }
 function updateGroupName() {
@@ -33492,6 +33536,7 @@ if (page) page.hidden = false;
 updateGroupName();
 loadMsgs();
 renderAll();
+hideTyping(); // FIX 串群 #242 家族：打字指示器全局共享，进群清掉其他群残留
 syncGcInputBtns(); // 进入群聊时按当前桌面设置刷新语音/继续说/批量按钮显隐
 }
 if (backBtn) backBtn.addEventListener('click', () => {
@@ -33610,6 +33655,7 @@ curGid = gid;
 saveCurGid();
 msgs = [];
 loadMsgs();
+hideTyping(); // FIX 串群 #242 家族：切群清掉上一群打字指示残留
 refreshGroupViews();
 try { renderGroupsPanel(); } catch (e) {}
 }
@@ -34503,6 +34549,7 @@ if (gcContinueBtn) gcContinueBtn.style.display = gcSettingOn('cs-trigger-bar') ?
 if (gcBatchBtn) gcBatchBtn.style.display = gcSettingOn('cs-batch-send') ? '' : 'none';
 }
 function gcContinueSay() {
+const gid = curGid; // FIX 串群 #242：同 scheduleReply 绑定来源群
 const members = getMembers();
 if (!members.length) return;
 const mentioned = [];
@@ -34514,7 +34561,7 @@ const chosen = mentioned.length
 ? mentioned.slice()
 : members.slice(0, Math.max(1, Math.min(2, members.length))).map(m => m.id);
 chosen.forEach((cid, i) => {
-setTimeout(() => memberReply(cid, ''), i * (1200 + Math.random() * 1600));
+setTimeout(() => memberReply(cid, '', gid), i * (1200 + Math.random() * 1600));
 });
 if (window.playSfx) window.playSfx('in');
 }
@@ -81024,4 +81071,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtqfnxf9 -->
+<!-- __MOCHI_EOF__ mtqg0g65 -->

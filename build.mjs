@@ -715,6 +715,10 @@ const FIX_SENTINELS = [
   { name: '#237 添加备忘触发聊天提问（新增后 TA 经 chatAddIn 回应+追问一条带「备忘」chip——此前新增零聊天联动，只剩完成/分享两通道；删调用即回归）', file: 'js/memo-app.js', needle: "window.chatAddIn(memoPick(DEF_MEMO_ASK).replace('{m}', memoClip(v, 16))" },
   { name: '#238 备忘提醒聊天发送锚（概率催办经 chatAddIn 发「备忘提醒」chip：引擎改道不发即回归）', file: 'js/memo-app.js', needle: "window.chatAddIn(text, { tag: '备忘提醒' })" },
   { name: '#238 备忘提醒间隔闸（last=上次提醒时刻，命中后至少隔 2 天——用户反馈不用太频繁；删闸则每 4 分钟命中即发=轰炸）', file: 'js/memo-app.js', needle: 'if (Date.now() - c.last < 2 * 86400000) return;' },
+  { name: '#242 群聊串群收口·撤回落回来源群（定时器捕获调度时的 gid，切群后撤回不再写错群/撤错消息；去掉 gid 传参即回流串群）', file: 'js/group-chat.js', needle: 'retractGcMsg(myIdx, gid)' },
+  { name: '#242 群聊串群收口·scheduleReply 绑定来源群（回复定时器落库不再读执行时刻的 curGid——发消息后切群回复写进新群+原群丢失）', file: 'js/group-chat.js', needle: 'memberReply(cid, userText, gid)' },
+  { name: '#243 群聊 IDB 回填防串群（loadMsgs 异步回调 key 不等于当前群整包丢弃——否则旧群回调在切群后 resolve 会整包覆盖 msgs 并被下次保存回写污染新群存储键）', file: 'js/group-chat.js', needle: 'if (key !== groupMsgKey(curGid)) return;' },
+  { name: '#244 群聊撤回查看安全化（撤回先存渲染快照 rec.orig 对齐单聊 chat.js；无快照走 gcRetractFallbackHtml 转义回退——直出原始文本=多行丢换行/媒体点开整屏 base64/字卡含 HTML 被执行）', file: 'js/group-chat.js', needle: 'rec.orig = el ? el.innerHTML : gcRetractFallbackHtml(rec);' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
