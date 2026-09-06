@@ -2514,7 +2514,7 @@
       </div>
       <div class="sm-set-hint" style="padding:8px 16px 0">说明：以下为各功能（摸鱼 / 吃饭 / 经期 / 喝水 / 花园 / 同频 / 伸手 / 此间 / 房间 / 存钱罐 / 漂流瓶 / 互动回应）触发时联系人会使用的自搓字卡，非聊天通用字卡，可逐张开启或关闭。页面底部的「使用概率」为各类字卡触发的概率，可自由调整。</div>
       <!-- v3.32.x：分类使用概率——每个功能分类的触发概率可显示可调（dcf-<分类> 键，默认=历史值）。
-           FIX 2026-09-07 #237：概率框整块从列表上方移到列表下方——13 行 stepper（~794px）插在
+           FIX 2026-09-07 #239：概率框整块从列表上方移到列表下方——13 行 stepper（~794px）插在
            头部时，.card-list{flex:1;overflow-y:auto} 的 flex 最小尺寸因 overflow 非 visible 归 0，
            列表被压成 6px 且首屏(top≈1234/视口 808)完全在屏幕外＝「其他互动功能字卡看不到了，
            点击没有任何内容」（小米15Pro/Chrome 无头 384x808 实测复现）。字卡列表必须回到首屏；
@@ -2542,7 +2542,7 @@
       <div class="card-list" id="fc-list">
         <!-- 功能触发字卡由 JS 按分类/分组渲染 -->
       </div>
-      <!-- FIX 2026-09-07 #237：概率框移到列表下方（原在 fc-tabs 前，见上注）——字卡列表回到首屏 -->
+      <!-- FIX 2026-09-07 #239：概率框移到列表下方（原在 fc-tabs 前，见上注）——字卡列表回到首屏 -->
       <div class="set-group glass" id="dcf-prob-box" style="margin:10px 12px 12px">
         <div class="gs-row"><span>摸鱼字卡概率</span><div class="stepper" id="dcf-prob-fish" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-fish-val" readonly><button class="stp-max">+</button></div></div>
         <div class="gs-row"><span>吃饭字卡概率</span><div class="stepper" id="dcf-prob-eat" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-eat-val" readonly><button class="stp-max">+</button></div></div>

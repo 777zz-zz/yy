@@ -191,16 +191,16 @@ await freshLoad(null);
 const zInfo = await ev("(function(){var m=document.querySelector('.phone-bg-mask');var l=document.getElementById('phone-bg-layer');if(!m)return 'no-mask';var zi=parseInt(getComputedStyle(m).zIndex,10);var zl=l?parseInt(getComputedStyle(l).zIndex,10):0;return JSON.stringify({zi:zi,zl:zl});})()");
 try { var zObj = JSON.parse(zInfo); } catch (e) { var zObj = { zi: 0, zl: 0 }; }
 check('M1 遮罩层 zIndex(' + zObj.zi + ') > 壁纸图层 zIndex(' + zObj.zl + ')（#219 核心）', zObj.zi > zObj.zl, zInfo);
-// M2 模糊生效：预置 bg-blur=12 重载 → .blur-on 挂上、计算 backdropFilter 含 blur
+// M2 模糊生效（#240 起载体=壁纸层自滤）：预置 bg-blur=12 重载 → .desk-blur-on 挂上、壁纸层 computed filter 含 blur（旧 backdrop 载体在小米15Pro/Chrome 151 真机采样不生效，已由 #240 替代）
 await ev("(function(){var s=window.activeStore();s.set('bg-blur','12');return true;})()");
 await cdp('Page.navigate', { url: baseUrl + '/index.html' });
 await sleep(2000);
 for (let i = 0; i < 40; i++) { if (await ev('!!window.__mochiDataReady')) break; await sleep(250); }
 await ev("(function(){var e=document.getElementById('splash-enter');if(e&&!e.hidden)e.click();var s=document.getElementById('splash');if(s&&!s.classList.contains('hide')){s.classList.add('hide');s.hidden=true;}return true;})()");
 await sleep(800);
-const blurInfo = await ev("(function(){var m=document.querySelector('.phone-bg-mask');if(!m)return 'no-mask';var c=getComputedStyle(m);return JSON.stringify({blurOn:m.classList.contains('blur-on'),bf:c.backdropFilter||c.webkitBackdropFilter||''});})()");
+const blurInfo = await ev("(function(){var p=document.querySelector('.phone');var l=document.getElementById('phone-bg-layer');if(!p||!l)return 'no-layer';var c=getComputedStyle(l);return JSON.stringify({blurOn:p.classList.contains('desk-blur-on'),bf:c.filter||''});})()");
 try { var bObj = JSON.parse(blurInfo); } catch (e) { var bObj = { blurOn: false, bf: '' }; }
-check('M2 bg-blur=12 时 .blur-on 挂上且 backdrop-filter 激活', bObj.blurOn === true && String(bObj.bf).indexOf('blur') >= 0, blurInfo);
+check('M2 bg-blur=12 时 .desk-blur-on 挂上且壁纸层 filter 激活（#240 新载体）', bObj.blurOn === true && String(bObj.bf).indexOf('blur') >= 0, blurInfo);
 // M3 遮罩生效：预置 bg-mask-op=60 重载 → 遮罩层背景 alpha≈0.6（半透明白真盖在壁纸上=背景变淡）
 await ev("(function(){var s=window.activeStore();s.set('bg-mask-op','60');return true;})()");
 await cdp('Page.navigate', { url: baseUrl + '/index.html' });

@@ -737,9 +737,10 @@ position:absolute; inset:0; z-index:2; pointer-events:none;
 background:rgba(255,255,255,var(--desk-bg-mask-op,0));
 border-radius:inherit;
 }
-.phone-bg-mask.blur-on {
-backdrop-filter:blur(var(--desk-bg-blur,0px));
--webkit-backdrop-filter:blur(var(--desk-bg-blur,0px));
+.phone.desk-blur-on #phone-bg-layer {
+filter:blur(var(--desk-bg-blur,0px));
+-webkit-filter:blur(var(--desk-bg-blur,0px));
+top:-24px !important; left:-24px !important; right:-24px !important; bottom:-24px !important;
 }
 .page-slide { zoom:var(--desk-font-scale, 1); }
 .deco-widget, .mini-row, .checkin, .weekend-box, .music-widget,
@@ -2735,6 +2736,10 @@ animation: ccToastAutoHide 2.6s ease forwards;
 #dc-list .cc-item:active { transform: none; }
 #page-default-cards { overflow-y:auto; }
 #page-default-cards #dc-list { flex:0 0 auto; overflow:visible; min-height:0; -webkit-overflow-scrolling:auto; overscroll-behavior:auto; }
+#page-fun-cards { overflow-y:auto; }
+#page-fun-cards #fc-list { flex:0 0 auto; overflow:visible; min-height:0; -webkit-overflow-scrolling:auto; overscroll-behavior:auto; }
+#page-deskcheck { overflow-y:auto; }
+#page-deskcheck #dk-list { flex:0 0 auto; overflow:visible; min-height:0; -webkit-overflow-scrolling:auto; overscroll-behavior:auto; }
 .cc-vspace { display:block; margin:0; padding:0; pointer-events:none; }
 .dc-toggle {
 display:flex; align-items:center; justify-content:space-between; gap:10px;
@@ -8812,9 +8817,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788726711126">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.513</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 04:31<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788729061590">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.515</b></span>
+        <span class="sv-deploy">部署于 2026-09-07 05:11<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9970,7 +9975,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.513</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.515</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10261,7 +10266,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.513</span>
+              <span class="lic-ver">v3.26.515</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -11086,23 +11091,13 @@ transition-duration: .01ms !important;
         </span>
         <span class="ch-name">其他互动功能字卡</span>
       </div>
-      <div class="sm-set-hint" style="padding:8px 16px 0">说明：以下为各功能（摸鱼 / 吃饭 / 经期 / 喝水 / 花园 / 同频 / 伸手 / 此间 / 房间 / 存钱罐 / 漂流瓶 / 互动回应）触发时联系人会使用的自搓字卡，非聊天通用字卡，可逐张开启或关闭。每个分类下方的「使用概率」为该类字卡触发的概率，可自由调整。</div>
-      <!-- v3.32.x：分类使用概率——每个功能分类的触发概率可显示可调（dcf-<分类> 键，默认=历史值） -->
-      <div class="set-group glass" id="dcf-prob-box" style="margin:10px 12px 0">
-        <div class="gs-row"><span>摸鱼字卡概率</span><div class="stepper" id="dcf-prob-fish" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-fish-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>吃饭字卡概率</span><div class="stepper" id="dcf-prob-eat" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-eat-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>经期字卡概率（温柔前缀/动作/经期关心）</span><div class="stepper" id="dcf-prob-period" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-period-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>喝水字卡概率</span><div class="stepper" id="dcf-prob-water" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-water-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>花园字卡概率</span><div class="stepper" id="dcf-prob-garden" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-garden-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>同频字卡概率</span><div class="stepper" id="dcf-prob-sync" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-sync-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>伸手字卡概率</span><div class="stepper" id="dcf-prob-reach" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-reach-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>此间字卡概率</span><div class="stepper" id="dcf-prob-cjian" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-cjian-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>房间字卡概率</span><div class="stepper" id="dcf-prob-room" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-room-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>存钱罐字卡概率</span><div class="stepper" id="dcf-prob-piggy" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-piggy-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>漂流瓶字卡概率</span><div class="stepper" id="dcf-prob-drift" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-drift-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>互动回应字卡概率</span><div class="stepper" id="dcf-prob-interact" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-interact-val" readonly><button class="stp-max">+</button></div></div>
-        <div class="gs-row"><span>音乐字卡概率</span><div class="stepper" id="dcf-prob-music" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-music-val" readonly><button class="stp-max">+</button></div></div>
-      </div>
+      <div class="sm-set-hint" style="padding:8px 16px 0">说明：以下为各功能（摸鱼 / 吃饭 / 经期 / 喝水 / 花园 / 同频 / 伸手 / 此间 / 房间 / 存钱罐 / 漂流瓶 / 互动回应）触发时联系人会使用的自搓字卡，非聊天通用字卡，可逐张开启或关闭。页面底部的「使用概率」为各类字卡触发的概率，可自由调整。</div>
+      <!-- v3.32.x：分类使用概率——每个功能分类的触发概率可显示可调（dcf-<分类> 键，默认=历史值）。
+           FIX 2026-09-07 #239：概率框整块从列表上方移到列表下方——13 行 stepper（~794px）插在
+           头部时，.card-list{flex:1;overflow-y:auto} 的 flex 最小尺寸因 overflow 非 visible 归 0，
+           列表被压成 6px 且首屏(top≈1234/视口 808)完全在屏幕外＝「其他互动功能字卡看不到了，
+           点击没有任何内容」（小米15Pro/Chrome 无头 384x808 实测复现）。字卡列表必须回到首屏；
+           stepper 绑定走 getElementById 与 DOM 位置无关，移动无功能影响。 -->
       <div class="card-tabs" id="fc-tabs">
         <button class="cc-tab sel" data-type="fish">摸鱼</button>
         <button class="cc-tab" data-type="eat">吃饭</button>
@@ -11125,6 +11120,22 @@ transition-duration: .01ms !important;
       </div>
       <div class="card-list" id="fc-list">
         <!-- 功能触发字卡由 JS 按分类/分组渲染 -->
+      </div>
+      <!-- FIX 2026-09-07 #239：概率框移到列表下方（原在 fc-tabs 前，见上注）——字卡列表回到首屏 -->
+      <div class="set-group glass" id="dcf-prob-box" style="margin:10px 12px 12px">
+        <div class="gs-row"><span>摸鱼字卡概率</span><div class="stepper" id="dcf-prob-fish" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-fish-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>吃饭字卡概率</span><div class="stepper" id="dcf-prob-eat" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-eat-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>经期字卡概率（温柔前缀/动作/经期关心）</span><div class="stepper" id="dcf-prob-period" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-period-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>喝水字卡概率</span><div class="stepper" id="dcf-prob-water" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-water-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>花园字卡概率</span><div class="stepper" id="dcf-prob-garden" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-garden-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>同频字卡概率</span><div class="stepper" id="dcf-prob-sync" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-sync-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>伸手字卡概率</span><div class="stepper" id="dcf-prob-reach" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-reach-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>此间字卡概率</span><div class="stepper" id="dcf-prob-cjian" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-cjian-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>房间字卡概率</span><div class="stepper" id="dcf-prob-room" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-room-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>存钱罐字卡概率</span><div class="stepper" id="dcf-prob-piggy" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-piggy-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>漂流瓶字卡概率</span><div class="stepper" id="dcf-prob-drift" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-drift-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>互动回应字卡概率</span><div class="stepper" id="dcf-prob-interact" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-interact-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>音乐字卡概率</span><div class="stepper" id="dcf-prob-music" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dcf-prob-music-val" readonly><button class="stp-max">+</button></div></div>
       </div>
     </div>
 
@@ -20035,8 +20046,8 @@ const bgBlurRow = document.getElementById('row-bg-blur');
 const bgBlurVal = document.getElementById('bg-blur-val');
 const getBgBlur = () => { const v = store.get('bg-blur'); if (v) { const n = parseInt(v, 10); if (!isNaN(n)) return Math.max(0, Math.min(20, n)); } return 0; };
 const setBgBlurClass = (px) => {
-const maskEl = document.querySelector('.phone-bg-mask');
-if (maskEl) maskEl.classList.toggle('blur-on', px > 0);
+const ph = document.querySelector('.phone');
+if (ph) ph.classList.toggle('desk-blur-on', px > 0);
 };
 const applyBgBlur = (px) => {
 document.documentElement.style.setProperty('--desk-bg-blur', px + 'px');
@@ -26019,8 +26030,10 @@ const len = msgs.length;
 if (!len) return false;
 if (windowStale) return false;
 try { if (windowRenderedPrefix !== window.activePrefix()) return false; } catch (e) { return false; }
-if (windowRenderedN !== len) return false; // 窗口尾必须贴最新（渲染时 renderEnd=len）
-for (let i = renderStart; i < len; i++) {
+const grown = len - windowRenderedN;
+if (grown < 0) return false; // 屏上比权威多＝数据被裁/回滚，整窗重建兜底
+if (windowRenderedN === 0) return false; // 无屏上凭据（首渲场景）走原整窗渲染
+for (let i = renderStart; i < windowRenderedN; i++) {
 const m = msgs[i];
 if (!m) continue;
 if (m._lsLite || m.img === '' || m.voice === '') return false;
@@ -26035,7 +26048,7 @@ if (Number(el.dataset.idx) !== n) return false;
 if (el.dataset.pendingRead === '1') pending.push(el);
 n++;
 }
-if (n !== len) return false;
+if (n !== windowRenderedN) return false;
 for (let k = 0; k < pending.length; k++) {
 const el = pending[k];
 delete el.dataset.pendingRead;
@@ -26045,6 +26058,11 @@ if (rec && rec.special === 'read' && b && !rec.retracted &&
 b.textContent.indexOf('已读不回') >= 0) {
 b.innerHTML = '<span style="opacity:.5;font-size:12px">' + escTxt(rec.text || '已读不回') + '</span>';
 }
+}
+if (grown > 0) {
+for (let r = 0; r < Math.ceil(grown / LOAD_STEP) + 1 && renderEnd < len; r++) loadNewerIncremental(len);
+if (renderEnd !== len) return false;
+windowRenderedN = len; // 凭据随增量补齐——loadNewerIncremental 只更 renderEnd，不补此处则下次收尾 grown 错位仍整窗（自纠）
 }
 return true;
 }
@@ -26078,10 +26096,11 @@ body.scrollTop = body.scrollHeight; // 原窗口为空，直接滚到底
 if (renderEnd - renderStart > WINDOW_MAX) pruneWindowBottom();
 suppressScrollUntil = Date.now() + 200;
 }
-function loadNewerIncremental() {
+function loadNewerIncremental(targetLen) {
 const len = msgs.length;
-if (renderEnd >= len) return;
-const newEnd = Math.min(len, renderEnd + LOAD_STEP);
+const want = (typeof targetLen === 'number' && targetLen > 0) ? Math.min(targetLen, len) : len;
+if (renderEnd >= want) return;
+const newEnd = Math.min(want, renderEnd + LOAD_STEP);
 if (newEnd === renderEnd) return;
 batchRendering = true;
 let anchor = null;
@@ -81003,4 +81022,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtq9p7iu -->
+<!-- __MOCHI_EOF__ mtqb3l5i -->

@@ -1809,7 +1809,7 @@ try {
   const bgBlurVal = document.getElementById('bg-blur-val');
   const getBgBlur = () => { const v = store.get('bg-blur'); if (v) { const n = parseInt(v, 10); if (!isNaN(n)) return Math.max(0, Math.min(20, n)); } return 0; };
   const setBgBlurClass = (px) => {
-    // FIX 2026-09-07 #238：模糊改画在壁纸常驻图层自身（.desk-blur-on 挂 .phone，
+    // FIX 2026-09-07 #240：模糊改画在壁纸常驻图层自身（.desk-blur-on 挂 .phone，
     // 见 home.css 同日注）——原 .phone-bg-mask.blur-on 的 backdrop-filter 在
     // 小米15Pro/Chrome 151 真机上采样不生效（#219 提层后仍无感），不再挂。
     const ph = document.querySelector('.phone');

@@ -27,7 +27,7 @@
   background:rgba(255,255,255,var(--desk-bg-mask-op,0));
   border-radius:inherit;
 }
-/* FIX 2026-09-07 #238：模糊载体从 mask 的 backdrop-filter 改为壁纸层自滤 filter。
+/* FIX 2026-09-07 #240：模糊载体从 mask 的 backdrop-filter 改为壁纸层自滤 filter。
    #219 提层后诊断样式全对（mask z2 + blur-on + backdrop computed 正确），但
    小米15Pro/Chrome 151 真机仍「模糊/遮罩调整无感」＝backdrop-filter 对 z1 兄弟
    图层的采样/合成在该内核下不生效（无头环境无法复现）。自滤直接糊壁纸纹理，

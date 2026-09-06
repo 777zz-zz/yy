@@ -1917,7 +1917,7 @@ renderWindow(true, false);
 // 替换成真实内容。返回 true=已补丁无需重渲；false=不满足条件，调用方走原整窗渲染。
 // 注：窗口含 lite 快照残留（img==='' / voice==='' / _lsLite，大历史 LS 快照必然剥负载）
 // 时不跳过——权威数据在这些下标上是真实媒体，整窗重渲才算把图/语音补上（内容真变了）。
-// FIX 2026-09-07 #237：放宽「窗口尾必须贴最新」——屏上窗口是权威数组的「前缀」（权威
+// FIX 2026-09-07 #241：放宽「窗口尾必须贴最新」——屏上窗口是权威数组的「前缀」（权威
 // 比屏上多出尾部，典型=LS 快照缺上次会话尾条/对端新消息只在 IDB）时，原条件直接放弃
 // → 权威收尾整窗清空重画=打开聊天「先跳动一下才显示正常」（小米15Pro/Chrome 同机复发，
 // 无头实测 rm3+add8 复现）。现改为：前缀段仍须无 lite 残留+DOM idx 齐整，通过后走
@@ -1930,6 +1930,7 @@ if (windowStale) return false;
 try { if (windowRenderedPrefix !== window.activePrefix()) return false; } catch (e) { return false; }
 const grown = len - windowRenderedN;
 if (grown < 0) return false; // 屏上比权威多＝数据被裁/回滚，整窗重建兜底
+if (windowRenderedN === 0) return false; // 无屏上凭据（首渲场景）走原整窗渲染
 // 窗口内 lite 残留扫描（仅扫屏上已渲染段 renderStart..windowRenderedN-1，O(窗口)）——有残留必须整窗重渲升级
 for (let i = renderStart; i < windowRenderedN; i++) {
 const m = msgs[i];
@@ -1964,6 +1965,7 @@ if (grown > 0) {
 // 追加没补齐（异常）返回 false，调用方整窗重建兜底（renderWindow 清空重来，状态自洽）
 for (let r = 0; r < Math.ceil(grown / LOAD_STEP) + 1 && renderEnd < len; r++) loadNewerIncremental(len);
 if (renderEnd !== len) return false;
+windowRenderedN = len; // 凭据随增量补齐——loadNewerIncremental 只更 renderEnd，不补此处则下次收尾 grown 错位仍整窗（自纠）
 }
 return true;
 }
@@ -1999,7 +2001,7 @@ suppressScrollUntil = Date.now() + 200;
 }
 function loadNewerIncremental(targetLen) {
 const len = msgs.length;
-// FIX 2026-09-07 #237：可选 targetLen——原地补丁的尾部增量一次补到权威长度（不传=
+// FIX 2026-09-07 #241：可选 targetLen——原地补丁的尾部增量一次补到权威长度（不传=
 // 滚动加载语义不变，每批 LOAD_STEP）
 const want = (typeof targetLen === 'number' && targetLen > 0) ? Math.min(targetLen, len) : len;
 if (renderEnd >= want) return;
