@@ -1,3 +1,8 @@
+### 2026-09-07 05:1x（#238 第 2 轮：备忘提醒从每日一次放宽为至少隔 2 天——用户反馈「不用提醒太频繁」）
+- [AI-A 域]（**改动文件：src/js/memo-app.js（闸门 done 日标记→last 时间戳，命中后至少隔 2 天再提醒；v1 done='YYYY-MM-DD' 自动迁移为该日 23:59:59 时间戳不丢起点；概率 toast/注释同步）；build.mjs（#238 间隔闸哨兵 needle 更新）；src/template.html（介绍行改「命中后至少隔 2 天一次，不频扰」）；FIX-REGRESSION.md（#238 行补 2 轮记录）；**构建状态：已构建·sw 视 version.json·本会话（AI-A）执行**）。
+- 频率现状：默认概率 2%/4 分钟一掷+2 天间隔闸+23-6 静默 ≈ 两三天最多催一次；概率调 100% 也被间隔闸限住。
+- 验证：node --check 过；--check-sentinels 520 全绿哑 0；playwright：3 天前 last+prob100→触发催办进聊天，紧接二发被闸。【真机:待验证】催一次后 2 天内不再出现第二条。
+- 【提交纪律修正】本次起 git add 改显式文件清单（d50bc5a 卷入并行会话文件的教训）。
 ### 2026-09-07 05:2x（#239/#240/#241 小米15Pro Chrome 四问题报障收口——①互动功能字卡页被概率框挤没 ②背景模糊载体 backdrop→壁纸自滤 ③聊天快照缺尾部整窗重画→尾部增量 ④启动闪定性非应用内 bug；已构建·sw mochi-mtqapsy8·本次构建者：AI-B 本会话）
 - [AI-B 本会话+跨域 chat.js/chat-pages.css/home.css/template.html（cross-domain 声明：四问题均为 AI-A 域功能文件 bug，树上当时无该四文件在途认领；其中 4 文件主体修复已被 d50bc5a 卷入随 mtq9p7iu 上线、本批为其收口=编号改 #239/#240/#241+#241 自纠两处）]（**改动文件：src/js/chat.js（#241 自纠：inplacePatchIfSameWindow 加 windowRenderedN===0 门[无屏上凭据的首渲走原整窗]+grown>0 增量后同步 windowRenderedN=len[loadNewerIncremental 只更 renderEnd 不更凭据，不补则下次收尾 grown 错位仍整窗]）；src/css/chat-pages.css、src/css/home.css、src/js/personalize.js、src/template.html（注释编号 #237/#238→#239/#240/#241，逻辑零改动）；build.mjs（哨兵+3：fc-list 整页滚动锚/.desk-blur-on 载体锚/增量追加循环锚）；FIX-REGRESSION.md（+#239/#240/#241 三行）；tools/verify-fun-cards-layout.mjs（新增 7 断言）；tools/verify-desk-blur-layer.mjs（新增 8 断言）；tools/verify-chat-jump-incremental.mjs（新增 6 断言）；tools/verify-desk-beauty.mjs（M2 随 #240 载体更新：blur-on+backdrop→desk-blur-on+壁纸层 filter）**；构建状态：**已构建·sw mochi-mtqapsy8·本口执行·哨兵 520/520 哑 0·sw 14/14**）。
 - 需求（小米15Pro+Chrome 151，v3.26.491=7744d09 诊断报障四条）：①手机美化背景模糊/遮罩调整无感；②点开聊天消息有时先跳动一下才正常；③桌面快捷方式打开先闪一下才进界面；④其他互动功能字卡看不到、点击没有内容。

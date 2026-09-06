@@ -8817,9 +8817,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788729061590">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.515</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 05:11<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788736729077">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.516</b></span>
+        <span class="sv-deploy">部署于 2026-09-07 07:18<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9975,7 +9975,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.515</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.516</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10266,7 +10266,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.515</span>
+              <span class="lic-ver">v3.26.516</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -10535,7 +10535,7 @@ transition-duration: .01ms !important;
           <details class="lic-grp">
             <summary><span class="lg-num">16</span><span class="lg-name">生活工具</span><span class="lg-count">6</span></summary>
             <div class="lg-body">
-          <div class="lic-li">【备忘录】待办管理：置顶 / 截止日期 / 临期排序 / 一键清已完成；添加备忘 TA 会在聊天里回应追问，还能概率催办提醒（开关 + 概率可调，每天最多 1 条）、偶尔帮你勾掉最旧一条</div>
+          <div class="lic-li">【备忘录】待办管理：置顶 / 截止日期 / 临期排序 / 一键清已完成；添加备忘 TA 会在聊天里回应追问，还能概率催办提醒（开关 + 概率可调，命中后至少隔 2 天一次，不频扰）、偶尔帮你勾掉最旧一条</div>
           <div class="lic-li">【喝水】今日杯数进度环 + 近 7 天柱状图，目标杯数 / 杯量自定义；TA 定时催喝水、达标夸奖，战报可发到聊天</div>
           <div class="lic-li">【吃什么】随机抽菜或转盘抽取，多菜单管理与批量编辑，「问 TA」把菜名发到聊天征求意见；饭点有吃饭提醒（概率可调）</div>
           <div class="lic-li">【存钱罐】存取 + 多个小心愿目标（可请 TA 当监督人），25% / 50% / 75% 进度里程碑庆祝，TA 碎碎念回应与偷偷塞硬币彩蛋</div>
@@ -62878,7 +62878,9 @@ function memoRemindCfg() {
 const s = gStore(); let o = {};
 try { o = JSON.parse((s && s.get('memo-app-remind')) || '{}') || {}; } catch (e) { o = {}; }
 const p = parseInt(o.prob, 10);
-return { en: o.en !== 0, prob: isNaN(p) ? 2 : Math.max(0, Math.min(100, p)), done: typeof o.done === 'string' ? o.done : '' };
+let last = Number(o.last) || 0;
+if (!last && typeof o.done === 'string' && o.done) { const d = new Date(o.done + 'T23:59:59'); last = isNaN(d.getTime()) ? 0 : d.getTime(); }
+return { en: o.en !== 0, prob: isNaN(p) ? 2 : Math.max(0, Math.min(100, p)), last: last };
 }
 function memoRemindSetCfg(patch) {
 const s = gStore(); if (!s) return;
@@ -63138,7 +63140,7 @@ const bank = over.length ? DEF_MEMO_REMIND_OVER : (due.length ? DEF_MEMO_REMIND_
 const text = memoPick(bank).replace('{m}', memoClip(it.t || '', 16)).replace('{n}', String(memoOverdueDays(it.due || memoDayStr(new Date()))));
 if (window.chatAddIn) { try { window.chatAddIn(text, { tag: '备忘提醒' }); } catch (e) {} }
 vibrate([80, 60, 80]);
-memoRemindSetCfg({ done: memoDayStr(new Date()) }); // 发出即标记，每天最多 1 条
+memoRemindSetCfg({ last: Date.now(), done: '' }); // 发出即记录时刻，至少隔 2 天再提醒（#238 用户反馈不用太频繁）
 }
 function memoRemindTick() {
 try {
@@ -63146,7 +63148,7 @@ if (!window.chatAddIn) return;
 const c = memoRemindCfg();
 if (!c.en || c.prob <= 0) return;
 const h = new Date().getHours(); if (h >= 23 || h < 6) return; // 深夜静默，同吃饭提醒
-if (c.done === memoDayStr(new Date())) return; // 每天最多 1 条
+if (Date.now() - c.last < 2 * 86400000) return; // 至少隔 2 天，不用太频繁（#238 用户反馈）
 if (Math.random() * 100 >= c.prob) return;
 memoRemindFire();
 } catch (e) {}
@@ -63166,7 +63168,7 @@ if (v === null || v === '') return;
 const n = parseInt(v, 10);
 if (isNaN(n) || n < 0 || n > 100) { toast('请输入 0-100 的整数'); return; }
 memoRemindSetCfg({ prob: n }); memoRenderRemind();
-toast(n <= 0 ? '已设置：基本不会触发' : '已设置：每 4 分钟掷一次，每天最多提醒 1 条');
+toast(n <= 0 ? '已设置：基本不会触发' : '已设置：每 4 分钟掷一次，命中后至少隔 2 天再提醒');
 });
 });
 window.memoRemindTickNow = memoRemindTick; // 手动/回归验证触发口（同 triggerTaInviteNow 惯例）
@@ -81022,4 +81024,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtqb3l5i -->
+<!-- __MOCHI_EOF__ mtqfnxf9 -->

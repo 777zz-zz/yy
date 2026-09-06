@@ -714,7 +714,7 @@ const FIX_SENTINELS = [
   { name: 'v3.34.x 自定义字卡全量导入导出列表页入口锚点（template.html）', file: 'template.html', needle: 'li-cc-full-export' },
   { name: '#237 添加备忘触发聊天提问（新增后 TA 经 chatAddIn 回应+追问一条带「备忘」chip——此前新增零聊天联动，只剩完成/分享两通道；删调用即回归）', file: 'js/memo-app.js', needle: "window.chatAddIn(memoPick(DEF_MEMO_ASK).replace('{m}', memoClip(v, 16))" },
   { name: '#238 备忘提醒聊天发送锚（概率催办经 chatAddIn 发「备忘提醒」chip：引擎改道不发即回归）', file: 'js/memo-app.js', needle: "window.chatAddIn(text, { tag: '备忘提醒' })" },
-  { name: '#238 备忘提醒每日一次闸（done=当天已发标记，删闸则每 4 分钟命中即发=轰炸；改为按条计也必删此行）', file: 'js/memo-app.js', needle: 'if (c.done === memoDayStr(new Date())) return;' },
+  { name: '#238 备忘提醒间隔闸（last=上次提醒时刻，命中后至少隔 2 天——用户反馈不用太频繁；删闸则每 4 分钟命中即发=轰炸）', file: 'js/memo-app.js', needle: 'if (Date.now() - c.last < 2 * 86400000) return;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

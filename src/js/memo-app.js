@@ -50,7 +50,8 @@
     '「{m}」……记下了，可别让我催你哦'
   ];
   // FIX 2026-09-07 #238 备忘提醒：概率触发 TA 在聊天里催备忘（复刻吃饭提醒模式：
-  // 开关+触发概率可调、每 4 分钟一掷、每天最多 1 条、23:00–06:00 静默）。
+  // 开关+触发概率可调、每 4 分钟一掷、命中后至少隔 2 天、23:00–06:00 静默；
+  // 间隔由用户反馈「不用提醒太频繁」从每日一次放宽为 2 天）。
   // 催办对象按紧急度挑：过期 > 今日到期 > 积压(>2天) > 普通待办；{m}=内容截断、{n}=过期天数
   const DEF_MEMO_REMIND = ['{m}——还躺在备忘录里哦，什么时候做呀？', '翻到你的备忘：「{m}」，别忘了它', '「{m}」还没完成呢，我先帮你记着', '叮——备忘提醒：「{m}」，要开始了吗？'];
   const DEF_MEMO_REMIND_DUE = ['「{m}」今天到期啦，别忘了', '提醒你：「{m}」就是今天哦', '「{m}」今天截止，来得及，快去吧'];
@@ -96,12 +97,15 @@
   function memoSave(a) { const s = gStore(); if (s) try { s.set('memo-app-items', JSON.stringify(a)); } catch (e) {} }
   function memoSendOn() { const s = gStore(); try { return s.get('memo-app-send') === '1'; } catch (e) { return false; } }
   // #238 提醒配置存单键 JSON（根命名空间随 memo-app-* 全局共享；键名已登记 contacts.js EXCLUDE
-  // 防 migrateLegacy 误迁进 default）。en 默认开、prob 默认 2（同吃饭提醒）、done=当天已提醒标记
+  // 防 migrateLegacy 误迁）。en 默认开、prob 默认 2（同吃饭提醒）、last=上次提醒时刻
+  //（v1 的 done='YYYY-MM-DD' 日标记自动迁移为该日 23:59:59 的时间戳，老数据不丢间隔起点）
   function memoRemindCfg() {
     const s = gStore(); let o = {};
     try { o = JSON.parse((s && s.get('memo-app-remind')) || '{}') || {}; } catch (e) { o = {}; }
     const p = parseInt(o.prob, 10);
-    return { en: o.en !== 0, prob: isNaN(p) ? 2 : Math.max(0, Math.min(100, p)), done: typeof o.done === 'string' ? o.done : '' };
+    let last = Number(o.last) || 0;
+    if (!last && typeof o.done === 'string' && o.done) { const d = new Date(o.done + 'T23:59:59'); last = isNaN(d.getTime()) ? 0 : d.getTime(); }
+    return { en: o.en !== 0, prob: isNaN(p) ? 2 : Math.max(0, Math.min(100, p)), last: last };
   }
   function memoRemindSetCfg(patch) {
     const s = gStore(); if (!s) return;
@@ -401,7 +405,7 @@
     const text = memoPick(bank).replace('{m}', memoClip(it.t || '', 16)).replace('{n}', String(memoOverdueDays(it.due || memoDayStr(new Date()))));
     if (window.chatAddIn) { try { window.chatAddIn(text, { tag: '备忘提醒' }); } catch (e) {} }
     vibrate([80, 60, 80]);
-    memoRemindSetCfg({ done: memoDayStr(new Date()) }); // 发出即标记，每天最多 1 条
+    memoRemindSetCfg({ last: Date.now(), done: '' }); // 发出即记录时刻，至少隔 2 天再提醒（#238 用户反馈不用太频繁）
   }
   function memoRemindTick() {
     try {
@@ -409,7 +413,7 @@
       const c = memoRemindCfg();
       if (!c.en || c.prob <= 0) return;
       const h = new Date().getHours(); if (h >= 23 || h < 6) return; // 深夜静默，同吃饭提醒
-      if (c.done === memoDayStr(new Date())) return; // 每天最多 1 条
+      if (Date.now() - c.last < 2 * 86400000) return; // 至少隔 2 天，不用太频繁（#238 用户反馈）
       if (Math.random() * 100 >= c.prob) return;
       memoRemindFire();
     } catch (e) {}
@@ -429,7 +433,7 @@
       const n = parseInt(v, 10);
       if (isNaN(n) || n < 0 || n > 100) { toast('请输入 0-100 的整数'); return; }
       memoRemindSetCfg({ prob: n }); memoRenderRemind();
-      toast(n <= 0 ? '已设置：基本不会触发' : '已设置：每 4 分钟掷一次，每天最多提醒 1 条');
+      toast(n <= 0 ? '已设置：基本不会触发' : '已设置：每 4 分钟掷一次，命中后至少隔 2 天再提醒');
     });
   });
   window.memoRemindTickNow = memoRemindTick; // 手动/回归验证触发口（同 triggerTaInviteNow 惯例）
