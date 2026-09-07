@@ -1292,6 +1292,7 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     updateGroupName();
     loadMsgs();
     renderAll();
+    gcSwitchDirty = false; // FIX #249：进群即全量重建（loadMsgs+renderAll），切桌挂起的脏标记就地清账
     hideTyping(); // FIX 串群 #242 家族：打字指示器全局共享，进群清掉其他群残留
     syncGcInputBtns(); // 进入群聊时按当前桌面设置刷新语音/继续说/批量按钮显隐
   }
@@ -2672,13 +2673,26 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   }
 
   // ---- 切联系人：当前群消息不变，刷新群名 + 重渲染（"我"头像/成员名可能变） ----
+  // FIX 2026-09-07 #249 切桌面卡死：群聊数据全局共用（消息/分组/形象均不随桌面变），
+  // 切桌面瞬间群聊页必是隐藏态（setActiveContact 强制回手机主页）——原监听无条件
+  // renderAll() 整窗重渲最近 200 条消息纯属浪费，重度群设备每次切换白耗一段主线程。
+  // 改为仅当群聊页正显示时才整窗重渲；隐藏态把"脏"标记挂起，下次 enterGroupChat
+  // 本就 loadMsgs+renderAll 全量重建（成员名/头像/群名随之刷新），标记只是双保险。
+  // 群名同步改走轻量的 memberName 脏检查（updateGroupName 内部开销极小，保留无条件调用）。
+  let gcSwitchDirty = false;
   document.addEventListener('contact-switched', function () {
     try { hideTyping(); } catch (e) {}
-    updateGroupName();
-    renderAll();
-    try { if (settingsPanel && !settingsPanel.hidden) renderSettingsPanel(); } catch (e) {}
-    // v3.26.x：联系人变动（新增/删除/改名）会改变成员名单，群列表开着时同步刷新
-    try { if (groupsPanel && !groupsPanel.hidden) renderGroupsPanel(); } catch (e) {}
+    const pageVisible = page && !page.hidden;
+    if (pageVisible) {
+      updateGroupName();
+      renderAll();
+      try { if (settingsPanel && !settingsPanel.hidden) renderSettingsPanel(); } catch (e) {}
+      // v3.26.x：联系人变动（新增/删除/改名）会改变成员名单，群列表开着时同步刷新
+      try { if (groupsPanel && !groupsPanel.hidden) renderGroupsPanel(); } catch (e) {}
+      gcSwitchDirty = false;
+    } else {
+      gcSwitchDirty = true; // 隐藏态挂起：enterGroupChat 全量重建兜底（防未来入口绕过）
+    }
   });
 
   // 暴露（供数据备份/回归测试用）

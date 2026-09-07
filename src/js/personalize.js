@@ -1026,8 +1026,17 @@ try {
         saved = null;
       }
       if (saved) {
-        // v3.6.x：img 用属性赋值（dataURL 含引号时拼 innerHTML 会逃逸注入 HTML）
+        // FIX 2026-09-07 #249 切桌面卡死：恒等跳过——图标没换不重建 img。切换联系人
+        // 扇出的多条监听器（综合监听 + restore-done 回填监听）每次切换对全部图标
+        // innerHTML=''+重建 img，MB 级 dataURL 真机重新解码。已有同源 img 且 src 相同
+        // 时只补透明度，不重建节点。
         if (ico) {
+          const cur = ico.querySelector('img');
+          if (cur && cur.src === saved) {
+            const op = store.get('app-icon-opacity-' + app.dataset.app);
+            if (op) applyAppIconOpacity(app, parseInt(op, 10));
+            return;
+          }
           ico.innerHTML = '';
           const img = document.createElement('img');
           img.src = saved;
@@ -1038,6 +1047,7 @@ try {
           if (op) applyAppIconOpacity(app, parseInt(op, 10));
         }
       } else if (ico && ico.dataset.orig) {
+        if (ico.innerHTML === ico.dataset.orig) return;
         ico.innerHTML = ico.dataset.orig;
       }
     });
@@ -3047,14 +3057,21 @@ try {
       if (!el) return;
       if (img && typeof img === 'string' && img.length > 2) {
         // background-image 只放 url（与可选遮罩渐变层）；size/position 单独设置
-        el.style.backgroundImage = a > 0
+        const next = a > 0
           ? 'linear-gradient(rgba(255,255,255,' + a + '), rgba(255,255,255,' + a + ')), url("' + img + '")'
           : 'url("' + img + '")';
+        // FIX 2026-09-07 #249 切桌面卡死：恒等跳过——值没变不重写 backgroundImage。
+        // 赋同值也会让浏览器作废已解码位图重新解码（MB 级 dataURL 尤甚），切联系人
+        // 扇出的多条监听器（applyAllCardBgs 独立监听 + refreshDeskVisuals 综合监听）
+        // 每次切换对同一批卡片重复赋值，真机表现为切换瞬间整屏图片重解码卡顿。
+        if (el.style.backgroundImage === next) return;
+        el.style.backgroundImage = next;
         el.style.backgroundSize = 'cover';
         el.style.backgroundPosition = 'center';
         el.style.backgroundRepeat = 'no-repeat';
       } else {
         // 无图：恢复默认（清内联，回落到 --widget-bg 变量）
+        if (!el.style.backgroundImage) return;
         el.style.backgroundImage = '';
         el.style.backgroundSize = '';
         el.style.backgroundPosition = '';
@@ -3105,9 +3122,11 @@ try {
   applyAllCardBgs();
   applyAllWidgetTexts();
   applyAllWidgetOpacities();
-  document.addEventListener('contact-switched', applyAllCardBgs);
-  document.addEventListener('contact-switched', applyAllWidgetTexts);
-  document.addEventListener('contact-switched', applyAllWidgetOpacities);
+  // FIX 2026-09-07 #249 切桌面卡死：这三个监听器删掉——6750 行的综合切换监听器已调
+  // refreshDeskVisuals()（内部含 applyAllCardBgs/applyAllWidgetTexts/applyAllWidgetOpacities，
+  // 还带头像/页面背景/图片组件/壁纸 UI），同一批赋值每次切换重复跑两遍（prof-contact-switch
+  // 实测 applyCardBg 全家桶 ~13ms/次，MB 级 dataURL 在真机上翻倍成解码卡顿）。重应用语义
+  // 全保留在综合监听器一处，applyPageBgs→applyCardBg 的恒等跳过短路兜底其余重复赋值。
   // 卡片背景设置公共逻辑（设置页行点击 / 装修模式点卡片共用）：
   // 上传 / 清除 / 遮罩开关。type 为卡片类型，name 为显示名。
   // v3.6.x：装修模式点卡片时额外传入 anchorEl（点击的卡片元素）→ 菜单追加
@@ -3396,10 +3415,15 @@ try {
       if (!s) continue;
       const bg = sanitizeBg('page-bg-' + i, BG_SAFE_LIMIT);
       if (bg && typeof bg === 'string' && bg.length > 2) {
-        s.style.backgroundImage = 'url("' + bg + '")';
+        // FIX 2026-09-07 #249 切桌面卡死：恒等跳过（同 applyCardBg——整页背景可达数 MB，
+        // 赋同值触发真机重新解码；buildDeskPages 每次切换都走这里）
+        const want = 'url("' + bg + '")';
+        if (s.style.backgroundImage === want) continue;
+        s.style.backgroundImage = want;
         s.style.backgroundSize = 'cover';
         s.style.backgroundPosition = 'center';
       } else {
+        if (!s.style.backgroundImage) continue;
         s.style.backgroundImage = '';
         s.style.backgroundSize = '';
         s.style.backgroundPosition = '';

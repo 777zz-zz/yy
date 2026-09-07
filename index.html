@@ -8825,9 +8825,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788784296244">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.521</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 20:31<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788787849838">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.522</b></span>
+        <span class="sv-deploy">部署于 2026-09-07 21:30<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9983,7 +9983,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.521</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.522</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10274,7 +10274,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.521</span>
+              <span class="lic-ver">v3.26.522</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -19355,6 +19355,12 @@ saved = null;
 }
 if (saved) {
 if (ico) {
+const cur = ico.querySelector('img');
+if (cur && cur.src === saved) {
+const op = store.get('app-icon-opacity-' + app.dataset.app);
+if (op) applyAppIconOpacity(app, parseInt(op, 10));
+return;
+}
 ico.innerHTML = '';
 const img = document.createElement('img');
 img.src = saved;
@@ -19364,6 +19370,7 @@ const op = store.get('app-icon-opacity-' + app.dataset.app);
 if (op) applyAppIconOpacity(app, parseInt(op, 10));
 }
 } else if (ico && ico.dataset.orig) {
+if (ico.innerHTML === ico.dataset.orig) return;
 ico.innerHTML = ico.dataset.orig;
 }
 });
@@ -21196,13 +21203,16 @@ const a = maskAlphaOf(type);
 els.forEach(el => {
 if (!el) return;
 if (img && typeof img === 'string' && img.length > 2) {
-el.style.backgroundImage = a > 0
+const next = a > 0
 ? 'linear-gradient(rgba(255,255,255,' + a + '), rgba(255,255,255,' + a + ')), url("' + img + '")'
 : 'url("' + img + '")';
+if (el.style.backgroundImage === next) return;
+el.style.backgroundImage = next;
 el.style.backgroundSize = 'cover';
 el.style.backgroundPosition = 'center';
 el.style.backgroundRepeat = 'no-repeat';
 } else {
+if (!el.style.backgroundImage) return;
 el.style.backgroundImage = '';
 el.style.backgroundSize = '';
 el.style.backgroundPosition = '';
@@ -21242,9 +21252,6 @@ try { syncBgUI(); } catch (e) {}
 applyAllCardBgs();
 applyAllWidgetTexts();
 applyAllWidgetOpacities();
-document.addEventListener('contact-switched', applyAllCardBgs);
-document.addEventListener('contact-switched', applyAllWidgetTexts);
-document.addEventListener('contact-switched', applyAllWidgetOpacities);
 const openCardBgMenu = (type, name, anchorEl) => {
 const img = store.get('card-bg-' + type);
 const widgetEl = anchorEl ? anchorEl.closest('[data-desk-widget]') : null;
@@ -21493,10 +21500,13 @@ const s = slides[i];
 if (!s) continue;
 const bg = sanitizeBg('page-bg-' + i, BG_SAFE_LIMIT);
 if (bg && typeof bg === 'string' && bg.length > 2) {
-s.style.backgroundImage = 'url("' + bg + '")';
+const want = 'url("' + bg + '")';
+if (s.style.backgroundImage === want) continue;
+s.style.backgroundImage = want;
 s.style.backgroundSize = 'cover';
 s.style.backgroundPosition = 'center';
 } else {
+if (!s.style.backgroundImage) continue;
 s.style.backgroundImage = '';
 s.style.backgroundSize = '';
 s.style.backgroundPosition = '';
@@ -31343,10 +31353,8 @@ myeApplyIdb(v);
 });
 }
 document.addEventListener('contact-switched', function () {
-myGroups = myEmojiLoad();
 loadEmojiPref(); // v3.26.x：切换联系人后按该桌面的上次 tab/分组偏好落位，不复用上一桌面状态
 if (!emojiPanel.hidden) renderEmojiPanel();
-reloadMyEmojiFromIdb();
 });
 document.addEventListener('hide-ta-sticker-changed', function () {
 if (emojiPanel && !emojiPanel.hidden) renderEmojiPanel();
@@ -33681,6 +33689,7 @@ if (page) page.hidden = false;
 updateGroupName();
 loadMsgs();
 renderAll();
+gcSwitchDirty = false; // FIX #249：进群即全量重建（loadMsgs+renderAll），切桌挂起的脏标记就地清账
 hideTyping(); // FIX 串群 #242 家族：打字指示器全局共享，进群清掉其他群残留
 syncGcInputBtns(); // 进入群聊时按当前桌面设置刷新语音/继续说/批量按钮显隐
 }
@@ -34949,12 +34958,19 @@ try { if (input) input.focus(); } catch (err) {}
 closeGcMsgActions();
 });
 }
+let gcSwitchDirty = false;
 document.addEventListener('contact-switched', function () {
 try { hideTyping(); } catch (e) {}
+const pageVisible = page && !page.hidden;
+if (pageVisible) {
 updateGroupName();
 renderAll();
 try { if (settingsPanel && !settingsPanel.hidden) renderSettingsPanel(); } catch (e) {}
 try { if (groupsPanel && !groupsPanel.hidden) renderGroupsPanel(); } catch (e) {}
+gcSwitchDirty = false;
+} else {
+gcSwitchDirty = true; // 隐藏态挂起：enterGroupChat 全量重建兜底（防未来入口绕过）
+}
 });
 window.groupChatGetMsgs = function () { return msgs.slice(); };
 window.groupChatClear = function () { msgs = []; saveNow(); renderAll(); };
@@ -81214,4 +81230,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtr7zghg -->
+<!-- __MOCHI_EOF__ mtra3mge -->

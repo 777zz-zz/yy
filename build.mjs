@@ -728,6 +728,9 @@ const FIX_SENTINELS = [
   { name: '收口第二批 语音 WebView 消费锚（chat.js 改读 mochiDevice.env.isAndroidWebView——标准安卓 Chrome 才走 webm/opus 防爆音，删读取则全安卓 WebView 误走 webm 能录不能播）', file: 'js/chat.js', needle: 'return !!((window.mochiDevice || {}).env || {}).isAndroidWebView;' },
   { name: '收口第二批 备份分享黑名单消费锚（data-backup.js 改读 env.brokenFileShare——删读取则华为/夸克分享假成功 AbortError 回归=无法导出备份）', file: 'js/data-backup.js', needle: 'const brokenFileShare = !!((window.mochiDevice || {}).env || {}).brokenFileShare;' },
   { name: '收口第二批 kaIsIOS 薄壳（bg-keep.js 改读 mochiDevice.isIOS 唯一判定源——复刻正则回来=device.js 判定升级时保活幅度/频率走错平台分支）', file: 'js/bg-keep.js', needle: 'try { return !!(window.mochiDevice || {}).isIOS; } catch (e) {}' },
+  { name: '#250 切桌面卡死·表情包全局键重复重读（chat.js 切换监听不再 myEmojiLoad+reloadMyEmojiFromIdb——my-emoji-groups 全局键切桌面不变，删此守卫则大表情库设备每次切换整包 JSON.parse×2+35MB idbGet 主线程卡死数秒）', file: 'js/chat.js', needle: "loadEmojiPref(); // v3.26.x：切换联系人后按该桌面的上次 tab/分组偏好落位，不复用上一桌面状态\nif (!emojiPanel.hidden) renderEmojiPanel();\n});" },
+  { name: '#250 切桌面卡死·群聊切换按可见性重渲（group-chat.js 隐藏态挂起 gcSwitchDirty 不整窗重渲 200 条——删则重度群聊设备每次切换白耗主线程；成员名随联系人改名变化由 enterGroupChat 全量重建保证）', file: 'js/group-chat.js', needle: 'const pageVisible = page && !page.hidden;' },
+  { name: '#250 切桌面卡死·卡片背景恒等跳过（personalize.js applyCardBg 值变才写——赋同值=浏览器作废已解码位图重新解码，MB 级 dataURL 真机切换瞬间整屏重解码）', file: 'js/personalize.js', needle: 'if (el.style.backgroundImage === next) return;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

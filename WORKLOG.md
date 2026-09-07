@@ -260,3 +260,10 @@
 - 验证：node --check 过；临时副本全量构建哨兵 444/444 哑 0；verify-music-cover-direct 17/17；相邻回归 dur-cover 9/9、history-cover 8/8、ta-fav-keep 10/10、bg-resume 12/12、single-audio 15/15。
 - 编号占用声明：#216（音乐封面）/#214（manifest 黑边）归本会话；#213 曾短暂占用已让出（并行会话已改用 #215），树内无 213 残留。
 - 【真机:待验证】见 FIX-REGRESSION 216/214。
+
+### 2026-09-07 10:0x（#250 切换桌面联系人卡死：切换监听扇出三处冗余重活收口——用户报障；未构建·本次构建者：本会话）
+- [AI-B 域 personalize.js/chat.js+AI-A 域 group-chat.js+共享 build.mjs/FIX-REGRESSION.md]（**改动文件：src/js/chat.js（#250①切换监听删 myEmojiLoad()+reloadMyEmojiFromIdb()——my-emoji-groups 全局键切桌面不变，大表情库设备（#172 实例 34.93MB）每次切换整包 JSON.parse×2+35MB 级 idbGet 主线程卡死数秒；保留 loadEmojiPref 按桌面偏好落位+面板开着才重绘）；src/js/group-chat.js（#250②切换监听按可见性分流：pageVisible 才 renderAll 整窗重渲 200 条，隐藏态置 gcSwitchDirty 挂起、enterGroupChat 全量重建时清账——群聊数据全局共用且切换时群聊页必隐藏，纯浪费；成员名随联系人改名由进群重建保证）；src/js/personalize.js（#250③删 applyAllCardBgs/applyAllWidgetTexts/applyAllWidgetOpacities 三个独立切换监听器[语义全保留在 6750 行综合监听器 refreshDeskVisuals() 一处]+applyCardBg/applyPageBgs/restoreAppIcons 三处赋值恒等跳过[值变才写，赋同值=浏览器作废已解码位图重新解码]）；build.mjs（哨兵+3=536）；FIX-REGRESSION.md（+#250 行）；tools/verify-contact-switch-perf.mjs（新增 9 断言）**；构建状态：**未构建·树上待收口（本次构建者已声明，收口口请跑 node build.mjs + 哨兵 + verify）**）。
+- 需求/归因：用户报障「切换桌面联系人网站会卡死」。开工时树净；用既有 tools/prof-contact-switch.mjs 实测：切换一次同步扇出 79 个 contact-switched 监听器 ≈75ms 主线程（长任务 ~100ms），热点=①restoreAppIcons/buildDeskPages 大图重设②applyCardBg 全家桶重复跑两遍③群聊整窗重渲④全局表情包键重复重读；无死循环（探针排除）。修复后复测同步中位 43.3ms（-42%）、长任务 ~55ms。
+- 验证：node --check 过×3；tools/verify-contact-switch-perf.mjs **9/9**（静态 J1-J5+行为 B1 隐藏态连切 3 次群聊 DOM 零重渲/B3 桌面功能在位）；stash 红绿对照 HEAD 3 通过 6 失败（红项恰为修复点）；--check-sentinels 536 哑 0；prof 复测见上。
+- 【并行声明】开工时树上 AI-B 设备判定批（#249）在途，本口只先改无占用的 group-chat.js/personalize.js 并等待；其收口提交 c2fcc14 后占用解除，本口才补改 chat.js/build.mjs（修复内容未变，chat.js 编辑落在其改动之后的最新文件上）。无跨域冲突：group-chat.js 属 AI-A 功能域，本口按「用户报障修复」惯例处理并在 WORKLOG 声明。
+- 【真机:待验证】（任意机型，重度表情库/多群聊设备优先）：连续切换联系人 5~10 次无卡死/转圈；切换后桌面壁纸、卡片背景、图标、群聊消息、表情包面板均正常显示。

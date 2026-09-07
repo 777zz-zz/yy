@@ -7539,10 +7539,13 @@ myeApplyIdb(v);
 });
 }
 document.addEventListener('contact-switched', function () {
-myGroups = myEmojiLoad();
+// FIX 2026-09-07 #250 切桌面卡死：my-emoji-groups 是全局键（MYE_G_PREFIX 恒 'xy-home-v2'，
+// 不随桌面命名空间变），切桌面既不改变它也不清 myGroups——原监听每次切换都
+// myEmojiLoad()+reloadMyEmojiFromIdb()，大表情库设备（#172 实例 34.93MB）每次切换
+// 整包 JSON.parse ×2 + 重复 35MB 级 idbGet 事务，主线程卡死数秒。模块态与桌面无关，
+// 这里只保留按桌面的 tab/分组偏好落位与开着面板的重绘。
 loadEmojiPref(); // v3.26.x：切换联系人后按该桌面的上次 tab/分组偏好落位，不复用上一桌面状态
 if (!emojiPanel.hidden) renderEmojiPanel();
-reloadMyEmojiFromIdb();
 });
 document.addEventListener('hide-ta-sticker-changed', function () {
 if (emojiPanel && !emojiPanel.hidden) renderEmojiPanel();
