@@ -1,3 +1,19 @@
+### 2026-09-07 23:0x（OPPO Reno6 5G/雨见「其他功能字卡页下面无法滑动显示字卡」——定性=v3.26.513 旧版残留（#239 修复上线于 516），非回归；verify-fun-cards-layout 加固 360×658 断言；src 无产品改动·本会话未构建·本次构建者：无——本批纯工具+台账）
+- [AI-A 域 tools/ + 共享 FIX-REGRESSION.md/WORKLOG.md]（**改动文件：tools/verify-fun-cards-layout.mjs（SERVE_DIR 红绿对照支持+S 段 OPPO 同款 360×658 三断言）、FIX-REGRESSION.md（#239 行复发定性+设备索引 OPPO Reno6 行+239）**；构建状态：**src 无改动无需构建**——本批=诊断定性+防复发加固，产物与远端一致）。
+- 需求：OPPO Reno6 5G/雨见报「【系统预设字卡】的【其他功能字卡】页面下面无法滑动显示字卡…其他设备型号也有」，附 v3.26.513 诊断。
+- 定性（时间线+红绿对照实证，非新 bug）：513 构建于 04:19（9fe669d），同页同症状 #239 修复（概率框插头部把 #fc-list 压成 6px 首屏在视口外）上线于 05:11 的 516（11abd7d），远端 08:28 已部署新 ts——该机停留旧版。git worktree 检出 513 产物 SERVE_DIR 对照 4/10：S1 首屏 inVp:0、列表 rectH=6、S2 CDP 触摸滑动 scrollTop 推进 335px 后可见字卡 visN:0=报障原文精确复现；HEAD 产物 10/10 全绿。设备索引已有 Reno6（169/200/228 语音家族），本次+239 滚动域。
+- 防复发加固（用户点名「不要覆盖修改导致不同型号反复出现」）：verify-fun-cards-layout ①SERVE_DIR=目录 可对任意历史产物对照；②S 段 360×658（OPPO 同款视口）：S1 首屏有字卡+页面可滚、S2 CDP dispatchTouchEvent 真实手势下滑 scrollTop 推进+滚出屏外新字卡、S3 概率框可滚入视口——「下面滑不出内容」类跨机型复发未来直接红绿判定，不再依赖机型猜测。
+- 验证：node --check 过；--check-sentinels 540 全绿哑 0（src 未动）；HEAD 10/10、513 基线 4/10（红项=1/2/3/7+新增 S1/S2，恰为修复点与新增断言）；S2 用 CDP touchStart/Move/End（mouse 拖拽不走触摸平移路径，首版断言误红已自纠）。
+- 【真机:待验证】（OPPO Reno6 5G/雨见）：更新到 516+（顶部更新条刷新或关全部标签页重开）后——字卡库→系统预设字卡→其他互动功能字卡：打开即见摸鱼字卡列表可点，往下滑能滚出更多字卡，页面底部是「使用概率」13 行；若更新后仍异常再按新版本号报障。
+- 顺带核对：诊断里 SyntaxError: redeclaration of let JSInterface / TypeError: JSInterface.sysonSelectTextChange×2 全部出自雨见壳自身注入脚本（全仓 grep 无 JSInterface，@anonymous:1:1 入栈），与本页滚动无关，无需处理。
+
+### 2026-09-07 11:0x（#251 群聊设置对齐聊天设置·输入/数据/删除消息——未构建·本次构建者：本会话）
+- [AI-A 域]（**改动文件：src/js/group-chat.js、src/css/group-chat.css、src/template.html、build.mjs、tools/verify-gc-settings.mjs**；构建状态：**未构建·本会话收口**）。
+- 需求：用户反馈「群聊右上角没有聊天设置里的全部功能」。盘点结论：美化类已全有（壁纸/气泡/字体/方案），真缺口=回车发送开关、批量发送/语音/隐藏表情包/允许删除四个开关、导出/导入/清空记录、删除消息。
+- 方案：群聊设置主视图新增「输入与消息」（5 开关，读写与聊天设置同一批键 cs-enter-send[on/off]/cs-batch-send/cs-voice-send/cs-del-ta-msg/hide-ta-sticker）+「数据」组（导出=流式 Blob JSON、导入=兼容单聊/裸数组/整份备份、清空=二次确认，均只作用当前群）；气泡操作菜单加「删除」按钮（ma-del-gc，按 cs-del-ta-msg 显隐，仅成员消息）；keydown 回车读 cs-enter-send==='off' 放行换行（与 chat.js 8751 同语义）。
+- 验证：node --check 过；verify-gc-settings 扩 S9-S12/R17-R20（开关行渲染与写键/删除按钮开关显隐/导出导入清空静态锚/回车开关行为）；构建后跑哨兵+群聊家族。
+- 【真机:待验证】群聊设置新两组操作正常、导出文件可再导入、删除消息刷新后不复活。
+
 ### 2026-09-07 09:0x（设备判定收口第二批：mochiDevice 新增 env 能力层，清掉 v3.16.x 漏网的 4 处 UA/平台特判复刻——已构建·sw mochi-mtr7zghg·本次构建者：本会话）
 - [AI-B 域+跨域 chat.js/music-player.js/data-backup.js（开工前 WORKLOG 已声明占用，树上无在途认领）]（**改动文件：src/js/device.js（mochiDevice 新增 env 能力层：isAndroidWebView[空 UA 保守 true 原语义]/brokenFileShare/apiBlockedHint/notifyQuirk 四布尔标记，UA 嗅探唯一处）；src/js/chat.js（isAndroidWebView 改读 env，18 壳大正则删除）；src/js/data-backup.js（brokenFileShare 改读 env，/huaweibrowser|quark/ 删除）；src/js/music-player.js（两处 QQ|Quark 拦截提示改读 env.apiBlockedHint）；src/js/bg-keep.js（kaIsIOS 改薄壳读 mochiDevice.isIOS[函数名保留=#207 哨兵与 verify-keep-audio 抽取契约]；小米通知提示改读 env.notifyQuirk）；src/js/idb.js（armFgIdbReset gate 改读 mochiDevice.isIOS，touchMac 复刻实现删除——device.js isIOS 本身含 #144 Macintosh 伪装分支，行为语义等价）；build.mjs（哨兵+4=533[env 挂载锚/chat 消费锚/data-backup 消费锚/bg-keep 薄壳锚]+#144 idb needle 同步 1 条）；FIX-REGRESSION.md（#144 行更新+新增 #249 收口批条目）；tools/verify-keep-audio.mjs（抽取壳加 window.mochiDevice 桩适配薄壳化 kaIsIOS）；tools/verify-device-env.mjs（新增 27 断言）**；构建状态：**已构建·sw mochi-mtr7zghg·本会话执行**）。
 - 需求：用户问「手机端 bug 多且修复被覆盖怎么优化」→ 扫描确认 mochiDevice 自 v3.16.x 已是唯一判定源但能力型判定无处安放，4 文件各拼一套 UA 正则+2 文件复刻 iOS 判定（同批浏览器名单 4 处、iPad 伪装检测 2 处，改漏一处=修一半）。本批收口后逻辑零变化、纯判定源唯一化。
