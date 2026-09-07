@@ -605,9 +605,39 @@ function normCell(r) {
   } catch (e) {}
   return c;
 }
+// ===== FIX 2026-09-07 #256 表情包「屏上重复一条、刷新几下又变回一条」——相邻重复判定三处口径收口 =====
+// 根因：相邻重复判定存在三套窗口——addRec 实时去重 1200ms、collapseRapidDups/normCollapseRange
+// 刷新归一化 2500ms(文本)/60000ms(仅 img/voice/special 字段型媒体)。多字卡回复条间隔
+// randInt(1200,2800)ms 恰好整体落在实时窗之外：联系人一批回两张同款表情包（表情包池小或
+// 表情包概率拉满时高发，各机型均现），屏上两张都渲染；刷新后归一化又按「相邻重复」删掉一张
+// （间隔 ≤2500ms 且两份文本形式一致时）＝「重复一条、刷新几下消失变回一条」。
+// 次因（跨形式漏判）：#142 媒体令牌化会把 text 从 data:base64 异步改写为 @@m:令牌，令牌化
+// 竞态下同一条内容一处已是令牌、另一处仍是 base64，文本直比不等＝重复判定全链漏过，刷新也
+// 合并不了（要等两次令牌化收敛后再一轮归一化，体感「刷好几下才好」）。
+// 收口：①dupGapMs 唯一窗口源（文本 2500ms 不变；媒体 60000ms——img/voice/special 字段两侧
+// 沿用既有 60000；text 即媒体的 sticker/image/voice 型仅收件侧扩到 60000，发件侧是人为重发
+// 60s 内重发同图属合法行为不吞）；②mediaTxtEq 展开池令牌后再比对（内容寻址，令牌展开即原
+// 数据）——addRec 实时去重与刷新归一化共用，屏上所见即刷新后所见，不再翻饼。
+const DUP_GAP_TEXT = 2500, DUP_GAP_MEDIA = 60000;
+function mediaTxtEq(a, b) {
+  a = a || ''; b = b || '';
+  if (a === b) return true;
+  try {
+    if (window.mochiMediaIsToken && window.mochiMediaExpand) {
+      if (a && window.mochiMediaIsToken(a)) { const x = window.mochiMediaExpand(a); if (x && x === b) return true; }
+      if (b && window.mochiMediaIsToken(b)) { const x = window.mochiMediaExpand(b); if (x && x === a) return true; }
+    }
+  } catch (e) {}
+  return false;
+}
+function dupGapMs(m) {
+  if (!m) return DUP_GAP_TEXT;
+  if (m.img || m.voice || m.special) return DUP_GAP_MEDIA;
+  if ((m.type === 'sticker' || m.type === 'image' || m.type === 'voice') && (m.side || '') === 'in') return DUP_GAP_MEDIA;
+  return DUP_GAP_TEXT;
+}
 function normCollapseRange(from, to) {
   let removed = 0;
-  const GAP_TEXT = 2500, GAP_MEDIA = 60000;
   try {
     const n = msgs.length;
     for (let i = Math.min(to, n) - 1; i > from; i--) {
@@ -616,9 +646,8 @@ function normCollapseRange(from, to) {
       if (dupSig(a) !== dupSig(b)) continue;
       const hasContent = (a.text && a.text.length) || a.img || a.voice || !!a.special || (a.parts && a.parts.length);
       if (!hasContent) continue;
-      const isMedia = !!a.img || !!a.voice || !!a.special;
       const dts = (a.ts || 0) - (b.ts || 0);
-      if (dts < 0 || dts > (isMedia ? GAP_MEDIA : GAP_TEXT)) continue;
+      if (dts < 0 || dts > dupGapMs(a)) continue;
       msgs.splice(i, 1); removed++;
     }
   } catch (e) {}
@@ -710,20 +739,23 @@ else if (sp === 'gift') extra = String(m.flName || '') + '|' + String(m.flEmoji 
 else if (sp === 'flower') extra = String(m.flName || '') + '|' + String(m.flEmoji || '') + '|' + String(m.flWish || '');
 } catch (e) {}
 const normT = (m.type === 'text' || !m.type) ? '' : String(m.type || '');
-return JSON.stringify({ s: m.side || '', t: normT, sp: sp, x: m.text || '', im: !!m.img, vc: !!m.voice, e: extra });
+// #256：x 跨形式归一——令牌化竞态下同一内容一处 @@m:令牌、一处 data:base64，
+// 直比不等＝相邻重复漏判。池令牌内容寻址，展开即原数据；池未热载 expand null 时
+// 回退原文（退化为旧行为，不引入误判）。
+let x = m.text || '';
+try { if (x && window.mochiMediaIsToken && window.mochiMediaIsToken(x) && window.mochiMediaExpand) { const ex = window.mochiMediaExpand(x); if (ex) x = ex; } } catch (e) {}
+return JSON.stringify({ s: m.side || '', t: normT, sp: sp, x: x, im: !!m.img, vc: !!m.voice, e: extra });
 }
 function collapseRapidDups(arr) {
 let removed = 0;
-const GAP_TEXT = 2500, GAP_MEDIA = 60000;
 for (let i = arr.length - 1; i > 0; i--) {
 const a = arr[i], b = arr[i - 1];
 if (!a || !b || !a.side || a.side !== b.side) continue;
 if (dupSig(a) !== dupSig(b)) continue;
 const hasContent = (a.text && a.text.length) || a.img || a.voice || !!a.special || (a.parts && a.parts.length);
 if (!hasContent) continue;
-const isMedia = !!a.img || !!a.voice || !!a.special;
 const dts = (a.ts || 0) - (b.ts || 0);
-if (dts < 0 || dts > (isMedia ? GAP_MEDIA : GAP_TEXT)) continue;
+if (dts < 0 || dts > dupGapMs(a)) continue;
 arr.splice(i, 1);
 removed++;
 }
@@ -2980,14 +3012,17 @@ try { store.set('desk-msg-en', deskMsgToggle.checked ? '1' : '0'); } catch (e) {
 function addRec(rec) {
 if (!rec.ts) rec.ts = Date.now();
 const len = msgs.length;
+// #256：实时去重改与刷新归一化同口径——mediaTxtEq 跨形式比对 + dupGapMs 统一窗口
+// （sticker/image/voice 型收件侧 60000ms，覆盖多字卡回复条间隔 randInt(1200,2800)；
+// 旧 1200ms 窗整体漏过该间隔＝同款表情包一批两张，刷新后才被归一化删掉一张）。
 for (let i = len - 1; i >= Math.max(0, len - 5); i--) {
 const p = msgs[i];
 if (!p || p.special || rec.special) continue;
 if ((p.side || '') !== (rec.side || '')) continue;
-if ((p.text || '') !== (rec.text || '')) continue;
 if (!!p.img !== !!rec.img) continue;
+if (!mediaTxtEq(p.text, rec.text)) continue;
 const dts = (rec.ts || 0) - (p.ts || 0);
-if (dts >= 0 && dts <= 1200) { saveMsgs(); return null; }
+if (dts >= 0 && dts <= dupGapMs(rec)) { saveMsgs(); return null; }
 }
 msgs.push(rec);
 chatTailAppend(rec); // #180：同步尾巴日志先落 LS，再交低频整包落盘

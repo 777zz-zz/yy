@@ -471,6 +471,7 @@ const FIX_SENTINELS = [
   { name: '安卓 Chrome 强制深色遮蔽网页配色修复：:root 显式声明 color-scheme:light（深色由 data-theme 手动管；缺失时系统深色下 Chrome Auto Dark 无视网页配色把群聊气泡/字体全网压成纯黑，iQOO Neo10 反馈）——#252 升级 only light（裸 light 是偏好声明不是退出开关，部分安卓 Chromium/WebView 系统深色下仍压黑）', file: 'css/base.css', needle: 'color-scheme:only light' },
   { name: '#252 深色三档启动落位含 auto 档+浅色强制清残留（头部脚本旧版只认 dark：auto 用户系统深色下白闪 FOUC；残留 data-theme 令浅色档界面停留深色）', file: 'template.html', needle: "if(_tm==='dark'||(_tm!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.setAttribute('data-theme','dark');else document.documentElement.removeAttribute('data-theme')" },
   { name: '#252 applyThemeMode 浅色档显式 removeAttribute（属性在=dark.css 全量生效，双保险防残留；needle 按产物压缩后的无缩进换行形态登记）', file: 'js/personalize.js', needle: "if (eff === 'dark') document.documentElement.setAttribute('data-theme', 'dark');\nelse document.documentElement.removeAttribute('data-theme');" },
+  { name: '#258 深色覆盖展平为完整前缀选择器（dark.css 禁用 CSS 原生嵌套：嵌套需 Chromium 112+/iOS 16.5+，老内核丢嵌套规则=浅色白底扁平规则独存+文字变量翻白=白卡白字看不见，用户报「深色下拍一拍字卡全是白的」；展平语义等价，回退成嵌套即断）', file: 'css/dark.css', needle: '[data-theme="dark"] #poke-list .cc-item' },
   { name: '#104 导出入口不再裸调用 doExport（absent 守卫：出现无 await/无 catch 的 doExport(); 即回归——遮罩永不隐藏的直接根因）', file: 'js/data-backup.js', needle: 'doExport();', absent: true },
   { name: '#105 钓鱼「留」标记按归属存（keepKey(side,id)，回归成品种级开关时同品种两侧互相牵连——用户报「只想留 TA 的」做不到）', file: 'js/fishing.js', needle: 'function keepKey(side, id)' },
   { name: '#105 出售按归属跳过未留项（旧写法 keep[id] 会把另一侧同品种的鱼一起跳过不卖）', file: 'js/fishing.js', needle: 'if (keep[keepKey(side, id)]) return;' },
@@ -742,6 +743,8 @@ const FIX_SENTINELS = [
   { name: '#255 iOS 键盘期弹窗顶对齐·开关（mobile-adapt 键盘会话 _kbActive/_iProv 给 #modal-mask 挂 modal-kb-dock——居中弹窗随 .phone 高度变化反复取中=打字输入框上滑；删则顶对齐失效）', file: 'js/mobile-adapt.js', needle: "mk.classList.toggle('modal-kb-dock'" },
   { name: '#255 iOS 键盘期弹窗顶对齐·CSS（mask 顶对齐 + 安全区上边距；删则 JS 挂类无效果）', file: 'css/base.css', needle: '.modal-mask.modal-kb-dock { align-items: flex-start; }' },
   { name: '#255 批量导入弹窗放大（opts.big 宽版 420px/94vw + 原生 textarea rows=8——272px 窄弹窗用户报障「太小了」；删则回退窄版）', file: 'js/chatcard.js', needle: 'textareaRows: 8' },
+  { name: '#257 整页「点不动」死点击逃生门·判定锚（同点 3 快击零 click=死点击，先做 click 活性复核防误报——删则健康页误触发复位/真死页缺判定依据）', file: 'js/mobile-adapt.js', needle: 'if (_escLastClickAt >= tapEndAt)' },
+  { name: '#257 整页「点不动」诊断·触摸轨迹采集（与交互轨迹并排输出：触摸有 click 无=死点击实锤；key __diag-touch 跨重启随诊断回收）', file: 'js/device.js', needle: "'xy-home-v2:__diag-touch'" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

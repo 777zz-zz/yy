@@ -193,6 +193,24 @@ await sleep(500);
 const dv2 = await evalJs("(function(){var cs=getComputedStyle(document.documentElement);return cs.getPropertyValue('--msg-in-bg').trim()+'|'+document.documentElement.getAttribute('data-theme');})()");
 check('D6 再次切回深色：变量即时重算(MutationObserver 生效)', /^#2a2a2a\|dark$/.test(norm(dv2).replace('|', '|')) || dv2 === '#2a2a2a|dark', dv2);
 
+// ---- E. 静态防线：dark.css 禁止 CSS 原生嵌套（#258）----
+// 嵌套需 Chromium 112+/iOS 16.5+；老内核把嵌套规则整段丢弃=浅色白底扁平规则独存
+// +文字色被扁平变量翻白 = 「白卡白字看不见」。dark.css 全部规则必须为展平的
+// [data-theme="dark"] 前缀选择器（与 garden/memo.css 镜像链约定一致）。
+const artifact = readFileSync(join(root, 'index.html'), 'utf8');
+check('E1 产物含展平的拍一拍深色规则([data-theme] #poke-list .cc-item)', artifact.includes('[data-theme="dark"] #poke-list .cc-item'));
+check('E2 产物无原生嵌套深色块(老内核兼容，#258)', !/\[data-theme="dark"\] \{\s*[\r\n]+\s*[.#\[]/.test(artifact));
+{
+  const srcDark = readFileSync(join(root, 'src', 'css', 'dark.css'), 'utf8');
+  let depth = 0, nested = 0;
+  for (let i = 0; i < srcDark.length; i++) {
+    if (srcDark.startsWith('/*', i)) { const e = srcDark.indexOf('*/', i + 2); i = e < 0 ? srcDark.length : e + 1; continue; }
+    if (srcDark[i] === '{') { if (depth > 0) nested++; depth++; }
+    else if (srcDark[i] === '}') depth--;
+  }
+  check('E3 src dark.css 括号平衡且零嵌套规则', depth === 0 && nested === 0, 'depth=' + depth + ' nested=' + nested);
+}
+
 try { if (ws) ws.close(); } catch (e) {}
 try { chrome.kill(); } catch (e) {}
 try { server.close(); } catch (e) {}

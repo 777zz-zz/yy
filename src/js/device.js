@@ -553,6 +553,11 @@
   const LT_KEY = 'xy-home-v2:__diag-lt';
   const NET_KEY = 'xy-home-v2:__diag-net';
   const TAP_KEY = 'xy-home-v2:__diag-tap';
+  // FIX 2026-09-07 #257：触摸轨迹（「点不动/退不出」死点击定案用）——交互轨迹只记 click，
+  // 「触摸活着、点击死」（合成层/输入管线/残留态吃掉点击合成）在诊断里表现为触摸零记录，
+  // 无法与「用户没摸」区分。补记 touchstart（与 TAP_KEY 同款环形 6 条），诊断并排输出：
+  // 触摸有、click 无＝死点击实锤（配合 mobile-adapt #257 逃生门的 __diag-stuck 记录定案）。
+  const TOUCH_KEY = 'xy-home-v2:__diag-touch';
   // 通用环形缓冲写入（环境变化/长任务/网络失败/交互轨迹共用）
   function ringPush(key, ent, cap) {
     try {
@@ -632,6 +637,26 @@
         if (desc) ringPush(TAP_KEY, { t: Date.now(), x: desc.slice(0, 80) }, 6);
       } catch (e) {}
     }, true);
+  } catch (e) {}
+  // FIX 2026-09-07 #257：触摸轨迹采集——只记元素标识+所在页（绝不记坐标/内容），
+  // 与交互轨迹（click）并排读：触摸有 click 无＝死点击实锤。
+  try {
+    document.addEventListener('touchstart', function (ev) {
+      try {
+        var desc = '', n = ev.target;
+        for (var depth = 0; n && n !== document && depth < 2; depth++, n = n.parentNode) {
+          var seg = n.tagName ? String(n.tagName).toLowerCase() : '';
+          if (n.id) seg += '#' + n.id;
+          if (typeof n.className === 'string' && n.className) seg += '.' + n.className.split(/\s+/).slice(0, 2).join('.');
+          desc = desc ? seg + '>' + desc : seg;
+        }
+        if (!desc) return;
+        var pc = document.getElementById('page-chat');
+        var pg = document.getElementById('page-group-chat');
+        var at = pc && !pc.hidden ? 'chat' : (pg && !pg.hidden ? 'gc' : '');
+        ringPush(TOUCH_KEY, { t: Date.now(), x: desc.slice(0, 60), pg: at }, 6);
+      } catch (e) {}
+    }, { passive: true, capture: true });
   } catch (e) {}
   // ===== 输入轨迹（v3.26.x）=====
   // 「聊天输入栏打字不显示、空白」（红米 K60 至尊版 + Edge）三种成因症状完全一样，
@@ -875,7 +900,9 @@
           + (vg.kb && vg.kb.vvNow !== undefined ? '  当前vv=' + vg.kb.vvNow : '')
           + (vg.kb && vg.kb.watching !== undefined ? '  轮询=' + (vg.kb.watching ? '跑' : '停') + ' 宽限剩=' + vg.kb.burstLeft + 'ms' : '')
           + (vg.kb && vg.kb.typosAgo !== undefined ? '  最近键入前=' + vg.kb.typosAgo + 'ms' : '')
-          + '  聚焦元素=' + (vg.kb && vg.kb.focusTag ? vg.kb.focusTag : '(无)'));
+          + '  聚焦元素=' + (vg.kb && vg.kb.focusTag ? vg.kb.focusTag : '(无)')
+          + '  浮层开=' + (vg.lock && vg.lock.open && vg.lock.open.length ? vg.lock.open.join('|') : '无')
+          + '  逃生探针=' + (function () { try { var p = window.__mochiStuckProbe && window.__mochiStuckProbe(); return p ? ('streak=' + p.streak + ' kb=' + (p.kb ? 1 : 0)) : 'n/a'; } catch (e) { return 'n/a'; } })());
       }
     } catch (e) {}
     // v3.26.x：聊天输入栏现场（红米 K60 至尊版 + Edge「打字不显示、空白」）——
@@ -1358,6 +1385,32 @@
         L.push('交互轨迹：无');
       }
     } catch (e) { L.push('交互轨迹：读取失败'); }
+    // FIX 2026-09-07 #257：触摸轨迹（与交互轨迹并排读：触摸有 click 无＝死点击实锤）
+    // + 卡死逃生记录（mobile-adapt #257 逃生门落盘的 LS 现场，跨重启可读）
+    try {
+      const tchs = JSON.parse(localStorage.getItem(TOUCH_KEY) || '[]');
+      if (Array.isArray(tchs) && tchs.length) {
+        L.push('触摸轨迹 ' + tchs.length + ' 条（旧→新，[所在页]元素）：');
+        tchs.forEach(function (it) {
+          const dt = it.t ? new Date(it.t).toLocaleTimeString() : '?';
+          L.push('· ' + dt + (it.pg ? '[' + it.pg + ']' : '') + ' ' + (it.x || '?'));
+        });
+      } else {
+        L.push('触摸轨迹：无');
+      }
+    } catch (e) { L.push('触摸轨迹：读取失败'); }
+    try {
+      const stucks = JSON.parse(localStorage.getItem('xy-home-v2:__diag-stuck') || '[]');
+      if (Array.isArray(stucks) && stucks.length) {
+        L.push('卡死逃生记录 ' + stucks.length + ' 条（旧→新，#257 逃生门触发现场）：');
+        stucks.forEach(function (it) {
+          const dt = it.t ? new Date(it.t).toLocaleTimeString() : '?';
+          L.push('· ' + dt + ' ' + (it.tag || '?') + '（' + (it.n || '?') + '击）');
+        });
+      } else {
+        L.push('卡死逃生记录：无（未触发过）');
+      }
+    } catch (e) { L.push('卡死逃生记录：读取失败'); }
     // v3.26.x：输入轨迹（「打字不显示/输入栏空白」定案用）——读法：
     //   n 恒 0 ＝ 字根本没进 DOM（输入法/内核丢提交）
     //   n 涨过又掉回 0 ＝ 进来了被清（防复活守卫 / 重绘清空 / 切桌面竞态）
