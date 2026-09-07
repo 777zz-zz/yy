@@ -705,6 +705,18 @@
           }
         } catch (e) {}
       }
+      // FIX 2026-09-07 #255：iOS 键盘期弹窗顶对齐——键盘开合动画与输入法候选条显隐让
+      // .phone 高度变化，弹窗在 mask 里 flex 居中每次重新取中 = 输入框跟着「往上滑」
+      //（iPhone16P/iOS26 Safari 批量导入弹窗打字上滑报障，居中容器通病其他机型同现）。
+      // 键盘会话（_kbActive/推定停靠 _iProv）期间给 #modal-mask 挂 modal-kb-dock 顶对齐
+      //（CSS 规则在 base.css，含安全区上边距），弹窗位置锚定顶部不再随高度变化移动；
+      // 收键盘摘除复原，安卓/桌面不进此分支零影响。
+      function syncModalKbDock() {
+        try {
+          var mk = document.getElementById('modal-mask');
+          if (mk) mk.classList.toggle('modal-kb-dock', !!(_kbActive || _iProv));
+        } catch (e) {}
+      }
       // v3.13.x：键盘期「文档大偏移滚动」自愈（iOS Edge 报修修复）——
       // Edge iOS（同 WebKit 内核）聚焦输入框后，除了键盘弹出还会把【文档】滚一段
       // 距离让焦点可见；该原生滚动可能晚于 _pinUntil 钉顶窗口（>500ms）才发生，
@@ -809,6 +821,7 @@
         try { _phone.style.minHeight = ''; } catch (e) {} // v3.15.x：还原键盘期压掉的 min-height
         _phone.style.alignSelf = '';
         kbUndockPanels();
+        syncModalKbDock(); // #255：摘除键盘期顶对齐类，弹窗回居中
         unlockDocScroll();
         pinScrollTop();
         stopKbWatch();
@@ -855,6 +868,7 @@
           // 容器内无法输入的已知问题；水平居中交给 body flex 原有规则
           _phone.style.alignSelf = 'flex-start';
           kbDockPanels(); // 底部半框停靠可视区底部=输入栏上方（防面板被挤出视口）
+          syncModalKbDock(); // #255：弹窗切顶对齐（防键盘期居中重取中=输入框上滑）
           // 键盘弹出瞬间浏览器可能已滚动页面，立即归零，防止灰底露出
           pinScrollTop();
           // v3.7.x：键盘弹出动画期（约 500ms）内持续钉顶防灰底露出；
@@ -894,6 +908,7 @@
               // 收缩后内层滚动容器里的输入框（问问ta 问题栏等）高度随之变化，
               // 补一次可见性对齐，确保它停在键盘上方
               nudgeInputVisible();
+              syncModalKbDock(); // #255：键盘已在而弹窗后开（如聊天键盘开着又点开弹窗）时补挂顶对齐类
               // v3.13.x：Edge iOS 延迟文档滚动自愈——vv scroll 事件漏触发时
               // 由 250ms 轮询兜底把超阈值滚动归零
               healKbScroll();
@@ -940,6 +955,7 @@
         _phone.style.alignSelf = 'flex-start';
         _setPhoneH(ph, 'prov'); // v3.26.x：改走唯一写入口
         kbDockPanels();
+        syncModalKbDock(); // #255：同 syncIosKb，弹窗切顶对齐
         pinScrollTop();
       }
       function _iProvClear() {
@@ -951,6 +967,7 @@
         try { _phone.style.minHeight = ''; } catch (e) {} // v3.15.x：还原
         _phone.style.alignSelf = '';
         kbUndockPanels();
+        syncModalKbDock(); // #255：摘除顶对齐
         pinScrollTop();
         _syncFullBase(); // v3.26.x：复原时刻即无键盘真实视口
         syncSafeBottom();
@@ -2093,6 +2110,169 @@
       });
       MANUAL_LOCK_IDS.forEach(function (id) { if (document.getElementById(id)) open.push('#' + id); });
       return { lock: document.body.classList.contains('scroll-lock'), open: open };
+    } catch (e) { return null; }
+  };
+  // ===== FIX 2026-09-07 #257：整页「点不动」死点击逃生门（行为证据门控，非机型分支） =====
+  // 用户报障（小米 MIX 4 / Edge 151「点进聊天页面什么按钮都点不了、退也退不出来」，多机型
+  // 同族；#148「页面突然上移什么都点不动」为其一）。用户诊断交互轨迹实锤关键签名：
+  // 卡死时段用户疯狂触摸但 click 轨迹整段空白＝「触摸事件活着、点击事件死」。成因族
+  // （残留 scroll-lock / 键盘会话 .phone 内联残留 / 焦点被劫持等）在用户重启后取诊断时
+  // 现场已洗掉，单根因无法实锤——本门不猜机型不猜成因，只认行为证据：同一位置 3 次
+  // 快速轻点（1.6s 窗口、相邻 <650ms、单击 <350ms、位移 <12px）均无任何 click 跟随
+  // （点得动的页面点击必然同步派发）＝判「死点击」→ 按证据逐层复位（残留滚动锁 /
+  // .phone 键盘期内联 height/alignSelf/top / 失焦）+ toast 播报 + LS 落现场
+  // （device.js 诊断读取「卡死逃生记录」，下次报障自带根因证据）。浮层打开期（正在
+  // 操作弹层）、键盘会话期（打字/候选）、长按（气泡菜单路径）、滚动手势一律不计数；
+  // 能正常点动的设备永不满足全部条件＝零行为变化，iOS/安卓通用。
+  var _escState = { streak: 0, key: '', firstAt: 0, lastAt: 0 };
+  var _escLastClickAt = 0;
+  var _escTap = null;
+  var _escHealing = false;
+  function _escKbOpen() {
+    try {
+      if (isIOS) { var f = window.__mochiIosKb && window.__mochiIosKb(); return !!(f && f.kbActive); }
+      var a = window.__mochiAndroidKb && window.__mochiAndroidKb();
+      return !!(a && (a.kbActive || a.prov));
+    } catch (e) { return false; }
+  }
+  function _escAnyFloatOpen() {
+    try {
+      for (var i = 0; i < FLOAT_SELECTORS.length; i++) {
+        if (floatIsOpen(document.querySelector(FLOAT_SELECTORS[i]))) return true;
+      }
+      for (var j = 0; j < MANUAL_LOCK_IDS.length; j++) {
+        if (document.getElementById(MANUAL_LOCK_IDS[j])) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+  function _escTouchDesc(el) {
+    try {
+      var seg = el && el.tagName ? String(el.tagName).toLowerCase() : '?';
+      if (el && el.id) seg += '#' + el.id;
+      else if (el && typeof el.className === 'string' && el.className) seg += '.' + el.className.split(/\s+/)[0];
+      return seg.slice(0, 40);
+    } catch (e) { return '?'; }
+  }
+  function _escHeal() {
+    var tag = [];
+    try {
+      if (locked || document.body.classList.contains('scroll-lock')) {
+        locked = false;
+        document.body.classList.remove('scroll-lock');
+        tag.push('scroll-lock');
+      }
+      // .phone 键盘期内联残留（安卓分支状态；iOS 由 healViewport 自治）——只清内联，
+      // 不碰 _aKb 等内部态：值交回后安卓 1s 看门狗（#209/#236）按视口证据完成全量复原
+      if (!isIOS) {
+        var ph = document.querySelector('.phone');
+        if (ph) {
+          if (ph.style.height) { ph.style.height = ''; tag.push('phone.height'); }
+          if (ph.style.alignSelf) { ph.style.alignSelf = ''; tag.push('phone.alignSelf'); }
+          if (ph.style.top) { ph.style.removeProperty('top'); tag.push('phone.top'); }
+        }
+      }
+      var ae = document.activeElement;
+      if (ae && ae !== document.body && ae.blur) { try { ae.blur(); tag.push('blur'); } catch (e) {} }
+    } catch (e) {}
+    try { applyLock(); } catch (e) {}
+    return tag;
+  }
+  function _escRecord(streak, tag) {
+    try {
+      var arr = [];
+      try { arr = JSON.parse(localStorage.getItem('xy-home-v2:__diag-stuck') || '[]') || []; } catch (e) { arr = []; }
+      if (!Array.isArray(arr)) arr = [];
+      arr.push({ t: Date.now(), n: streak, tag: tag.length ? tag.join('+') : '(无残留可清=指向合成层/输入管线)' });
+      if (arr.length > 3) arr = arr.slice(-3);
+      localStorage.setItem('xy-home-v2:__diag-stuck', JSON.stringify(arr));
+    } catch (e) {}
+  }
+  function _escToast(msg) {
+    // 与 device.js 同款 #cc-toast 通道（每个 js 单独 IIFE，拿不到 chat.js 顶层 toast）
+    try {
+      var t = document.getElementById('cc-toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'cc-toast';
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.className = 'cc-toast';
+      void t.offsetWidth;
+      t.className = 'cc-toast show';
+      clearTimeout(t._escT);
+      t._escT = setTimeout(function () { t.className = 'cc-toast'; }, 3200);
+    } catch (e) {}
+  }
+  function _escJudge(streak, deadline, tapEndAt) {
+    if (streak < 3) return;
+    setTimeout(function () {
+      try {
+        if (_escLastClickAt >= tapEndAt) { _escState.streak = 0; return; } // 点击活着=误报退出
+        if (_escState.streak < 3 || _escHealing) return;
+        _escHealing = true;
+        var tag = _escHeal();
+        _escState.streak = 0;
+        _escRecord(3, tag);
+        setTimeout(function () {
+          _escToast('检测到页面触控异常，已尝试恢复（' + (tag.length ? tag.join('+') : '无残留') + '）；若仍点不动请重启后在设置-诊断反馈');
+          _escHealing = false;
+        }, 60);
+      } catch (e) {}
+    }, Math.max(10, deadline - Date.now()));
+  }
+  document.addEventListener('touchstart', function (e) {
+    try {
+      var t = e.touches && e.touches[0];
+      if (!t) return;
+      _escTap = { x: t.clientX, y: t.clientY, t0: Date.now(), el: e.target };
+    } catch (e) {}
+  }, { passive: true, capture: true });
+  document.addEventListener('touchend', function (e) {
+    try {
+      if (document.visibilityState !== 'visible') { _escState.streak = 0; return; }
+      var tap = _escTap; _escTap = null;
+      if (!tap) return;
+      var te = e.changedTouches && e.changedTouches[0];
+      if (!te) return;
+      if (Date.now() - tap.t0 >= 350) return; // 长按（≥350ms=气泡菜单路径）不算轻点
+      var dx = te.clientX - tap.x, dy = te.clientY - tap.y;
+      if (dx * dx + dy * dy > 144) return;    // 位移 >12px=滚动手势不算
+      if (_escAnyFloatOpen()) { _escState.streak = 0; return; } // 弹层操作期不计数
+      if (_escKbOpen()) { _escState.streak = 0; return; }       // 键盘会话期不计数
+      var now = Date.now();
+      var key = _escTouchDesc(tap.el) + '@' + Math.round(te.clientX / 24) + ',' + Math.round(te.clientY / 24);
+      if (key !== _escState.key || now - _escState.lastAt > 650) {
+        _escState = { streak: 1, key: key, firstAt: now, lastAt: now };
+        _escJudge(1, now + 700, now);
+        return;
+      }
+      _escState.streak++;
+      _escState.lastAt = now;
+      _escJudge(_escState.streak, now + 700, now);
+    } catch (e) {}
+  }, { passive: true, capture: true });
+  document.addEventListener('click', function () {
+    _escLastClickAt = Date.now();
+    if (_escState.streak > 0) _escState.streak = 0; // 点击正常派发=页面活着，重新计数
+  }, { capture: true });
+  // 只读探针：诊断/现场采集用（当前命中状态 + 逃生门历史）
+  window.__mochiStuckProbe = function () {
+    try {
+      var open = [];
+      FLOAT_SELECTORS.forEach(function (sel) {
+        if (floatIsOpen(document.querySelector(sel))) open.push(sel);
+      });
+      var his = null;
+      try { his = JSON.parse(localStorage.getItem('xy-home-v2:__diag-stuck') || 'null'); } catch (e) {}
+      return {
+        streak: _escState.streak,
+        lock: document.body.classList.contains('scroll-lock'),
+        openFloats: open,
+        kb: _escKbOpen(),
+        lastHeal: his
+      };
     } catch (e) { return null; }
   };
 })();

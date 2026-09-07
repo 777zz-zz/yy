@@ -593,6 +593,16 @@
       setTimeout(floorPick, 0); // 嵌套 openModal 延后到外层 close 之后
     }, { noInput: true, pills: wp });
   }
+  // FIX 2026-09-07 #255 floorPick 整个函数缺失——装扮选墙纸确定后 setTimeout(floorPick)
+  // 必抛 ReferenceError（用户诊断「Can't find variable: floorPick ×6」，page-room），
+  // 装扮第二步选地板从未实现。补齐：与墙纸同款 pills 弹窗，选中写 d.floor
+  //（renderScene 以 floor-<id> 类消费）。
+  function floorPick() {
+    const fp = FLOORS.map(f => ({ label: (d.floor === f.id ? '✅ ' : '') + f.n + (f.lv > d.lv ? ' 🔒Lv' + f.lv : ''), value: f.lv <= d.lv ? 'f:' + f.id : '' }));
+    window.openModal('装扮 · 地板', '', function (v) {
+      if (v && v.indexOf('f:') === 0) { d.floor = v.slice(2); save(); renderScene(); }
+    }, { noInput: true, pills: fp });
+  }
 
   // ---- 小屋信息 ----
   function infoModal() {

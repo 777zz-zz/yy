@@ -909,9 +909,15 @@ html.mochi-cover-top .phone .statusbar {
   scrollbar-width:none; -ms-overflow-style:none;
 }
 .modal::-webkit-scrollbar, .modal-textarea.ce-box::-webkit-scrollbar { display:none; }
-.modal.modal--big { width:min(330px, 94vw); }
+.modal.modal--big { width:min(420px, 94vw); }
 .modal.modal--big .modal-textarea,
 .modal.modal--big .modal-textarea.ce-box { max-height:52vh; }
+/* FIX 2026-09-07 #255 iOS 键盘期弹窗顶对齐（mobile-adapt 键盘会话开关 modal-kb-dock，
+   安卓/桌面不挂类不受影响）：键盘期 .phone 高度变化时居中弹窗反复重新取中，
+   输入框视觉上「往上滑」（iPhone16P/iOS26 Safari 批量导入弹窗报障）。顶对齐后
+   弹窗位置锚定顶部（安全区上边距兜底），高度变化只影响底边，输入区不再移动 */
+.modal-mask.modal-kb-dock { align-items: flex-start; }
+.modal-mask.modal-kb-dock .modal { margin-top: max(10px, env(safe-area-inset-top)); }
 .modal-swatches { display:flex; flex-wrap:wrap; gap:12px; margin-top:4px; }
 .modal-swatches[hidden] { display:none; }
 .modal-pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }

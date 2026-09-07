@@ -570,9 +570,11 @@ overscroll-behavior:contain;
 scrollbar-width:none; -ms-overflow-style:none;
 }
 .modal::-webkit-scrollbar, .modal-textarea.ce-box::-webkit-scrollbar { display:none; }
-.modal.modal--big { width:min(330px, 94vw); }
+.modal.modal--big { width:min(420px, 94vw); }
 .modal.modal--big .modal-textarea,
 .modal.modal--big .modal-textarea.ce-box { max-height:52vh; }
+.modal-mask.modal-kb-dock { align-items: flex-start; }
+.modal-mask.modal-kb-dock .modal { margin-top: max(10px, env(safe-area-inset-top)); }
 .modal-swatches { display:flex; flex-wrap:wrap; gap:12px; margin-top:4px; }
 .modal-swatches[hidden] { display:none; }
 .modal-pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
@@ -8835,9 +8837,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788794845216">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.527</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 23:27<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788795750910">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.528</b></span>
+        <span class="sv-deploy">部署于 2026-09-07 23:42<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9993,7 +9995,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.527</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.528</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10284,7 +10286,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.527</span>
+              <span class="lic-ver">v3.26.528</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -69579,6 +69581,12 @@ if (v && v.indexOf('w:') === 0) { d.wall = v.slice(2); save(); renderScene(); }
 setTimeout(floorPick, 0); // 嵌套 openModal 延后到外层 close 之后
 }, { noInput: true, pills: wp });
 }
+function floorPick() {
+const fp = FLOORS.map(f => ({ label: (d.floor === f.id ? '✅ ' : '') + f.n + (f.lv > d.lv ? ' 🔒Lv' + f.lv : ''), value: f.lv <= d.lv ? 'f:' + f.id : '' }));
+window.openModal('装扮 · 地板', '', function (v) {
+if (v && v.indexOf('f:') === 0) { d.floor = v.slice(2); save(); renderScene(); }
+}, { noInput: true, pills: fp });
+}
 function infoModal() {
 const c = comfortSum();
 const invN = Object.keys(d.inv).reduce((a, k) => a + (d.inv[k] || 0), 0);
@@ -80507,6 +80515,12 @@ try { _vv.scrollTo(0, 0); } catch (e2) {}
 }
 } catch (e) {}
 }
+function syncModalKbDock() {
+try {
+var mk = document.getElementById('modal-mask');
+if (mk) mk.classList.toggle('modal-kb-dock', !!(_kbActive || _iProv));
+} catch (e) {}
+}
 var KB_SCROLL_HEAL = 80;
 function winScrollY() {
 try { return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0; } catch (e) { return 0; }
@@ -80562,6 +80576,7 @@ _setPhoneH(null, 'restore');
 try { _phone.style.minHeight = ''; } catch (e) {} // v3.15.x：还原键盘期压掉的 min-height
 _phone.style.alignSelf = '';
 kbUndockPanels();
+syncModalKbDock(); // #255：摘除键盘期顶对齐类，弹窗回居中
 unlockDocScroll();
 pinScrollTop();
 stopKbWatch();
@@ -80587,6 +80602,7 @@ lockDocScroll(); // 禁文档根滚动：iOS 无法再把页面滚走露灰底�
 try { _phone.style.minHeight = '0'; } catch (e5) {}
 _phone.style.alignSelf = 'flex-start';
 kbDockPanels(); // 底部半框停靠可视区底部=输入栏上方（防面板被挤出视口）
+syncModalKbDock(); // #255：弹窗切顶对齐（防键盘期居中重取中=输入框上滑）
 pinScrollTop();
 _pinUntil = Date.now() + 500;
 startKbWatch();
@@ -80605,6 +80621,7 @@ var _foc = isTextEl(_textFocused) || isTextEl(document.activeElement);
 if (_foc) {
 syncIosKb();
 nudgeInputVisible();
+syncModalKbDock(); // #255：键盘已在而弹窗后开（如聊天键盘开着又点开弹窗）时补挂顶对齐类
 healKbScroll();
 _iProvCheck();
 _ensureInputDocked();
@@ -80629,6 +80646,7 @@ try { _phone.style.minHeight = '0'; } catch (e) {} // v3.15.x：同 syncIosKb，
 _phone.style.alignSelf = 'flex-start';
 _setPhoneH(ph, 'prov'); // v3.26.x：改走唯一写入口
 kbDockPanels();
+syncModalKbDock(); // #255：同 syncIosKb，弹窗切顶对齐
 pinScrollTop();
 }
 function _iProvClear() {
@@ -80640,6 +80658,7 @@ _setPhoneH(null, 'prov-clear'); // v3.26.x：还原样式表高度
 try { _phone.style.minHeight = ''; } catch (e) {} // v3.15.x：还原
 _phone.style.alignSelf = '';
 kbUndockPanels();
+syncModalKbDock(); // #255：摘除顶对齐
 pinScrollTop();
 _syncFullBase(); // v3.26.x：复原时刻即无键盘真实视口
 syncSafeBottom();
@@ -81369,6 +81388,153 @@ MANUAL_LOCK_IDS.forEach(function (id) { if (document.getElementById(id)) open.pu
 return { lock: document.body.classList.contains('scroll-lock'), open: open };
 } catch (e) { return null; }
 };
+var _escState = { streak: 0, key: '', firstAt: 0, lastAt: 0 };
+var _escLastClickAt = 0;
+var _escTap = null;
+var _escHealing = false;
+function _escKbOpen() {
+try {
+if (isIOS) { var f = window.__mochiIosKb && window.__mochiIosKb(); return !!(f && f.kbActive); }
+var a = window.__mochiAndroidKb && window.__mochiAndroidKb();
+return !!(a && (a.kbActive || a.prov));
+} catch (e) { return false; }
+}
+function _escAnyFloatOpen() {
+try {
+for (var i = 0; i < FLOAT_SELECTORS.length; i++) {
+if (floatIsOpen(document.querySelector(FLOAT_SELECTORS[i]))) return true;
+}
+for (var j = 0; j < MANUAL_LOCK_IDS.length; j++) {
+if (document.getElementById(MANUAL_LOCK_IDS[j])) return true;
+}
+} catch (e) {}
+return false;
+}
+function _escTouchDesc(el) {
+try {
+var seg = el && el.tagName ? String(el.tagName).toLowerCase() : '?';
+if (el && el.id) seg += '#' + el.id;
+else if (el && typeof el.className === 'string' && el.className) seg += '.' + el.className.split(/\s+/)[0];
+return seg.slice(0, 40);
+} catch (e) { return '?'; }
+}
+function _escHeal() {
+var tag = [];
+try {
+if (locked || document.body.classList.contains('scroll-lock')) {
+locked = false;
+document.body.classList.remove('scroll-lock');
+tag.push('scroll-lock');
+}
+if (!isIOS) {
+var ph = document.querySelector('.phone');
+if (ph) {
+if (ph.style.height) { ph.style.height = ''; tag.push('phone.height'); }
+if (ph.style.alignSelf) { ph.style.alignSelf = ''; tag.push('phone.alignSelf'); }
+if (ph.style.top) { ph.style.removeProperty('top'); tag.push('phone.top'); }
+}
+}
+var ae = document.activeElement;
+if (ae && ae !== document.body && ae.blur) { try { ae.blur(); tag.push('blur'); } catch (e) {} }
+} catch (e) {}
+try { applyLock(); } catch (e) {}
+return tag;
+}
+function _escRecord(streak, tag) {
+try {
+var arr = [];
+try { arr = JSON.parse(localStorage.getItem('xy-home-v2:__diag-stuck') || '[]') || []; } catch (e) { arr = []; }
+if (!Array.isArray(arr)) arr = [];
+arr.push({ t: Date.now(), n: streak, tag: tag.length ? tag.join('+') : '(无残留可清=指向合成层/输入管线)' });
+if (arr.length > 3) arr = arr.slice(-3);
+localStorage.setItem('xy-home-v2:__diag-stuck', JSON.stringify(arr));
+} catch (e) {}
+}
+function _escToast(msg) {
+try {
+var t = document.getElementById('cc-toast');
+if (!t) {
+t = document.createElement('div');
+t.id = 'cc-toast';
+document.body.appendChild(t);
+}
+t.textContent = msg;
+t.className = 'cc-toast';
+void t.offsetWidth;
+t.className = 'cc-toast show';
+clearTimeout(t._escT);
+t._escT = setTimeout(function () { t.className = 'cc-toast'; }, 3200);
+} catch (e) {}
+}
+function _escJudge(streak, deadline, tapEndAt) {
+if (streak < 3) return;
+setTimeout(function () {
+try {
+if (_escLastClickAt >= tapEndAt) { _escState.streak = 0; return; } // 点击活着=误报退出
+if (_escState.streak < 3 || _escHealing) return;
+_escHealing = true;
+var tag = _escHeal();
+_escState.streak = 0;
+_escRecord(3, tag);
+setTimeout(function () {
+_escToast('检测到页面触控异常，已尝试恢复（' + (tag.length ? tag.join('+') : '无残留') + '）；若仍点不动请重启后在设置-诊断反馈');
+_escHealing = false;
+}, 60);
+} catch (e) {}
+}, Math.max(10, deadline - Date.now()));
+}
+document.addEventListener('touchstart', function (e) {
+try {
+var t = e.touches && e.touches[0];
+if (!t) return;
+_escTap = { x: t.clientX, y: t.clientY, t0: Date.now(), el: e.target };
+} catch (e) {}
+}, { passive: true, capture: true });
+document.addEventListener('touchend', function (e) {
+try {
+if (document.visibilityState !== 'visible') { _escState.streak = 0; return; }
+var tap = _escTap; _escTap = null;
+if (!tap) return;
+var te = e.changedTouches && e.changedTouches[0];
+if (!te) return;
+if (Date.now() - tap.t0 >= 350) return; // 长按（≥350ms=气泡菜单路径）不算轻点
+var dx = te.clientX - tap.x, dy = te.clientY - tap.y;
+if (dx * dx + dy * dy > 144) return;    // 位移 >12px=滚动手势不算
+if (_escAnyFloatOpen()) { _escState.streak = 0; return; } // 弹层操作期不计数
+if (_escKbOpen()) { _escState.streak = 0; return; }       // 键盘会话期不计数
+var now = Date.now();
+var key = _escTouchDesc(tap.el) + '@' + Math.round(te.clientX / 24) + ',' + Math.round(te.clientY / 24);
+if (key !== _escState.key || now - _escState.lastAt > 650) {
+_escState = { streak: 1, key: key, firstAt: now, lastAt: now };
+_escJudge(1, now + 700, now);
+return;
+}
+_escState.streak++;
+_escState.lastAt = now;
+_escJudge(_escState.streak, now + 700, now);
+} catch (e) {}
+}, { passive: true, capture: true });
+document.addEventListener('click', function () {
+_escLastClickAt = Date.now();
+if (_escState.streak > 0) _escState.streak = 0; // 点击正常派发=页面活着，重新计数
+}, { capture: true });
+window.__mochiStuckProbe = function () {
+try {
+var open = [];
+FLOAT_SELECTORS.forEach(function (sel) {
+if (floatIsOpen(document.querySelector(sel))) open.push(sel);
+});
+var his = null;
+try { his = JSON.parse(localStorage.getItem('xy-home-v2:__diag-stuck') || 'null'); } catch (e) {}
+return {
+streak: _escState.streak,
+lock: document.body.classList.contains('scroll-lock'),
+openFloats: open,
+kb: _escKbOpen(),
+lastHeal: his
+};
+} catch (e) { return null; }
+};
 })();
 } catch (__e) { try { console.error("[JS] mobile-adapt.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
   </script>
@@ -81392,4 +81558,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtre9k4g -->
+<!-- __MOCHI_EOF__ mtresyym -->
