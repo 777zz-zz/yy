@@ -749,74 +749,82 @@
   // ================= 网易云会员歌曲批量检测与清理 =================
   // v3.14.x：存量库清理入口——导入时的 VIP 过滤（importNeteasePlaylist/
   // enrichImportedDurations）只覆盖「当批新导入」且依赖代理可用，老歌单/代理失效那批
-  // 漏网的会员歌（fee=1 VIP 专属 / 4 需购买专辑）留在库里，点播即失败。这里批量查
-  // 网易云单曲详情 API（与 v6 歌单详情同族，经 CORS 代理），拿到每首 fee 后确认移除。
-  // 代理全挂时如实提示，绝不把「查不到」当成「免费」误删。
+  // 漏网的会员歌（fee=1 VIP 专属 / 4 需购买专辑）留在库里，点播即失败。
+  // FIX 2026-09-07 #254：原「经 CORS 代理查官方 fee」方案整体失效（proxy.cors.sh 域名
+  // DNS 已注销=华为 nova8 Pro/Edge 及所有机型「去除VIP歌曲」点击必失败，allorigins 522、
+  // corsproxy.io 401 更早——第三方公共代理是源源不断死掉的消耗品，修代理=按住葫芦浮起瓢）。
+  // 改走 meting 播放同源通道逐首探测可播放性（与播放/时长探测同一依赖面：meting 活着
+  // 播放才活着，本功能跟着活，不再有独立死点）：免费歌 meting ?type=url 302→网易 CDN
+  // （r.redirected）或响应本身 audio/*；VIP/失效歌返回 200+空正文 text/html 且无跳转
+  // （resolveNeteaseDirectUrl 同判据）。判不可播记 fee=1 沿用既有过滤语义；探测失败
+  // 不记账，绝不把「没探到」当「免费」误删。并发 8 条 worker pool（同时长探测的
+  // ERR_INSUFFICIENT_RESOURCES 防线，大库不全量并发），全部探完或 30s 兜底收口。
   function fetchNeteaseFees(ids, cb) {
     if (!ids || !ids.length) { cb({}, false); return; }
-    // v6 批量接口已失效（返回 {"code":404,"message":"接口未找到！"}），只用 legacy 单曲详情接口
-    const apiUrl = 'https://music.163.com/api/song/detail/?ids=' + encodeURIComponent('[' + ids.join(',') + ']');
-    // 多 CORS 代理兜底：proxy.cors.sh 为主力（实测唯一能返 JSON 的），allorigins 作低优先级后备。
-    // 代理偶发 HTTP 5xx/429（如 proxy.cors.sh 的 520）是第三方源站波动，走 retry 重试一次，
-    // 别让瞬时抖动误判成「网络不可用」。
-    const prox = [
-      { p: 'https://proxy.cors.sh/', enc: false },
-      { p: 'https://api.allorigins.win/raw?url=', enc: true }
-    ];
     const out = {};
+    const queue = ids.slice();
     let settled = false;
-    let running = 0;
+    let active = 0;
+    let probed = 0; // 拿到判定（可播/不可播）的歌数；0=一首都没探到=检测失败
     const finish = (ok) => { if (settled) return; settled = true; cb(out, ok); };
-    const job = (pr, retryLeft) => {
-      running++;
+    function probeOneFee(id, done) {
       let controller;
       try { controller = new AbortController(); } catch (e) { controller = null; }
-      const timer = setTimeout(() => { try { controller && controller.abort(); } catch (e) {} }, 6000);
-      fetch(pr.p + (pr.enc ? encodeURIComponent(apiUrl) : apiUrl), controller ? { signal: controller.signal } : undefined)
-        .then(r => {
-          if (r.status >= 500 || r.status === 429) throw { retry: true, msg: 'HTTP ' + r.status };
-          if (!r.ok) throw { retry: false, msg: 'HTTP ' + r.status };
-          return r.text();
-        })
-        .then(txt => {
+      const timer = setTimeout(() => { try { controller && controller.abort(); } catch (e) {} }, 8000);
+      fetch(neteaseMetingUrl(id), controller ? { signal: controller.signal } : undefined)
+        .then(function (r) {
           clearTimeout(timer);
-          try {
-            const j = JSON.parse(txt);
-            const songs = (j && Array.isArray(j.songs)) ? j.songs : [];
-            let got = 0;
-            songs.forEach(s => { if (s && s.id && typeof s.fee === 'number') { out[String(s.id)] = s.fee; got++; } });
-            if (got) { finish(true); }
-          } catch (e) {}
-          if (--running === 0 && !settled) finish(false);
+          var ct = '';
+          try { ct = (r.headers && r.headers.get('content-type')) || ''; } catch (e) {}
+          // 与 resolveNeteaseDirectUrl 同判据：VIP/失效歌 200+空正文无 302；免费歌 302→CDN
+          var playable = !!(r.redirected || /^audio\//i.test(ct));
+          done(playable ? 0 : 1); // 0=免费可播；1=不可播（会员/付费/失效）——响应头即同步记账
+          // 异步 abort+cancel body 只作资源清理（防「BodyStreamBuffer was aborted」
+          // 未处理 rejection 刷诊断错误环，同 resolveNeteaseDirectUrl 口径）；
+          // 记账不进延迟定时器：无头/后台页定时器会被节流拖到分钟级（T4/T8 实测）
+          setTimeout(function () {
+            try { controller && controller.abort(); } catch (e) {}
+            try { r.body && r.body.cancel && r.body.cancel(); } catch (e) {}
+          }, 0);
         })
-        .catch(err => {
-          clearTimeout(timer);
-          if (err && err.retry && retryLeft > 0) {
-            // 释放本轮计数，短暂延时后按同一代理重试
-            running--;
-            setTimeout(() => job(pr, retryLeft - 1), 400);
-          } else if (--running === 0 && !settled) finish(false);
+        .catch(function () { clearTimeout(timer); done(null); }); // null=没探到，绝不冒充免费
+    }
+    function probeNext() {
+      while (!settled && active < 8 && queue.length) {
+        const id = queue.shift();
+        active++;
+        probeOneFee(id, function (fee) {
+          active--;
+          if (typeof fee === 'number') { out[id] = fee; probed++; }
+          if (!queue.length && active === 0) finish(probed > 0);
+          else probeNext();
         });
-    };
-    prox.forEach(pr => job(pr, 1));
-    // 兜底：全部请求 6s 内无有效结果 → 结束（回调 ok=false，调用方提示检测失败）
-    setTimeout(() => finish(false), 7000);
+      }
+      if (settled && active === 0) finish(probed > 0);
+    }
+    probeNext();
+    // 兜底：30s 全局收口（大库逐首探测总上限；届时已探到的部分照常出结果）
+    setTimeout(function () { finish(probed > 0); }, 30000);
   }
+  let vipCleanBusy = false; // #254 逐首探测在大库上可持续数十秒，防连点叠加多轮请求
   function openVipClean() {
+    if (vipCleanBusy) { toast('正在探测中，请稍候…'); return; }
     const candidates = library.filter(m => m && m.neteaseId && m.source === 'url');
     if (!candidates.length) { toast('音乐库里没有网易云链接歌曲'); return; }
     const uniqueIds = [];
     candidates.forEach(m => { if (uniqueIds.indexOf(m.neteaseId) < 0) uniqueIds.push(m.neteaseId); });
-    toast('正在检测 ' + uniqueIds.length + ' 首歌曲的会员状态…');
+    vipCleanBusy = true;
+    toast('正在探测 ' + uniqueIds.length + ' 首歌曲的播放可用性…');
     fetchNeteaseFees(uniqueIds, (fees, ok) => {
-      if (!ok || !Object.keys(fees).length) { toast('检测失败：网易云查询服务暂不可用，请稍后重试'); return; }
+      vipCleanBusy = false;
+      if (!ok || !Object.keys(fees).length) { toast('检测失败：播放探测服务暂不可用，请稍后重试'); return; }
       const vip = candidates.filter(m => fees[m.neteaseId] === 1 || fees[m.neteaseId] === 4);
       if (!vip.length) { toast('未发现会员/付费歌曲'); return; }
       const shown = vip.slice(0, 30);
       const more = vip.length - shown.length;
       if (!window.openTCPanel) return;
       window.openTCPanel('清理会员歌曲', '' +
-        '<div class="sm-fld-hint" style="margin-bottom:8px">以下 ' + vip.length + ' 首为网易云会员/付费歌曲（网页外链无法播放），可移除出音乐库：</div>' +
+        '<div class="sm-fld-hint" style="margin-bottom:8px">以下 ' + vip.length + ' 首经播放探测不可用（会员/付费歌曲网页外链无法播放，或链接已失效），可移除出音乐库：</div>' +
         shown.map(m => '<div class="sm-song" data-id="' + m.id + '">' + songIcoHtml(m) +
           '<div class="sm-song-info"><div class="sm-song-name">' + esc(m.name || '未知歌曲') + '</div>' +
           '<div class="sm-song-sub">' + esc(m.artist || '未知歌手') + '</div></div></div>').join('') +

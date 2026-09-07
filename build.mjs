@@ -453,7 +453,7 @@ const FIX_SENTINELS = [
   { name: '#96 已死 corsproxy.io(401 强制 API key) 代理已从网易云 API 源列表移除（留着只刷「网络失败 401」日志，vivo Y35+Edge 诊断实证）', file: 'js/music-player.js', needle: 'https://corsproxy.io/?url=', absent: true },
   { name: '#96 播放拒绝按错误类型区分提示文案（源加载失败不再谎报"被浏览器拦截"）', file: 'js/music-player.js', needle: '在线歌曲加载失败' },
   { name: '#99 TA收藏改存歌曲快照（纯 ID 方案删歌后记录隐形；用户要求删歌后联系人收藏记录依旧保留）', file: 'js/music-player.js', needle: 'function taFavList()' },
-  { name: '#108 清理会员歌曲改用 legacy 接口 + 代理 5xx 自动重试（v6 接口已死返回404"接口未找到！"，proxy.cors.sh 偶发 520；修华为Mate40Pro+Edge「无法清理会员歌曲、显示网络不可用」——实为第三方查询服务波动非断网）', file: 'js/music-player.js', needle: "r.status >= 500 || r.status === 429) throw { retry: true, msg: 'HTTP ' + r.status }" },
+  { name: '#108 清理会员歌曲——#254 升级取代：代理 5xx 重试链路已整体移除（proxy.cors.sh DNS 已注销+allorigins 522，重试救不回死域名），改 meting 播放同源逐首探测（记账判据锚，删掉探测语义则该哨兵消失；#108 原修复「不误删/如实报失败」语义由 #254 完整继承）', file: 'js/music-player.js', needle: 'done(playable ? 0 : 1); // 0=免费可播；1=不可播（会员/付费/失效）' },
   { name: '#99 TA收藏列表已删歌曲标识样式（置灰 + 已删除小标签）', file: 'css/chat-pages.css', needle: 'ta-fav-gone' },
   { name: '联系人主动消息爱心标识已去灰色阴影（.msg-hi-heart 双层 drop-shadow 已删，加回即回归）', file: 'css/chat-main.css', needle: 'drop-shadow(0 1px 1px rgba(0,0,0,.22))', absent: true },
   { name: '#100 诊断启动异常采集前置（window.__jsErrors 此前全项目无人初始化，build 兜底 if(window.__jsErrors) 恒 false＝功能文件启动异常静默丢弃）', file: 'js/device.js', needle: 'window.__jsErrors = window.__jsErrors || []; } catch (e0) {}' },
@@ -737,6 +737,7 @@ const FIX_SENTINELS = [
   { name: '#251 群聊对齐聊天设置·数据导出导入（导出流式拼接 Blob 防超长+导入兼容三结构确认覆盖——删则群聊记录无备份/恢复通道）', file: 'js/group-chat.js', needle: "const parts = ['{\"app\":\"mochi-zika-group-chat\"" },
   { name: '#253 字卡导入全局崩溃修复·提取袋提升函数作用域（const bag 原声明在备份提取分支块内、函数尾部 #139 守卫读它必抛 ReferenceError=所有格式导入成功解析后必崩机型无关[华为Pro70+Edge 实证]；声明挪回分支块内此锚消失）', file: 'js/chatcard.js', needle: 'let bag = {}; // v3.26.x #253：从备份提取分支块内提升到函数作用域（仅备份分支填充，尾部 #139 守卫要读）' },
   { name: '#253 字卡导入全局崩溃修复·兜底标记提升函数作用域（fromPubFallback 同上提升，#139 专属页兜底置位语义不变）', file: 'js/chatcard.js', needle: 'let fromPubFallback = false; // v3.26.x #253：同上提升' },
+  { name: '#254 音乐「去除VIP歌曲」改 meting 播放同源逐首探测（原 proxy.cors.sh 域名 DNS 已注销+allorigins 522=所有机型点击必失败；探测失败不计账绝不误删，与播放同依赖面不再有独立死点——判据锚随「可播/不可播」记账语义走）', file: 'js/music-player.js', needle: 'playable ? 0 : 1' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

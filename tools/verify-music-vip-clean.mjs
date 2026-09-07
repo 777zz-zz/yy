@@ -222,6 +222,44 @@ const cases = [
     const mask = document.getElementById('tc-mask');
     if (mask && !mask.hidden) return { ok: false, msg: '无网易云歌曲不应弹出清理面板' };
     return { ok: true };
+  ` },
+  { id: 'T7', name: '#254 探测全部失败：提示检测失败、不弹面板、不误删', feeMap: { '111111': 'fail', '222222': 'fail' }, stage1: `
+    window.xyStore('xy-home-v2:default').set('music-library', JSON.stringify([
+      { id: 'f1', neteaseId: '111111', name: '免费歌A', artist: 'A', url: 'https://api.injahow.cn/meting/?type=url&id=111111', source: 'url', duration: 200, playlistId: 'default', addedAt: 1 },
+      { id: 'f2', neteaseId: '222222', name: '探不到歌B', artist: 'B', url: 'https://api.injahow.cn/meting/?type=url&id=222222', source: 'url', duration: 210, playlistId: 'default', addedAt: 1 }
+    ]));
+  `, check: `
+    const st = window.xyStore('xy-home-v2:default');
+    window.__activeCid = 'default';
+    document.getElementById('music-vip-clean').click();
+    await new Promise(r => setTimeout(r, 400));
+    const mask = document.getElementById('tc-mask');
+    if (mask && !mask.hidden) return { ok: false, msg: '探测全失败不应弹出清理面板' };
+    const lib = JSON.parse(st.get('music-library') || '[]');
+    if (!lib.some(m => m.id === 'f1') || !lib.some(m => m.id === 'f2')) return { ok: false, msg: '探测失败歌曲被误删' };
+    return { ok: true };
+  ` },
+  { id: 'T8', name: '#254 部分探测不到：只移除判死歌曲，探不到的保留', feeMap: { '111111': 1, '222222': 'fail', '333333': 0 }, stage1: `
+    window.xyStore('xy-home-v2:default').set('music-library', JSON.stringify([
+      { id: 'f1', neteaseId: '111111', name: 'VIP歌A', artist: 'A', url: 'https://api.injahow.cn/meting/?type=url&id=111111', source: 'url', duration: 200, playlistId: 'default', addedAt: 1 },
+      { id: 'f2', neteaseId: '222222', name: '探不到歌B', artist: 'B', url: 'https://api.injahow.cn/meting/?type=url&id=222222', source: 'url', duration: 210, playlistId: 'default', addedAt: 1 },
+      { id: 'f3', neteaseId: '333333', name: '免费歌C', artist: 'C', url: 'https://api.injahow.cn/meting/?type=url&id=333333', source: 'url', duration: 180, playlistId: 'default', addedAt: 1 }
+    ]));
+  `, check: `
+    const st = window.xyStore('xy-home-v2:default');
+    window.__activeCid = 'default';
+    document.getElementById('music-vip-clean').click();
+    for (let i = 0; i < 80; i++) { if (document.getElementById('sm-vip-ok')) break; await new Promise(r => setTimeout(r, 30)); }
+    const mask = document.getElementById('tc-mask');
+    if (!mask || mask.hidden) return { ok: false, msg: '应弹出清理面板' };
+    const txt = document.getElementById('tc-body').textContent || '';
+    if (txt.indexOf('VIP歌A') < 0) return { ok: false, msg: '面板未列出判死的 VIP歌A' };
+    if (txt.indexOf('探不到歌B') >= 0) return { ok: false, msg: '面板误列探测不到的歌B' };
+    document.getElementById('sm-vip-ok').click();
+    const lib = JSON.parse(st.get('music-library') || '[]');
+    if (lib.some(m => m.id === 'f1')) return { ok: false, msg: '判死歌曲 f1 未被移除' };
+    if (!lib.some(m => m.id === 'f2') || !lib.some(m => m.id === 'f3')) return { ok: false, msg: '探不到/免费歌曲被误删' };
+    return { ok: true };
   ` }
 ];
 
@@ -239,16 +277,20 @@ async function loadPage() {
 }
 async function injectStub(feeMap) {
   await evalJs(`(function () {
+    // #254 起探测走 meting ?type=url 播放同源通道（旧 song/detail 代理已死）。
+    // feeMap 语义：1=不可播（200+text/html 空正文无跳转，VIP 同判据）；0=可播
+    // （200+audio/*）；'fail'=网络失败（探测不到，必须不计账防误删）。
     window.fetch = function (url, opts) {
       const u = String(url);
-      if (u.indexOf('song/detail') >= 0) {
+      if (u.indexOf('meting') >= 0 && u.indexOf('type=url') >= 0) {
         try {
-          const dec = decodeURIComponent(u);
-          const m = dec.match(/ids=\\[([^\\]]+)\\]/);
-          const ids = m ? m[1].split(',').map(s => s.trim()) : [];
+          const m = u.match(/id=([0-9]+)/);
+          const id = m ? m[1] : '';
           const fm = ${JSON.stringify(feeMap || {})};
-          const songs = ids.map(id => ({ id: id, fee: (id in fm) ? fm[id] : 0 }));
-          return Promise.resolve(new Response(JSON.stringify({ songs: songs }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+          const mode = (id in fm) ? fm[id] : 0;
+          if (mode === 'fail') return Promise.reject(new Error('stubbed-net-down'));
+          if (mode === 1) return Promise.resolve(new Response('', { status: 200, headers: { 'Content-Type': 'text/html' } }));
+          return Promise.resolve(new Response('', { status: 200, headers: { 'Content-Type': 'audio/mpeg' } }));
         } catch (e) { return Promise.reject(e); }
       }
       return Promise.reject(new Error('stubbed-offline'));

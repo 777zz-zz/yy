@@ -8835,9 +8835,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788794007581">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788794845216">
         <span class="sv-app">Mochi 字卡传讯 <b>v3.26.527</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 23:13<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-07 23:27<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -42572,63 +42572,65 @@ setTimeout(finish, 7000);
 }
 function fetchNeteaseFees(ids, cb) {
 if (!ids || !ids.length) { cb({}, false); return; }
-const apiUrl = 'https://music.163.com/api/song/detail/?ids=' + encodeURIComponent('[' + ids.join(',') + ']');
-const prox = [
-{ p: 'https://proxy.cors.sh/', enc: false },
-{ p: 'https://api.allorigins.win/raw?url=', enc: true }
-];
 const out = {};
+const queue = ids.slice();
 let settled = false;
-let running = 0;
+let active = 0;
+let probed = 0; // 拿到判定（可播/不可播）的歌数；0=一首都没探到=检测失败
 const finish = (ok) => { if (settled) return; settled = true; cb(out, ok); };
-const job = (pr, retryLeft) => {
-running++;
+function probeOneFee(id, done) {
 let controller;
 try { controller = new AbortController(); } catch (e) { controller = null; }
-const timer = setTimeout(() => { try { controller && controller.abort(); } catch (e) {} }, 6000);
-fetch(pr.p + (pr.enc ? encodeURIComponent(apiUrl) : apiUrl), controller ? { signal: controller.signal } : undefined)
-.then(r => {
-if (r.status >= 500 || r.status === 429) throw { retry: true, msg: 'HTTP ' + r.status };
-if (!r.ok) throw { retry: false, msg: 'HTTP ' + r.status };
-return r.text();
-})
-.then(txt => {
+const timer = setTimeout(() => { try { controller && controller.abort(); } catch (e) {} }, 8000);
+fetch(neteaseMetingUrl(id), controller ? { signal: controller.signal } : undefined)
+.then(function (r) {
 clearTimeout(timer);
-try {
-const j = JSON.parse(txt);
-const songs = (j && Array.isArray(j.songs)) ? j.songs : [];
-let got = 0;
-songs.forEach(s => { if (s && s.id && typeof s.fee === 'number') { out[String(s.id)] = s.fee; got++; } });
-if (got) { finish(true); }
-} catch (e) {}
-if (--running === 0 && !settled) finish(false);
+var ct = '';
+try { ct = (r.headers && r.headers.get('content-type')) || ''; } catch (e) {}
+var playable = !!(r.redirected || /^audio\//i.test(ct));
+done(playable ? 0 : 1); // 0=免费可播；1=不可播（会员/付费/失效）——响应头即同步记账
+setTimeout(function () {
+try { controller && controller.abort(); } catch (e) {}
+try { r.body && r.body.cancel && r.body.cancel(); } catch (e) {}
+}, 0);
 })
-.catch(err => {
-clearTimeout(timer);
-if (err && err.retry && retryLeft > 0) {
-running--;
-setTimeout(() => job(pr, retryLeft - 1), 400);
-} else if (--running === 0 && !settled) finish(false);
-});
-};
-prox.forEach(pr => job(pr, 1));
-setTimeout(() => finish(false), 7000);
+.catch(function () { clearTimeout(timer); done(null); }); // null=没探到，绝不冒充免费
 }
+function probeNext() {
+while (!settled && active < 8 && queue.length) {
+const id = queue.shift();
+active++;
+probeOneFee(id, function (fee) {
+active--;
+if (typeof fee === 'number') { out[id] = fee; probed++; }
+if (!queue.length && active === 0) finish(probed > 0);
+else probeNext();
+});
+}
+if (settled && active === 0) finish(probed > 0);
+}
+probeNext();
+setTimeout(function () { finish(probed > 0); }, 30000);
+}
+let vipCleanBusy = false; // #254 逐首探测在大库上可持续数十秒，防连点叠加多轮请求
 function openVipClean() {
+if (vipCleanBusy) { toast('正在探测中，请稍候…'); return; }
 const candidates = library.filter(m => m && m.neteaseId && m.source === 'url');
 if (!candidates.length) { toast('音乐库里没有网易云链接歌曲'); return; }
 const uniqueIds = [];
 candidates.forEach(m => { if (uniqueIds.indexOf(m.neteaseId) < 0) uniqueIds.push(m.neteaseId); });
-toast('正在检测 ' + uniqueIds.length + ' 首歌曲的会员状态…');
+vipCleanBusy = true;
+toast('正在探测 ' + uniqueIds.length + ' 首歌曲的播放可用性…');
 fetchNeteaseFees(uniqueIds, (fees, ok) => {
-if (!ok || !Object.keys(fees).length) { toast('检测失败：网易云查询服务暂不可用，请稍后重试'); return; }
+vipCleanBusy = false;
+if (!ok || !Object.keys(fees).length) { toast('检测失败：播放探测服务暂不可用，请稍后重试'); return; }
 const vip = candidates.filter(m => fees[m.neteaseId] === 1 || fees[m.neteaseId] === 4);
 if (!vip.length) { toast('未发现会员/付费歌曲'); return; }
 const shown = vip.slice(0, 30);
 const more = vip.length - shown.length;
 if (!window.openTCPanel) return;
 window.openTCPanel('清理会员歌曲', '' +
-'<div class="sm-fld-hint" style="margin-bottom:8px">以下 ' + vip.length + ' 首为网易云会员/付费歌曲（网页外链无法播放），可移除出音乐库：</div>' +
+'<div class="sm-fld-hint" style="margin-bottom:8px">以下 ' + vip.length + ' 首经播放探测不可用（会员/付费歌曲网页外链无法播放，或链接已失效），可移除出音乐库：</div>' +
 shown.map(m => '<div class="sm-song" data-id="' + m.id + '">' + songIcoHtml(m) +
 '<div class="sm-song-info"><div class="sm-song-name">' + esc(m.name || '未知歌曲') + '</div>' +
 '<div class="sm-song-sub">' + esc(m.artist || '未知歌手') + '</div></div></div>').join('') +
@@ -81390,4 +81392,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtrdrlst -->
+<!-- __MOCHI_EOF__ mtre9k4g -->
