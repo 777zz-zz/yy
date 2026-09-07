@@ -89,10 +89,12 @@ const j1 = await page.evaluate(() => ({
   rmTotal: window.__obs.reduce((a, m) => a + m.rm, 0),
   bubbles: document.querySelectorAll('#chat-body .msg').length
 }));
-// J1 判据：整窗重画的特征是「单批 rm ≥5」（整个消息区被 innerHTML='' 清空）。
-// 原位升级只产生 rm1+add1（图片那条）；启动期 app 自身消息的追加只 add 不 rm。
-const bigRm = j1.obs.filter(m => m.rm >= 5);
-check('J1 无整窗清空重画(旧路径 rm≥5 批,修复后零批)', bigRm.length === 0, JSON.stringify(j1.obs));
+// J1 判据：首渲（首个 add 批，含清掉打开前启动消息的预挂节点）之后不允许再出现
+// rm≥5 的整窗清空批；原位升级只产生 rm1+add1（图片那条），启动期消息追加只 add 不 rm
+const firstAddIdx = j1.obs.findIndex(m => m.add > 0);
+const afterFirst = firstAddIdx >= 0 ? j1.obs.slice(firstAddIdx + 1) : [];
+const bigRm = afterFirst.filter(m => m.rm >= 5);
+check('J1 首渲后无整窗清空重画(旧路径权威收尾 rm≥5 批,修复后零批)', bigRm.length === 0, JSON.stringify(j1.obs));
 check('J2 残留图片原位升级(rm 批恰为 rm1+add1)', j1.obs.some(m => m.rm === 1 && m.add === 1), JSON.stringify(j1.obs));
 
 const imgOk = await page.evaluate(() => {

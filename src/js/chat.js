@@ -282,6 +282,22 @@ localStorage.setItem((prefix || window.activePrefix()) + ':chat-msgs', snap);
 }
 } catch (e) {}
 }
+// FIX 2026-09-07 #245：预权威期的 LS 快照保存改「与既有快照去重合并」——旧实现整包覆盖，
+// 启动期（签到/TA 主动消息）的保存会把 LS 里仅存的历史快照顶掉=打开聊天首渲缺历史、
+// 权威回读后前缀凭据失配=同一消息屏上两份+整窗重画（真机「闪屏+弹一下后恢复」，无头
+// 实证 rm7+add7+种子消息×2）。按 ts|side|text 排序去重合并，上限仍由 performLsSnapWrite
+// 的 lite 折半兜底。
+function mergeLsSnapshotWith(msgsNow, prefix) {
+try {
+let old = [];
+try { old = JSON.parse(store.get('chat-msgs') || '[]'); } catch (e) { old = []; }
+if (!Array.isArray(old)) old = [];
+const sig2 = (m) => (((m && m.ts) || 0) + '|' + ((m && m.side) || '') + '|' + String((m && m.text) || '').slice(0, 64));
+const seen = new Set(msgsNow.map(sig2));
+const merged = msgsNow.concat(old.filter(m => m && !seen.has(sig2(m)))).sort((a, b) => (((a && a.ts) || 0) - ((b && b.ts) || 0)));
+performLsSnapWrite(merged, prefix);
+} catch (e) {}
+}
 function writeLsSnapshot(arr, prefix, force) {
 if (!Array.isArray(arr)) return;
 if (force) {
@@ -447,7 +463,7 @@ if (!authOk) {
 try { pendingLocal = msgs.slice(); } catch (e) {}
 // v3.14.x：内存为空时不写 LS 快照——权威读取失败窗口里任何模块触发保存，
 // 会把 LS 里仅存的有损备份也覆盖成 "[]"（IDB 万一后续丢失将无从恢复）
-if (msgs.length) writeLsSnapshot(msgs, undefined, true);
+if (msgs.length) mergeLsSnapshotWith(msgs, undefined); // #245：合并而非覆盖，保住 LS 里的历史快照
 try { scheduleIdbRetry(); } catch (e) {}
 return;
 }
@@ -724,9 +740,21 @@ return false;
 }
 function loadMsgs(forceIdb) {
 armReadyFuse();
-if (!persistTimer && !msgs.length && !chatDbReady) {
-try { msgs = JSON.parse(store.get('chat-msgs') || '[]'); } catch (e) { msgs = []; }
-if (!Array.isArray(msgs)) msgs = [];
+// FIX 2026-09-07 #245：权威未就绪期间照常解析 LS 兜底快照（旧门 !persistTimer&&!msgs.length
+// 会被启动期新增双双跳过=首渲缺历史）。配合预权威保存的 mergeLsSnapshotWith（LS 快照不再
+// 被会话新消息覆盖），首渲即含完整历史，权威回读走前缀增量/残留原位升级=零整窗重画。
+if (!chatDbReady) {
+let lsArr = [];
+try { lsArr = JSON.parse(store.get('chat-msgs') || '[]'); } catch (e) { lsArr = []; }
+if (!Array.isArray(lsArr)) lsArr = [];
+if (lsArr.length && msgs.length) {
+const sig2 = (m) => (((m && m.ts) || 0) + '|' + ((m && m.side) || '') + '|' + String((m && m.text) || '').slice(0, 64));
+const seen = new Set(lsArr.map(sig2));
+const extra = msgs.filter(m => m && !seen.has(sig2(m)));
+msgs = lsArr.concat(extra).sort((a, b) => (((a && a.ts) || 0) - ((b && b.ts) || 0)));
+} else if (lsArr.length) {
+msgs = lsArr;
+}
 try { syncLastMineText(); } catch (e) {}
 }
 // v3.26.x：全量 migration/去重 pass 移到 runDeferredNormalization 后台分批跑，防大数据主线程卡死
@@ -3182,7 +3210,7 @@ function saveMsgsNow() {
 const authOk = chatDbReady && authLoadedPrefix === window.activePrefix();
 if (!authOk) {
 try { pendingLocal = msgs.slice(); } catch (e) {}
-if (msgs.length) writeLsSnapshot(msgs, undefined, true);
+if (msgs.length) mergeLsSnapshotWith(msgs, undefined); // #245：合并而非覆盖，保住 LS 里的历史快照
 try { scheduleIdbRetry(); } catch (e) {}
 return;
 }

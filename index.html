@@ -8817,9 +8817,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788740174706">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.518</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 08:16<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788740830060">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.519</b></span>
+        <span class="sv-deploy">部署于 2026-09-07 08:27<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9975,7 +9975,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.518</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.519</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10266,7 +10266,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.518</span>
+              <span class="lic-ver">v3.26.519</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -24604,6 +24604,17 @@ localStorage.setItem((prefix || window.activePrefix()) + ':chat-msgs', snap);
 }
 } catch (e) {}
 }
+function mergeLsSnapshotWith(msgsNow, prefix) {
+try {
+let old = [];
+try { old = JSON.parse(store.get('chat-msgs') || '[]'); } catch (e) { old = []; }
+if (!Array.isArray(old)) old = [];
+const sig2 = (m) => (((m && m.ts) || 0) + '|' + ((m && m.side) || '') + '|' + String((m && m.text) || '').slice(0, 64));
+const seen = new Set(msgsNow.map(sig2));
+const merged = msgsNow.concat(old.filter(m => m && !seen.has(sig2(m)))).sort((a, b) => (((a && a.ts) || 0) - ((b && b.ts) || 0)));
+performLsSnapWrite(merged, prefix);
+} catch (e) {}
+}
 function writeLsSnapshot(arr, prefix, force) {
 if (!Array.isArray(arr)) return;
 if (force) {
@@ -24728,7 +24739,7 @@ try { scheduleMediaPass(1500); } catch (e) {} // #142：有新消息写入即安
 const authOk = chatDbReady && authLoadedPrefix === window.activePrefix();
 if (!authOk) {
 try { pendingLocal = msgs.slice(); } catch (e) {}
-if (msgs.length) writeLsSnapshot(msgs, undefined, true);
+if (msgs.length) mergeLsSnapshotWith(msgs, undefined); // #245：合并而非覆盖，保住 LS 里的历史快照
 try { scheduleIdbRetry(); } catch (e) {}
 return;
 }
@@ -24965,9 +24976,18 @@ return false;
 }
 function loadMsgs(forceIdb) {
 armReadyFuse();
-if (!persistTimer && !msgs.length && !chatDbReady) {
-try { msgs = JSON.parse(store.get('chat-msgs') || '[]'); } catch (e) { msgs = []; }
-if (!Array.isArray(msgs)) msgs = [];
+if (!chatDbReady) {
+let lsArr = [];
+try { lsArr = JSON.parse(store.get('chat-msgs') || '[]'); } catch (e) { lsArr = []; }
+if (!Array.isArray(lsArr)) lsArr = [];
+if (lsArr.length && msgs.length) {
+const sig2 = (m) => (((m && m.ts) || 0) + '|' + ((m && m.side) || '') + '|' + String((m && m.text) || '').slice(0, 64));
+const seen = new Set(lsArr.map(sig2));
+const extra = msgs.filter(m => m && !seen.has(sig2(m)));
+msgs = lsArr.concat(extra).sort((a, b) => (((a && a.ts) || 0) - ((b && b.ts) || 0)));
+} else if (lsArr.length) {
+msgs = lsArr;
+}
 try { syncLastMineText(); } catch (e) {}
 }
 const nowT = Date.now();
@@ -27160,7 +27180,7 @@ function saveMsgsNow() {
 const authOk = chatDbReady && authLoadedPrefix === window.activePrefix();
 if (!authOk) {
 try { pendingLocal = msgs.slice(); } catch (e) {}
-if (msgs.length) writeLsSnapshot(msgs, undefined, true);
+if (msgs.length) mergeLsSnapshotWith(msgs, undefined); // #245：合并而非覆盖，保住 LS 里的历史快照
 try { scheduleIdbRetry(); } catch (e) {}
 return;
 }
@@ -81107,4 +81127,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtqhps36 -->
+<!-- __MOCHI_EOF__ mtqi3trg -->
