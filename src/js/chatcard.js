@@ -2056,14 +2056,20 @@
       // 导出格式，提示「文件里没有可导入的字卡」（公用/专属页表现一致）。这里按当前作用域
       // 从备份里取出字卡库键（公用 xy-home-v2:cc-groups-public / 专属 <前缀>:cc-groups），
       // 解析成标准格式后交给下方本应用格式分支正常导入
+      // v3.26.x #253：bag/fromPubFallback 原声明在下方「全量备份提取」分支块内，而函数尾部
+      // #139 防复制守卫要读它们——块级作用域不可见 ⇒ 任何格式（milk/星言/本应用/备份）只要
+      // 成功解析出字卡、走到尾部守卫必抛 ReferenceError「fromPubFallback is not defined」
+      //（#171 的 catch 提示成「导入处理失败」；华为Pro70+Edge 诊断启动文件异常三条实锤，
+      // 机型无关）。提升到函数作用域，语义零变化：非备份格式 bag 恒空对象、标记恒 false。
+      let bag = {}; // v3.26.x #253：从备份提取分支块内提升到函数作用域（仅备份分支填充，尾部 #139 守卫要读）
+      let fromPubFallback = false; // v3.26.x #253：同上提升（#139 专属页兜底取到「公用库内容」时置位，落盘前防整份复制）
       if (!fmt && data && typeof data === 'object' &&
           ((data.ls && typeof data.ls === 'object') || (data.idb && typeof data.idb === 'object'))) {
-        const bag = {};
+        bag = {};
         ['ls', 'idb'].forEach(k => {
           if (data[k] && typeof data[k] === 'object' && !Array.isArray(data[k])) Object.assign(bag, data[k]);
         });
         let raw = '';
-        let fromPubFallback = false; // v3.26.x #139：专属页兜底取到的是「公用库内容」时置位，落盘前防整份复制
         if (ccScope === 'public') {
           raw = bag[PUB_PREFIX + ':' + PUB_KEY] || '';
         } else {
@@ -2700,7 +2706,12 @@
           render();
           toast('已导入 ' + imported + ' 条字卡' + (dup ? '，自动去重 ' + dup + ' 条' : '') + (newGroups ? '，新建 ' + newGroups + ' 个分组' : ''));
         }, {
+          // FIX 2026-09-07 #255：批量导入弹窗放大——默认 .modal 宽 272px 多行框太小
+          //（用户报障「打开的页面太小了」），走 opts.big 宽版（420px/94vw + 52vh 上限）
+          // 并把原生 textarea 提到 8 行（iOS 不做 ce-box 转换，rows 决定实际高度）
+          big: true,
           textarea: true,
+          textareaRows: 8,
           textareaPlaceholder: '【日常】\n你今天真好看\n我想你了',
           txtImport: true,
           // v3.6.x：传入当前分类的现有分组——openModal 的「目标分组」下拉只在

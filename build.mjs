@@ -735,6 +735,8 @@ const FIX_SENTINELS = [
   { name: '#250 切桌面卡死·卡片背景恒等跳过（personalize.js applyCardBg 值变才写——赋同值=浏览器作废已解码位图重新解码，MB 级 dataURL 真机切换瞬间整屏重解码）', file: 'js/personalize.js', needle: 'if (el.style.backgroundImage === next) return;' },
   { name: '#251 群聊对齐聊天设置·回车发送开关（keydown 读 cs-enter-send===\'off\' 放行换行——删则群聊回车强制发送，关不掉）', file: 'js/group-chat.js', needle: "if (window.activeStore().get('cs-enter-send') === 'off') return;" },
   { name: '#251 群聊对齐聊天设置·数据导出导入（导出流式拼接 Blob 防超长+导入兼容三结构确认覆盖——删则群聊记录无备份/恢复通道）', file: 'js/group-chat.js', needle: "const parts = ['{\"app\":\"mochi-zika-group-chat\"" },
+  { name: '#253 字卡导入全局崩溃修复·提取袋提升函数作用域（const bag 原声明在备份提取分支块内、函数尾部 #139 守卫读它必抛 ReferenceError=所有格式导入成功解析后必崩机型无关[华为Pro70+Edge 实证]；声明挪回分支块内此锚消失）', file: 'js/chatcard.js', needle: 'let bag = {}; // v3.26.x #253：从备份提取分支块内提升到函数作用域（仅备份分支填充，尾部 #139 守卫要读）' },
+  { name: '#253 字卡导入全局崩溃修复·兜底标记提升函数作用域（fromPubFallback 同上提升，#139 专属页兜底置位语义不变）', file: 'js/chatcard.js', needle: 'let fromPubFallback = false; // v3.26.x #253：同上提升' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

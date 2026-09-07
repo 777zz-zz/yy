@@ -8835,9 +8835,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788792656563">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.525</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 22:50<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788794007581">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.527</b></span>
+        <span class="sv-deploy">部署于 2026-09-07 23:13<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9993,7 +9993,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.525</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.527</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10284,7 +10284,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.525</span>
+              <span class="lic-ver">v3.26.527</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -36870,14 +36870,15 @@ if (!byCat[mc.cat]) byCat[mc.cat] = [];
 pairs.forEach(([name, cards]) => { byCat[mc.cat].push([name, cards.slice()]); imported += cards.length; });
 });
 }
+let bag = {}; // v3.26.x #253：从备份提取分支块内提升到函数作用域（仅备份分支填充，尾部 #139 守卫要读）
+let fromPubFallback = false; // v3.26.x #253：同上提升（#139 专属页兜底取到「公用库内容」时置位，落盘前防整份复制）
 if (!fmt && data && typeof data === 'object' &&
 ((data.ls && typeof data.ls === 'object') || (data.idb && typeof data.idb === 'object'))) {
-const bag = {};
+bag = {};
 ['ls', 'idb'].forEach(k => {
 if (data[k] && typeof data[k] === 'object' && !Array.isArray(data[k])) Object.assign(bag, data[k]);
 });
 let raw = '';
-let fromPubFallback = false; // v3.26.x #139：专属页兜底取到的是「公用库内容」时置位，落盘前防整份复制
 if (ccScope === 'public') {
 raw = bag[PUB_PREFIX + ':' + PUB_KEY] || '';
 } else {
@@ -37422,7 +37423,9 @@ renderGroupsBar();
 render();
 toast('已导入 ' + imported + ' 条字卡' + (dup ? '，自动去重 ' + dup + ' 条' : '') + (newGroups ? '，新建 ' + newGroups + ' 个分组' : ''));
 }, {
+big: true,
 textarea: true,
+textareaRows: 8,
 textareaPlaceholder: '【日常】\n你今天真好看\n我想你了',
 txtImport: true,
 groups: (groups[cur] || []).map(g => g[0])
@@ -81387,4 +81390,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtrcyncj -->
+<!-- __MOCHI_EOF__ mtrdrlst -->
