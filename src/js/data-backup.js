@@ -663,8 +663,8 @@
     // v3.9.x：华为（Mate20 默认浏览器）与夸克对 navigator.share({files}) 支持不稳定——
     // canShare 返回 true 但实际调用立刻抛 AbortError（分享面板不弹、直接「已取消保存」），
     // 用户完全无法导出。检测到这些浏览器直接跳过分享面板，走「确定后下载」流程。
-    const ua = (navigator.userAgent || '').toLowerCase();
-    const brokenFileShare = /huaweibrowser|quark/.test(ua);
+    // v3.26.x 收口第二批：UA 嗅探改读 device.js env.brokenFileShare（唯一嗅探处）。
+    const brokenFileShare = !!((window.mochiDevice || {}).env || {}).brokenFileShare;
     // v3.31.x：超大备份不走系统分享面板——安卓 Chrome 分享 50MB+ 文件会把文件复制进分享
     // intent，内存吃紧机型上分享面板可能直接把标签页搞崩（OPPO Find X9 导出闪退路径之一）。
     // 大文件统一走「确定后下载」（a[download] 由浏览器流式落盘，不额外复制整包）。

@@ -254,7 +254,7 @@ const FIX_SENTINELS = [
   { name: '#141 收起复原时 _aH 基线钳回布局视口全高（防基线停留低位把 .phone 锁死中间高度=灰块不收）', file: 'js/mobile-adapt.js', needle: 'if (_aH < window.innerHeight - 12) _aH = window.innerHeight;' },
   { name: '#141 悬浮键盘推定收口（用户键入 1200ms 内即放行推顶，不等 2200ms 无活动自愈）', file: 'js/mobile-adapt.js', needle: 'if (!tgt || Date.now() - _aUserTypos > 1200) return;' },
   { name: '#144 isIOS 补 iPadOS 伪装 UA 分支（Macintosh+触摸屏，修 iPad Air 全屏开关无反应/ios-pwa-standalone 类不加）', file: 'js/device.js', needle: "((navigator.platform === 'MacIntel' || /Macintosh/i.test(ua)) && navigator.maxTouchPoints > 1 && 'ontouchstart' in window);" },
-  { name: '#144 armFgIdbReset 补 touchMac 分支（伪装 UA 的 iPad 回前台重建 IDB 连接）', file: 'js/idb.js', needle: 'if (!/iPhone|iPad|iPod/i.test(ua) && !touchMac) return;' },
+  { name: '#144 armFgIdbReset 补 touchMac 分支（伪装 UA 的 iPad 回前台重建 IDB 连接；收口第二批改读 mochiDevice.isIOS——device.js isIOS 含 Macintosh 伪装分支，删门=伪装 iPad 断连不重建）', file: 'js/idb.js', needle: 'if (!((window.mochiDevice || {}).isIOS)) return;' },
   { name: '#148 syncVvFit 顶部避让改 env() 探针实测（iOS26 已避让形态 env=0 不再加页面 padding，修 Mochi 行上方大空白）', file: 'js/mobile-adapt.js', needle: 'padding-top:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none;' },
   { name: '#148 fs 态写 --mochi-ios-h（判定器 expBase：envTop+inner min 屏高，覆盖=整屏/已避让=inner；#210 起公式收敛到共享判定器）', file: 'js/mobile-adapt.js', needle: 'Math.round(_f.expBase) : 0' },
   { name: '#148 fs 态 .phone 高度用 --mochi-ios-h（回 100vh 兜底）', file: 'css/base.css', needle: 'height:var(--mochi-ios-h, 100vh);' },
@@ -724,6 +724,10 @@ const FIX_SENTINELS = [
   { name: '#247 群聊撤回快照防臃肿（媒体类记录/超大快照走占位回退不存 DOM 快照——否则令牌化省下的空间被快照里的整段 base64 吃回去）', file: 'js/group-chat.js', needle: "const mediaish = rec.type === 'sticker' || rec.type === 'image' || rec.type === 'voice' ||" },
   { name: '#248 群聊历史分页·渲染窗口起点（进群只渲最近 RENDER_MAX 条，gcRenderStart 供「查看更早」续载——删则回归只上不下，老消息存了但界面永远看不到）', file: 'js/group-chat.js', needle: 'gcRenderStart = Math.max(0, n - RENDER_MAX);' },
   { name: '#248 群聊历史分页·滚动位置保持（顶部补历史按 scrollHeight 差值回补 scrollTop——删则点查看更早视口跳底/闪跳）', file: 'js/group-chat.js', needle: 'try { body.scrollTop += body.scrollHeight - prevH; } catch (e) {}' },
+  { name: '收口第二批 env 能力层（device.js 唯一 UA 嗅探处：chat 语音 WebView/data-backup 分享黑名单/music-player API 拦截提示/bg-keep 小米通知提示四消费端只读标记——删 env 挂载=四端读 undefined 恒 false，语音走错容器/华为夸克分享假成功回归）', file: 'js/device.js', needle: 'env: env,' },
+  { name: '收口第二批 语音 WebView 消费锚（chat.js 改读 mochiDevice.env.isAndroidWebView——标准安卓 Chrome 才走 webm/opus 防爆音，删读取则全安卓 WebView 误走 webm 能录不能播）', file: 'js/chat.js', needle: 'return !!((window.mochiDevice || {}).env || {}).isAndroidWebView;' },
+  { name: '收口第二批 备份分享黑名单消费锚（data-backup.js 改读 env.brokenFileShare——删读取则华为/夸克分享假成功 AbortError 回归=无法导出备份）', file: 'js/data-backup.js', needle: 'const brokenFileShare = !!((window.mochiDevice || {}).env || {}).brokenFileShare;' },
+  { name: '收口第二批 kaIsIOS 薄壳（bg-keep.js 改读 mochiDevice.isIOS 唯一判定源——复刻正则回来=device.js 判定升级时保活幅度/频率走错平台分支）', file: 'js/bg-keep.js', needle: 'try { return !!(window.mochiDevice || {}).isIOS; } catch (e) {}' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

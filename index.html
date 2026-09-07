@@ -8825,9 +8825,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788740934736">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.520</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 08:28<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788784296244">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.521</b></span>
+        <span class="sv-deploy">部署于 2026-09-07 20:31<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9983,7 +9983,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.520</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.521</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10274,7 +10274,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.520</span>
+              <span class="lic-ver">v3.26.521</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -13837,6 +13837,18 @@ else localStorage.removeItem(LAYOUT_KEY);
 } catch (e) {}
 return layoutPref;
 }
+const _envUa = String((function () { try { return navigator.userAgent || ''; } catch (e) { return ''; } })());
+const env = {
+isAndroidWebView: (function () {
+try {
+if (!_envUa) return true;
+return /wv\b|MicroMessenger|MicroApp|VivoBrowser|OPBrowser|MQQBrowser|QQBrowser|baiduboxapp|UCBrowser|XiaoMi|MiuiBrowser|HuaweiBrowser|Quark|SogouMobileBrowser|SamsungBrowser|MetaSr|OBABROWSER|dingtalk/i.test(_envUa);
+} catch (e) { return true; }
+})(),
+brokenFileShare: /huaweibrowser|quark/i.test(_envUa),
+apiBlockedHint: /QQBrowser|Quark/i.test(_envUa),
+notifyQuirk: /miui|xiaomi|redmi|hyperos/i.test(_envUa) || /android/i.test(_envUa)
+};
 window.mochiDevice = {
 isMobile: !!isMobile,
 isTablet: !!isTablet,
@@ -13846,6 +13858,7 @@ isVia: !!isVia,
 mobileRule: mobileRule,
 layoutPref: layoutPref,
 signals: sig,
+env: env,
 setLayoutPref: setLayoutPref
 };
 window.mochiVvDiag = function () {
@@ -15954,10 +15967,7 @@ return /connection\s+(is\s+)?(closed|lost|closing)|server\s+lost|database\s+conn
 function armFgIdbReset() {
 try {
 if (typeof document === 'undefined' || !document.addEventListener) return;
-const ua = (window.navigator && window.navigator.userAgent) || '';
-const touchMac = ((window.navigator && window.navigator.platform) === 'MacIntel' || /Macintosh/i.test(ua)) &&
-(window.navigator && window.navigator.maxTouchPoints > 1) && ('ontouchstart' in window);
-if (!/iPhone|iPad|iPod/i.test(ua) && !touchMac) return;
+if (!((window.mochiDevice || {}).isIOS)) return;
 const resetNow = function () {
 try {
 if (!dbPromise) return;
@@ -31631,9 +31641,8 @@ scrollChatBottom();
 window.openVoicePanelFor = function (onSend) { openVoicePanel({ onSend: onSend }); };
 function isAndroidWebView() {
 try {
-const ua = navigator.userAgent || '';
-return /wv\b|MicroMessenger|MicroApp|VivoBrowser|OPBrowser|MQQBrowser|QQBrowser|baiduboxapp|UCBrowser|XiaoMi|MiuiBrowser|HuaweiBrowser|Quark|SogouMobileBrowser|SamsungBrowser|MetaSr|OBABROWSER|dingtalk/i.test(ua);
-} catch (e) { return true; } // 拿不到 UA 时保守按 WebView 处理（走 mp4/aac，只影响音质不影响可用）
+return !!((window.mochiDevice || {}).env || {}).isAndroidWebView;
+} catch (e) { return true; } // 拿不到判定源时保守按 WebView 处理（走 mp4/aac，只影响音质不影响可用）
 }
 function voiceMimePreferOpus() {
 const md = (window.mochiDevice) || {};
@@ -42880,9 +42889,8 @@ let msg = res.total
 if (res.vip) msg += '（VIP 歌曲 ' + res.vip + ' 首未导入）';
 if (res.plFail) {
 if (!res.total) {
-const ua = navigator.userAgent || '';
 msg += '：可能为私密歌单、已失效或被浏览器拦截';
-if (/QQBrowser/i.test(ua) || /Quark/i.test(ua)) msg += '（当前浏览器可能拦截了音乐 API，可换用 Safari 重试）';
+if (((window.mochiDevice || {}).env || {}).apiBlockedHint) msg += '（当前浏览器可能拦截了音乐 API，可换用 Safari 重试）';
 else msg += '，可稍后重试';
 } else {
 msg += '；' + res.plFail + ' 个失败（可能私密/已失效/被浏览器拦截）';
@@ -42982,8 +42990,7 @@ if (res.total) {
 msg += res.plOk + ' 个歌单 / ' + res.total + ' 首';
 } else {
 msg += '0 首歌单（可能私密/已失效/被浏览器拦截';
-const ua = navigator.userAgent || '';
-if (/QQBrowser/i.test(ua) || /Quark/i.test(ua)) msg += '，当前浏览器可能拦截了音乐 API，可换用 Safari 重试';
+if (((window.mochiDevice || {}).env || {}).apiBlockedHint) msg += '，当前浏览器可能拦截了音乐 API，可换用 Safari 重试';
 else msg += '，可稍后重试';
 msg += '）';
 }
@@ -52159,11 +52166,7 @@ setTimeout(syncKeepForMusic, 0);
 })();
 let KEEP_AUDIO_DATAURL = '';
 function kaIsIOS() {
-try {
-const ua = navigator.userAgent || '';
-if (/iphone|ipad|ipod/i.test(ua) && !/android/i.test(ua)) return true;
-if (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1) return true; // iPadOS 桌面 UA
-} catch (e) {}
+try { return !!(window.mochiDevice || {}).isIOS; } catch (e) {}
 return false;
 }
 function ensureKeepAudioDataUrl() {
@@ -52687,7 +52690,8 @@ const name = store.get('lbl-partner') || (window.taWord ? window.taWord() : 'TA'
 showSysNotification('后台通知测试', { body: '来自 ' + name + ' · 如果能看到这条，后台通知就通了' }).then(function (ok) {
 if (ok) {
 env.push('✓ 测试通知已发送（Service Worker）');
-if (/miui|xiaomi|redmi|hyperos/i.test(navigator.userAgent) || /android/i.test(navigator.userAgent)) {
+const _mdN = (window.mochiDevice || {}).env || {};
+if (_mdN.notifyQuirk) {
 env.push('悬浮开关：系统设置→通知管理→Chrome→通知类别/横幅通知→打开「在屏幕上方显示」');
 }
 } else {
@@ -52765,6 +52769,7 @@ const NOTIFY_HIDDEN_MIN_MS = 15000;
 const NOTIFY_CHAT_DUP_MS = 5 * 60000;  // v3.20.x：历史聊天查重 15→5 分钟
 const NOTIFY_SENT_DUP_MS = 2 * 60000;  // v3.20.x：已发通知查重 6→2 分钟
 const NOTIFY_SEEN_DUP_MS = 3 * 60000;  // v3.20.x：前台看过记忆 15→3 分钟
+let lastNotifySentAt = 0; // v3.22.x：上一条通知发出时刻（批量连发判定用）
 function normNotifyKey(raw) {
 let s = String(raw || '');
 if (s.length > 1024) s = s.slice(0, 1024); // 先截断再正则，避免超长 base64 全文替换开销
@@ -52827,9 +52832,10 @@ t = '';
 t = t.split('|||')[0];
 }
 const mf = msgFingerprint(t, img);
-if (mf === key) return true;
-if (mf.length >= 6 && key.length > mf.length && key.indexOf(mf) >= 0) return true;
-if (key.length >= 6 && mf.length > key.length && mf.indexOf(key) >= 0) return true;
+if (mf === key && mts && refTs && refTs - mts < 60000) return true;
+if (mf === key && (!mts || !refTs)) return true; // 无时间戳兜底，保守拦截
+if (mf.length >= 6 && key.length > mf.length && key.length >= mf.length * 1.6 && key.indexOf(mf) >= 0) return true;
+if (key.length >= 6 && mf.length > key.length && mf.length >= key.length * 1.6 && mf.indexOf(key) >= 0) return true;
 }
 } catch (e) {}
 return false;
@@ -52882,8 +52888,10 @@ if (!('Notification' in window) || Notification.permission !== 'granted') return
 gateStats.total++;
 const force = !!extra.force;
 if (!force && lastHiddenAt > 0 && Date.now() - lastHiddenAt < NOTIFY_HIDDEN_MIN_MS) { gateStats.tooFresh++; return; }
-if (!force && (notifiedDup(nkey) || seenDup(nkey))) { gateStats.dup++; return; }
-if (!force && recentChatDup(nkey, ts)) { gateStats.dup++; return; }
+const batchBurst = lastNotifySentAt && Date.now() - lastNotifySentAt < 30000;
+if (!force && !batchBurst && (notifiedDup(nkey) || seenDup(nkey))) { gateStats.dup++; return; }
+if (!force && !batchBurst && recentChatDup(nkey, ts)) { gateStats.dup++; return; }
+lastNotifySentAt = Date.now();
 gateStats.sent++;
 hiddenSentCount++;
 hiddenSentName = extra.name || store.get('lbl-partner') || (window.taWord ? window.taWord() : 'TA');
@@ -77634,8 +77642,7 @@ toast('备份已打包（' + sizeStr + '），请重新点击「导出数据」�
 }
 async function saveBackupFile(blob, fname) {
 const file = new File([blob], fname, { type: 'application/json;charset=utf-8' });
-const ua = (navigator.userAgent || '').toLowerCase();
-const brokenFileShare = /huaweibrowser|quark/.test(ua);
+const brokenFileShare = !!((window.mochiDevice || {}).env || {}).brokenFileShare;
 const shareMax = 50 * 1024 * 1024;
 if (!brokenFileShare && blob.size <= shareMax && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
 try {
@@ -81207,4 +81214,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtqi62j4 -->
+<!-- __MOCHI_EOF__ mtr7zghg -->

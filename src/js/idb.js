@@ -79,13 +79,12 @@
   function armFgIdbReset() {
     try {
       if (typeof document === 'undefined' || !document.addEventListener) return;
-      const ua = (window.navigator && window.navigator.userAgent) || '';
-      // v3.26.x #144：iPadOS 13+ UA 伪装成 Macintosh（桌面 Mac UA + 触摸屏）——
-      // iPad 杀后台同样会断 IDB 连接，伪装 UA 的 iPad 此前全部漏掉回前台重建。
-      // 真桌面 Mac maxTouchPoints=0 不会误判（同 device.js #144 isIOS 补分支信号）。
-      const touchMac = ((window.navigator && window.navigator.platform) === 'MacIntel' || /Macintosh/i.test(ua)) &&
-        (window.navigator && window.navigator.maxTouchPoints > 1) && ('ontouchstart' in window);
-      if (!/iPhone|iPad|iPod/i.test(ua) && !touchMac) return;
+      // v3.26.x 收口第二批：iOS 判定（含 iPadOS 13+ Macintosh 伪装 UA 分支 #144）
+      // 改读唯一判定源 device.js（mochiDevice.isIOS）——此前这里复刻一份
+      // iPhone|iPad|iPod 正则 + touchMac 伪装检测，与 device.js 各算一遍，
+      // device.js 判定规则升级时这里会被漏掉（收口第二批清单项）。
+      // 真桌面 Mac maxTouchPoints=0 不会误判（device.js #144 分支自带触摸信号门槛）。
+      if (!((window.mochiDevice || {}).isIOS)) return;
       const resetNow = function () {
         try {
           if (!dbPromise) return;

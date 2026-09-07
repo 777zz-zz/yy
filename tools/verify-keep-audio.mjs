@@ -31,15 +31,24 @@ const kaIsIOS = grab(/function kaIsIOS\(\) \{[\s\S]*?\n  \}/, 'kaIsIOS');
 const ensure = grab(/function ensureKeepAudioDataUrl\(\) \{[\s\S]*?\n  \}/, 'ensureKeepAudioDataUrl');
 
 // 执行环境：stub navigator.userAgent；KEEP_AUDIO_DATAURL/btoa 由壳注入
+// 收口第二批：kaIsIOS 改读 window.mochiDevice.isIOS（device.js 唯一判定源），
+// 抽取的函数体需要 window 桩——按传入 UA 换算出期望 isIOS 注入，同时验证
+// 「UA→isIOS→幅度/频率」链路未被抽断。
+function iosOf(ua) {
+  return (/iphone|ipad|ipod/i.test(ua) && !/android/i.test(ua)) ||
+    (/Macintosh/i.test(ua) && 5 > 1); // 抽取壳无 maxTouchPoints，Macintosh 分支按触摸屏真值（iOS 设备）模拟
+}
 function genFor(ua) {
+  const isIOS = iosOf(ua);
   const body =
     'let KEEP_AUDIO_DATAURL = "";\n' +
     'const btoa = (s) => Buffer.from(s, "binary").toString("base64");\n' +
+    'const window = { mochiDevice: { isIOS: ' + isIOS + ' } };\n' +
     kaIsIOS + '\n' + ensure + '\n' +
     'return ensureKeepAudioDataUrl();';
   const fn = new Function('navigator', body);
   const dataUrl = fn({ userAgent: ua });
-  ok('生成 WAV dataURL（UA=' + ua.slice(0, 40) + '…）', typeof dataUrl === 'string' && dataUrl.startsWith('data:audio/wav;base64,'));
+  ok('生成 WAV dataURL（UA=' + ua.slice(0, 40) + '…，isIOS=' + isIOS + '）', typeof dataUrl === 'string' && dataUrl.startsWith('data:audio/wav;base64,'));
   const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
   return Buffer.from(b64, 'base64');
 }

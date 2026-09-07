@@ -1323,9 +1323,9 @@
             if (res.vip) msg += '（VIP 歌曲 ' + res.vip + ' 首未导入）';
             if (res.plFail) {
               if (!res.total) {
-                const ua = navigator.userAgent || '';
                 msg += '：可能为私密歌单、已失效或被浏览器拦截';
-                if (/QQBrowser/i.test(ua) || /Quark/i.test(ua)) msg += '（当前浏览器可能拦截了音乐 API，可换用 Safari 重试）';
+                // v3.26.x 收口第二批：UA 特判改读 device.js env.apiBlockedHint（唯一嗅探处）
+                if (((window.mochiDevice || {}).env || {}).apiBlockedHint) msg += '（当前浏览器可能拦截了音乐 API，可换用 Safari 重试）';
                 else msg += '，可稍后重试';
               } else {
                 msg += '；' + res.plFail + ' 个失败（可能私密/已失效/被浏览器拦截）';
@@ -1440,8 +1440,8 @@
               msg += res.plOk + ' 个歌单 / ' + res.total + ' 首';
             } else {
               msg += '0 首歌单（可能私密/已失效/被浏览器拦截';
-              const ua = navigator.userAgent || '';
-              if (/QQBrowser/i.test(ua) || /Quark/i.test(ua)) msg += '，当前浏览器可能拦截了音乐 API，可换用 Safari 重试';
+              // v3.26.x 收口第二批：UA 特判改读 device.js env.apiBlockedHint（唯一嗅探处）
+              if (((window.mochiDevice || {}).env || {}).apiBlockedHint) msg += '，当前浏览器可能拦截了音乐 API，可换用 Safari 重试';
               else msg += '，可稍后重试';
               msg += '）';
             }

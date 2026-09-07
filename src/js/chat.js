@@ -7850,11 +7850,14 @@ window.openVoicePanelFor = function (onSend) { openVoicePanel({ onSend: onSend }
 // audio/webm;codecs=opus 路径稳定无爆音、Chromium 也能正常播放；iOS Safari 只支持
 // mp4/aac 可录可播，安卓 WebView（vivo/iQOO 的雨见、微信、QQ/UC/百度自带壳等）对
 // webm/opus 能录却解不了（录出来试听/播放没声）——这两种环境仍须走 mp4/aac。
+// v3.26.x 收口第二批：WebView 判定收口到 device.js env（mochiDevice.env.isAndroidWebView，
+// UA 嗅探唯一处）——此前这里自拼 18 个壳特征的大正则，与 data-backup/music-player/
+// bg-keep 各写一套，加新壳特征时容易改漏（收口清单项）。拿不到 UA 保守按 WebView
+// 处理的语义保留在 device.js 侧（只影响音质不影响可用）。
 function isAndroidWebView() {
 try {
-  const ua = navigator.userAgent || '';
-  return /wv\b|MicroMessenger|MicroApp|VivoBrowser|OPBrowser|MQQBrowser|QQBrowser|baiduboxapp|UCBrowser|XiaoMi|MiuiBrowser|HuaweiBrowser|Quark|SogouMobileBrowser|SamsungBrowser|MetaSr|OBABROWSER|dingtalk/i.test(ua);
-} catch (e) { return true; } // 拿不到 UA 时保守按 WebView 处理（走 mp4/aac，只影响音质不影响可用）
+  return !!((window.mochiDevice || {}).env || {}).isAndroidWebView;
+} catch (e) { return true; } // 拿不到判定源时保守按 WebView 处理（走 mp4/aac，只影响音质不影响可用）
 }
 // 标准安卓 Chromium（Chrome/Edge 等非内嵌壳）→ webm/opus 优先；iOS/安卓 WebView → mp4/aac 优先
 function voiceMimePreferOpus() {

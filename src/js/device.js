@@ -213,6 +213,31 @@
     } catch (e) {}
     return layoutPref;
   }
+  // ===== v3.26.x 收口第二批：环境能力层 env（UA 嗅探唯一处）=====
+  // 背景：chat.js 语音 WebView 大正则 / data-backup.js 分享面板黑名单 /
+  // music-player.js 两处音乐 API 拦截提示 / bg-keep.js 小米通知提示，此前各拼
+  // 一套 UA 正则（同一批浏览器名单在 4 个文件里各写一遍，改漏一处=修一半）。
+  // 收口到这里，业务文件只消费布尔标记、不再碰 UA；以后新增浏览器/壳特征只改
+  // 本文件。保守语义与原各处一致：拿不到 UA 时按「最坏情况」处理（见各字段）。
+  const _envUa = String((function () { try { return navigator.userAgent || ''; } catch (e) { return ''; } })());
+  const env = {
+    // 安卓 WebView/内嵌壳（语音走 mp4/aac 优先——webm/opus 能录不能播）。
+    // 拿不到 UA 保守按 WebView 处理（只影响音质不影响可用，同 chat.js 原语义）
+    isAndroidWebView: (function () {
+      try {
+        if (!_envUa) return true;
+        return /wv\b|MicroMessenger|MicroApp|VivoBrowser|OPBrowser|MQQBrowser|QQBrowser|baiduboxapp|UCBrowser|XiaoMi|MiuiBrowser|HuaweiBrowser|Quark|SogouMobileBrowser|SamsungBrowser|MetaSr|OBABROWSER|dingtalk/i.test(_envUa);
+      } catch (e) { return true; }
+    })(),
+    // navigator.share({files}) 会假成功（canShare true 但调用即抛）的壳——备份导出
+    // 跳过分享面板直接走「确定后下载」（华为 Mate20 默认浏览器/夸克，v3.9.x）
+    brokenFileShare: /huaweibrowser|quark/i.test(_envUa),
+    // 音乐 API 被壳拦截、可提示用户换 Safari 的环境（QQ 浏览器/夸克，文案提示共用）
+    apiBlockedHint: /QQBrowser|Quark/i.test(_envUa),
+    // 系统级通知可能拦截（API 不报错但通知不显示）的安卓环境（红米/小米等 MIUI 系）
+    notifyQuirk: /miui|xiaomi|redmi|hyperos/i.test(_envUa) || /android/i.test(_envUa)
+  };
+
   window.mochiDevice = {
     isMobile: !!isMobile,
     isTablet: !!isTablet,
@@ -222,6 +247,7 @@
     mobileRule: mobileRule,
     layoutPref: layoutPref,
     signals: sig,
+    env: env,
     setLayoutPref: setLayoutPref
   };
 

@@ -151,12 +151,12 @@
   // iOS 把幅度降到 ±3 LSB 级（0.002 × 0.05 ≈ -80dBFS，任何扬声器物理不可闻，
   // 但样本非零不构成数字静音）；安卓同型问题多机型复发（#190：OPPO Find X9 自带浏览器 HeyTapBrowser 等「一进网页就有底噪/电流声」）——220Hz 低频纯音在人耳最敏感频段、循环常播，-60dBFS 在灵敏扬声器上实听即持续嗡声，说明 0.02 下限过高；降为 0.006（×0.05 音量 ≈ -88dBFS，物理不可闻）：防无声节流要的是「样本非零 + volume>0」（浏览器静音检测按零样本/静音状态判定，不按响度），非零即保活有效；若保活因此失效（后台被冻结）再回调上限并换其他豁免信号，不回 220Hz 大音量（原安卓幅度 0.02）。
   let KEEP_AUDIO_DATAURL = '';
+  // v3.26.x 收口第二批：iOS 判定改读唯一判定源 device.js（mochiDevice.isIOS，
+  // 含 iPadOS Macintosh 伪装分支 #144）——此前这里自拼一份 UA 正则 + 伪装检测，
+  // 与 device.js 各算一遍（v3.16.x 收口漏网的角落，device.js 判定规则升级时
+  // 这里会被漏掉）。保留函数名薄壳：#207 哨兵/verify-keep-audio 按函数抽取。
   function kaIsIOS() {
-    try {
-      const ua = navigator.userAgent || '';
-      if (/iphone|ipad|ipod/i.test(ua) && !/android/i.test(ua)) return true;
-      if (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1) return true; // iPadOS 桌面 UA
-    } catch (e) {}
+    try { return !!(window.mochiDevice || {}).isIOS; } catch (e) {}
     return false;
   }
   function ensureKeepAudioDataUrl() {
@@ -851,7 +851,9 @@
           if (ok) {
             env.push('✓ 测试通知已发送（Service Worker）');
             // 红米/小米：系统级通知可能拦截（API 不报错但通知不显示）
-            if (/miui|xiaomi|redmi|hyperos/i.test(navigator.userAgent) || /android/i.test(navigator.userAgent)) {
+            // v3.26.x 收口第二批：UA 特判改读 device.js env.notifyQuirk（唯一嗅探处）
+            const _mdN = (window.mochiDevice || {}).env || {};
+            if (_mdN.notifyQuirk) {
               env.push('悬浮开关：系统设置→通知管理→Chrome→通知类别/横幅通知→打开「在屏幕上方显示」');
             }
           } else {
@@ -969,6 +971,7 @@
   const NOTIFY_CHAT_DUP_MS = 5 * 60000;  // v3.20.x：历史聊天查重 15→5 分钟
   const NOTIFY_SENT_DUP_MS = 2 * 60000;  // v3.20.x：已发通知查重 6→2 分钟
   const NOTIFY_SEEN_DUP_MS = 3 * 60000;  // v3.20.x：前台看过记忆 15→3 分钟
+  let lastNotifySentAt = 0; // v3.22.x：上一条通知发出时刻（批量连发判定用）
   // 通知文本归一化：剥 dataURL/语音 ||| 段/SVG 标签，去空白后取前 100 字符做指纹
   function normNotifyKey(raw) {
     let s = String(raw || '');
@@ -1051,14 +1054,20 @@
           t = t.split('|||')[0];
         }
         const mf = msgFingerprint(t, img);
-        if (mf === key) return true;
+        // v3.21.x：精确相等查重加「该历史条目距本次到达 <60 秒」条件——同内容但
+        // 隔了一分钟以上的新消息是 TA 真的又说了一遍，必须弹（此前 5 分钟窗口内
+        // 任何同文案都被吞，字卡池小的时候严重误杀）
+        if (mf === key && mts && refTs && refTs - mts < 60000) return true;
+        if (mf === key && (!mts || !refTs)) return true; // 无时间戳兜底，保守拦截
         // v3.14.x：双向包含兜底——互动卡的通知文本是「前缀+卡面」（如「TA想问你一个问题：」+
         // 卡面、「TA 来查岗了：」+卡面），聊天记录里存的却是裸卡面/裸提示语条目，精确相等
-        // 永远对不上 → 已看过的卡片再被任何机制触发时照样重弹系统通知（用户实测：
-        // 切后台回来再切出，弹出刚在聊天里看过的互动卡）。较短一边 ≥6 字才参与包含
-        // 比对，防「哈哈」这类超短文案误伤无关新消息
-        if (mf.length >= 6 && key.length > mf.length && key.indexOf(mf) >= 0) return true;
-        if (key.length >= 6 && mf.length > key.length && mf.indexOf(key) >= 0) return true;
+        // 永远对不上 → 已看过的卡片再被任何机制触发时照样重弹系统通知。
+        // v3.21.x：包含比对收紧——原「较短边 ≥6 字即参与」在字卡池有限时会误吞全新短消息：
+        // 新消息「在吗」是 5 分钟内旧消息「在吗？我想你了」的子串 → 被当成重放吞掉
+        // （用户实测：经常收不到）。收紧为【较长边 ≥ 短边 ×1.6 且短边 ≥6 字】才参与——
+        // 互动卡「前缀+卡面」场景仍命中（前缀明显更长），普通短语互为子串不再误杀
+        if (mf.length >= 6 && key.length > mf.length && key.length >= mf.length * 1.6 && key.indexOf(mf) >= 0) return true;
+        if (key.length >= 6 && mf.length > key.length && mf.length >= key.length * 1.6 && mf.indexOf(key) >= 0) return true;
       }
     } catch (e) {}
     return false;
@@ -1137,8 +1146,13 @@
     // 前台久驻后（如看了 10 分钟）它很旧，切后台瞬间积压的定时器批量到点产生的
     // 一堆消息会全部通过闸门 → 弹出大量看过的内容。改为切后台头 15 秒内一律不弹
     if (!force && lastHiddenAt > 0 && Date.now() - lastHiddenAt < NOTIFY_HIDDEN_MIN_MS) { gateStats.tooFresh++; return; }
-    if (!force && (notifiedDup(nkey) || seenDup(nkey))) { gateStats.dup++; return; }
-    if (!force && recentChatDup(nkey, ts)) { gateStats.dup++; return; }
+    // v3.22.x：批量连发不因内容相同被吞——TA 一次主动发送可连发多条（间隔数秒），
+    // 字卡撞车时第二条起全被 notifiedDup（2 分钟窗口）吞掉，用户体感「时有时无/只收到
+    // 一条」。上一条通知发出 <30 秒内的同文案视为同一批连发，放行不查重
+    const batchBurst = lastNotifySentAt && Date.now() - lastNotifySentAt < 30000;
+    if (!force && !batchBurst && (notifiedDup(nkey) || seenDup(nkey))) { gateStats.dup++; return; }
+    if (!force && !batchBurst && recentChatDup(nkey, ts)) { gateStats.dup++; return; }
+    lastNotifySentAt = Date.now();
     gateStats.sent++;
     // v3.19.x：累加「本次后台实际发送的通知数」——回前台汇总用它（见 visibilitychange
     // 处理器），发送者名取本次通知标题
