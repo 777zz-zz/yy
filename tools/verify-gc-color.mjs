@@ -109,7 +109,7 @@ for (let i = 0; i < 40; i++) { if (await evalJs('!!window.__mochiDataReady')) br
 await evalJs("(function(){document.querySelectorAll('.page').forEach(function(p){p.hidden=(p.id!=='page-group-chat');});return 1;})()");
 await evalJs("(function(){var el=document.getElementById('gc-more-settings');if(el){el.click();return 1;}return 0;})()");
 await sleep(600);
-await evalJs("(function(){var el=document.querySelector('#gc-set-body .gc-set-link');if(el){el.click();return 1;}return 0;})()");
+await evalJs("(function(){var links=Array.from(document.querySelectorAll('#gc-set-body .gc-set-link'));var el=links.find(function(x){return x.innerText.indexOf('美化聊天')>=0;});if(el){el.click();return 1;}return 0;})()");
 await sleep(500);
 
 // 点击「我的气泡颜色」行 → 弹窗色板 → 选第 4 格樱花粉 #ffd6e0 → 确定

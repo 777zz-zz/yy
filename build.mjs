@@ -468,7 +468,9 @@ const FIX_SENTINELS = [
   { name: '#104 导出异常边界收遮罩并如实报环节/键名/体积（旧实现裸调用 → RangeError 变未处理 promise rejection → impHide 永不执行 = 用户报的「一直在打包中」）', file: 'js/data-backup.js', needle: 'reportExportError' },
   { name: '#104 大库导出前选备份范围（完整/不含音乐/只备份文字，navigator.storage.estimate 超 150MB 才弹；小库不打扰）', file: 'js/data-backup.js', needle: 'askExportMode' },
   { name: '#104 导入读大文件按错误类型给文案（不再把「本机读不动这么大的一份」谎报成「无效的数据文件」）', file: 'js/data-backup.js', needle: '这份备份太大，本机读不进去' },
-  { name: '安卓 Chrome 强制深色遮蔽网页配色修复：:root 显式声明 color-scheme:light（深色由 data-theme 手动管；缺失时系统深色下 Chrome Auto Dark 无视网页配色把群聊气泡/字体全网压成纯黑，iQOO Neo10 反馈）', file: 'css/base.css', needle: 'color-scheme:light' },
+  { name: '安卓 Chrome 强制深色遮蔽网页配色修复：:root 显式声明 color-scheme:light（深色由 data-theme 手动管；缺失时系统深色下 Chrome Auto Dark 无视网页配色把群聊气泡/字体全网压成纯黑，iQOO Neo10 反馈）——#252 升级 only light（裸 light 是偏好声明不是退出开关，部分安卓 Chromium/WebView 系统深色下仍压黑）', file: 'css/base.css', needle: 'color-scheme:only light' },
+  { name: '#252 深色三档启动落位含 auto 档+浅色强制清残留（头部脚本旧版只认 dark：auto 用户系统深色下白闪 FOUC；残留 data-theme 令浅色档界面停留深色）', file: 'template.html', needle: "if(_tm==='dark'||(_tm!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.setAttribute('data-theme','dark');else document.documentElement.removeAttribute('data-theme')" },
+  { name: '#252 applyThemeMode 浅色档显式 removeAttribute（属性在=dark.css 全量生效，双保险防残留；needle 按产物压缩后的无缩进换行形态登记）', file: 'js/personalize.js', needle: "if (eff === 'dark') document.documentElement.setAttribute('data-theme', 'dark');\nelse document.documentElement.removeAttribute('data-theme');" },
   { name: '#104 导出入口不再裸调用 doExport（absent 守卫：出现无 await/无 catch 的 doExport(); 即回归——遮罩永不隐藏的直接根因）', file: 'js/data-backup.js', needle: 'doExport();', absent: true },
   { name: '#105 钓鱼「留」标记按归属存（keepKey(side,id)，回归成品种级开关时同品种两侧互相牵连——用户报「只想留 TA 的」做不到）', file: 'js/fishing.js', needle: 'function keepKey(side, id)' },
   { name: '#105 出售按归属跳过未留项（旧写法 keep[id] 会把另一侧同品种的鱼一起跳过不卖）', file: 'js/fishing.js', needle: 'if (keep[keepKey(side, id)]) return;' },
@@ -731,6 +733,8 @@ const FIX_SENTINELS = [
   { name: '#250 切桌面卡死·表情包全局键重复重读（chat.js 切换监听不再 myEmojiLoad+reloadMyEmojiFromIdb——my-emoji-groups 全局键切桌面不变，删此守卫则大表情库设备每次切换整包 JSON.parse×2+35MB idbGet 主线程卡死数秒）', file: 'js/chat.js', needle: "loadEmojiPref(); // v3.26.x：切换联系人后按该桌面的上次 tab/分组偏好落位，不复用上一桌面状态\nif (!emojiPanel.hidden) renderEmojiPanel();\n});" },
   { name: '#250 切桌面卡死·群聊切换按可见性重渲（group-chat.js 隐藏态挂起 gcSwitchDirty 不整窗重渲 200 条——删则重度群聊设备每次切换白耗主线程；成员名随联系人改名变化由 enterGroupChat 全量重建保证）', file: 'js/group-chat.js', needle: 'const pageVisible = page && !page.hidden;' },
   { name: '#250 切桌面卡死·卡片背景恒等跳过（personalize.js applyCardBg 值变才写——赋同值=浏览器作废已解码位图重新解码，MB 级 dataURL 真机切换瞬间整屏重解码）', file: 'js/personalize.js', needle: 'if (el.style.backgroundImage === next) return;' },
+  { name: '#251 群聊对齐聊天设置·回车发送开关（keydown 读 cs-enter-send===\'off\' 放行换行——删则群聊回车强制发送，关不掉）', file: 'js/group-chat.js', needle: "if (window.activeStore().get('cs-enter-send') === 'off') return;" },
+  { name: '#251 群聊对齐聊天设置·数据导出导入（导出流式拼接 Blob 防超长+导入兼容三结构确认覆盖——删则群聊记录无备份/恢复通道）', file: 'js/group-chat.js', needle: "const parts = ['{\"app\":\"mochi-zika-group-chat\"" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

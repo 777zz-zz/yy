@@ -2611,6 +2611,8 @@ try {
   const sysPrefersDark = () => !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const applyThemeMode = (mode) => {
     const eff = (mode === 'auto') ? (sysPrefersDark() ? 'dark' : 'light') : mode;
+    // #252：浅色档显式移除属性而非依赖"本来就没有"——旧版本/残留 DOM 的 data-theme
+    // 会让用户选浅色后界面仍停留深色（属性在=dark.css 全量生效）
     if (eff === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
     else document.documentElement.removeAttribute('data-theme');
     if (themeModeVal) themeModeVal.textContent = mode === 'auto' ? '跟随系统' : (mode === 'dark' ? '已开启' : '关闭');

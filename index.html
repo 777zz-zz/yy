@@ -20,11 +20,14 @@
      对带 Referer 的请求返回 403（防盗链），移动端 WebView/Edge 对
      audio.referrerPolicy 属性支持不完整，页面级 meta 是更可靠的保证 -->
 <meta name="referrer" content="no-referrer">
-<script>try{if(localStorage.getItem('xy-home-v2:theme-mode')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<!-- v3.27.x 三档主题的启动落位（#252 收口）：浅色/深色按存储直挂；auto 档此前头部
+     脚本只认 dark、系统深色的 auto 用户会先白闪再由 personalize.js 纠正（FOUC）。
+     另：旧版本残留的 data-theme 属性在此强制清掉，保证「选浅色」真回浅色。 -->
+<script>try{var _tm=localStorage.getItem('xy-home-v2:theme-mode');if(_tm==='dark'||(_tm!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.setAttribute('data-theme','dark');else document.documentElement.removeAttribute('data-theme');}catch(e){}</script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 :root {
-color-scheme:light;
+color-scheme:only light;
 --ink:#111111; --muted:#8a8a8a; --line:#e6e6e6;
 --page-bg:#e9e9e9; --page-bg-grad:#f6f6f6;
 --phone-bg-a:#ffffff; --phone-bg-b:#f2f2f2; --phone-inset:#e8e8e8;
@@ -6464,6 +6467,13 @@ background: #fafafa; color: #333; cursor: pointer; white-space: nowrap;
 .gc-set-btn:active { background: #eee; }
 .gc-set-btn.ghost { color: #a32; border-color: #f3c0c0; background: #fff5f5; }
 .gc-set-note { padding: 12px 16px 0; font-size: 11px; color: #aaa; line-height: 1.6; }
+.gc-set-toggle .toggle { flex-shrink: 0; }
+.gc-set-sub {
+display: block; font-size: 11px; font-weight: 400; color: #999; margin-top: 2px;
+white-space: normal; line-height: 1.5;
+}
+.gc-set-danger .gc-set-name { color: #c0392b; }
+.gc-set-danger .gc-set-av { color: #c0392b; }
 .gc-set-back {
 display: flex; align-items: center; gap: 4px; cursor: pointer;
 padding: 12px 16px 2px; font-size: 14px; font-weight: 500; color: #555;
@@ -8825,9 +8835,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788788875024">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.523</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 21:47<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788792656563">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.525</b></span>
+        <span class="sv-deploy">部署于 2026-09-07 22:50<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9983,7 +9993,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.523</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.525</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10274,7 +10284,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.523</span>
+              <span class="lic-ver">v3.26.525</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -13159,6 +13169,11 @@ transition-duration: .01ms !important;
         <button class="ma-btn" data-act="quote" title="引用">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11H6a2 2 0 01-2-2V6a2 2 0 012-2h2a2 2 0 012 2v7a4 4 0 01-4 4"/><path d="M20 11h-4a2 2 0 01-2-2V6a2 2 0 012-2h2a2 2 0 012 2v7a4 4 0 01-4 4"/></svg>
           <span>引用</span>
+        </button>
+        <!-- 对齐聊天设置「允许删除联系人消息」：开启后成员消息可从菜单真删除（默认隐藏，group-chat.js 按 gc-del-msg 开关显隐） -->
+        <button class="ma-btn ma-del-gc" data-act="del" title="删除" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/><path d="M6 6l1 14a2 2 0 002 2h6a2 2 0 002-2l1-14"/></svg>
+          <span>删除</span>
         </button>
       </div>
       <!-- 群聊设置面板（v3.9.x：我的群聊形象 + 成员群聊形象，内容 JS 渲染） -->
@@ -33706,6 +33721,7 @@ sendBtn.addEventListener('click', () => { addMsg(input.innerText); try { input.f
 }
 if (input) input.addEventListener('keydown', (e) => {
 if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) {
+try { if (window.activeStore().get('cs-enter-send') === 'off') return; } catch (err) {}
 e.preventDefault();
 addMsg(input.innerText);
 }
@@ -34120,6 +34136,117 @@ const rNote = document.createElement('div');
 rNote.className = 'gc-set-note';
 rNote.textContent = '这里的回复概率与速度对所有群聊成员统一生效（全局）；完整的每项概率/条数/开关在「设置 → 回复设置 → 群聊被动回复」里调整。';
 settingsBody.appendChild(rNote);
+const tIn = document.createElement('div');
+tIn.className = 'gc-set-title';
+tIn.textContent = '输入与消息';
+settingsBody.appendChild(tIn);
+const gcToggleRow = (label, sub, key, onchange) => {
+const row = document.createElement('div');
+row.className = 'gc-set-item gc-set-toggle';
+row.innerHTML =
+'<div class="gc-set-info"><div class="gc-set-name">' + esc(label) +
+(sub ? '<span class="gc-set-sub">' + esc(sub) + '</span>' : '') + '</div></div>' +
+'<label class="toggle"><input type="checkbox"><span class="tk"></span></label>';
+const cb = row.querySelector('input');
+cb.checked = gcGlobalOn(key);
+cb.addEventListener('change', () => { gcGlobalSet(key, cb.checked); if (onchange) onchange(cb.checked); });
+return row;
+};
+settingsBody.appendChild(gcToggleRow('回车键发送消息', '关闭后按回车键换行，不再直接发送', 'cs-enter-send', null));
+settingsBody.appendChild(gcToggleRow('批量发送消息', '输入栏右侧显示「批量发送」按钮，可插入表情包/图片/文字批量发送', 'cs-batch-send',
+() => syncGcInputBtns()));
+settingsBody.appendChild(gcToggleRow('我可发送语音', '输入栏左侧显示「麦克风」按钮，可录音并发送语音', 'cs-voice-send',
+() => syncGcInputBtns()));
+settingsBody.appendChild(gcToggleRow('隐藏联系人的表情包', '表情包面板只显示「我的表情包」', 'hide-ta-sticker',
+(en) => { try { document.dispatchEvent(new Event('hide-ta-sticker-changed')); } catch (e) {} toast(en ? '已隐藏：表情包面板只显示「我的表情包」' : '已恢复显示 TA 的和公用表情包'); }));
+settingsBody.appendChild(gcToggleRow('允许删除成员消息', '点击成员消息气泡可在操作菜单里删除该条消息', 'cs-del-ta-msg',
+(en) => toast(en ? '已开启：点击成员消息可在操作菜单里删除该条消息' : '已关闭删除成员消息功能')));
+const tD = document.createElement('div');
+tD.className = 'gc-set-title';
+tD.textContent = '数据';
+settingsBody.appendChild(tD);
+const gcDataLink = (label, sub, danger, fn) => {
+const row = document.createElement('div');
+row.className = 'gc-set-item gc-set-link' + (danger ? ' gc-set-danger' : '');
+row.innerHTML =
+'<div class="gc-set-av">' +
+'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>' +
+'</div>' +
+'<div class="gc-set-info"><div class="gc-set-name">' + esc(label) + '</div>' +
+(sub ? '<div class="gc-set-desk">' + esc(sub) + '</div>' : '') + '</div>' +
+'<span class="gc-set-chev">›</span>';
+row.addEventListener('click', fn);
+return row;
+};
+const curGroupName = currentGroup().name || '群聊';
+settingsBody.appendChild(gcDataLink('导出聊天记录', '当前群聊全部消息导出为 JSON 文件', false, () => {
+try {
+gFlushPersistNow();
+const n = msgs.length;
+if (!n) { toast('没有聊天记录可导出'); return; }
+toast('正在导出，请稍候…');
+const parts = ['{"app":"mochi-zika-group-chat","version":"1.0","gid":"' + attrEsc(curGid) + '","exportTime":"' + new Date().toISOString() + '","msgs":['];
+for (let i = 0; i < n; i++) { if (i) parts.push(','); parts.push(JSON.stringify(msgs[i])); }
+parts.push(']}');
+const blob = new Blob(parts, { type: 'application/json;charset=utf-8' });
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = curGroupName + '_聊天记录_' + new Date().toISOString().slice(0, 10) + '.json';
+document.body.appendChild(a);
+a.click();
+setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+toast('已导出 ' + n + ' 条聊天记录');
+} catch (e) { toast('导出失败：' + (e && e.message || '未知错误')); }
+}));
+settingsBody.appendChild(gcDataLink('导入聊天记录', '从 JSON 文件导入并覆盖当前群聊记录', false, () => {
+const inp = document.createElement('input');
+inp.type = 'file';
+inp.accept = '.json,application/json';
+inp.onchange = () => {
+const f = inp.files && inp.files[0];
+if (!f) return;
+const reader = new FileReader();
+reader.onload = () => {
+let data;
+try { data = JSON.parse(String(reader.result || '')); } catch (e) { toast('无效的聊天记录文件'); return; }
+if (!data || typeof data !== 'object') { toast('无效的聊天记录文件'); return; }
+let arr = Array.isArray(data) ? data : null;
+if (!arr && data.msgs && Array.isArray(data.msgs)) arr = data.msgs;
+if (!arr && data.ls && typeof data.ls === 'object') {
+const raw = (data.idb && data.idb[MSG_KEY]) || data.ls[MSG_KEY];
+try { arr = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { arr = null; }
+}
+if (!Array.isArray(arr) || !arr.length) { toast('文件里没有聊天记录数据'); return; }
+const total = arr.length;
+const fmt = (t) => t ? new Date(t).toLocaleString() : '未知';
+const lines = ['文件包含 ' + total + ' 条消息：',
+'· 最早：' + fmt(arr[0] && arr[0].ts),
+'· 最新：' + fmt(arr[total - 1] && arr[total - 1].ts),
+'导入将覆盖当前群聊的全部聊天记录（不可恢复）。'];
+if (!window.openModal) return;
+window.openModal('确认导入聊天记录？', '', () => {
+arr = arr.filter(m => m && typeof m === 'object');
+gFlushPersistNow();
+msgs = arr;
+saveNow();
+renderAll();
+toast('已导入 ' + arr.length + ' 条聊天记录');
+}, { noInput: true, staticText: lines.join('\n') });
+};
+reader.onerror = () => { toast('文件读取失败，请重试'); };
+reader.readAsText(f, 'utf-8');
+};
+inp.click();
+}));
+settingsBody.appendChild(gcDataLink('删除全部聊天记录', '清空「' + curGroupName + '」的全部消息（不可恢复）', true, () => {
+if (!window.openModal) return;
+window.openModal('确认删除「' + curGroupName + '」的全部聊天记录？（不可恢复）', '', () => {
+msgs = [];
+saveNow();
+renderAll();
+toast('聊天记录已清空');
+}, { noInput: true });
+}));
 const bRow = document.createElement('div');
 bRow.className = 'gc-set-item gc-set-link';
 bRow.innerHTML =
@@ -34697,6 +34824,21 @@ atBody.appendChild(row);
 function gcSettingOn(key) {
 try { return window.activeStore().get(key) === '1'; } catch (e) { return false; }
 }
+function gcGlobalOn(key) {
+if (key === 'hide-ta-sticker') {
+try { return window.xyStore(G).get(key) === '1'; } catch (e) { return false; }
+}
+if (key === 'cs-enter-send') { // 回车发送默认开：仅显式 'off' 视为关（与 chat.js 语义一致）
+try { return window.activeStore().get(key) !== 'off'; } catch (e) { return true; }
+}
+try { return window.activeStore().get(key) === '1'; } catch (e) { return false; }
+}
+function gcGlobalSet(key, en) {
+try {
+if (key === 'hide-ta-sticker') { window.xyStore(G).set(key, en ? '1' : '0'); return; }
+window.activeStore().set(key, key === 'cs-enter-send' ? (en ? 'on' : 'off') : (en ? '1' : '0'));
+} catch (e) {}
+}
 function syncGcInputBtns() {
 if (gcMicBtn) gcMicBtn.style.display = gcSettingOn('cs-voice-send') ? '' : 'none';
 if (gcContinueBtn) gcContinueBtn.style.display = gcSettingOn('cs-trigger-bar') ? '' : 'none';
@@ -34884,6 +35026,13 @@ return { text: qtext, imgs: qimgs, idx: msgs.indexOf(rec) };
 if (body && gcMsgActions) {
 function gcOpenMsgActions(item, bk) {
 gcActiveMsgEl = item;
+const delBtn = gcMsgActions.querySelector('.ma-del-gc');
+if (delBtn) {
+let delEn = false;
+try { delEn = window.activeStore().get('cs-del-ta-msg') === '1'; } catch (e) {}
+const side = item.classList.contains('msg-out') ? 'out' : 'in';
+delBtn.hidden = !(delEn && side === 'in');
+}
 gcMsgActions.hidden = false;
 try {
 const bRect = bk.getBoundingClientRect();
@@ -34953,6 +35102,14 @@ if (rec) {
 gcLastQuote = gcQuoteSnapOf(rec);
 renderGcDraft();
 try { if (input) input.focus(); } catch (err) {}
+}
+} else if (btn.dataset.act === 'del' && gcActiveMsgEl) {
+const idx = Number(gcActiveMsgEl.dataset.gcIdx);
+if (idx >= 0 && msgs[idx] && msgs[idx].side === 'in') {
+msgs.splice(idx, 1);
+saveMsgs();
+renderAll();
+toast('已删除该消息');
 }
 }
 closeGcMsgActions();
@@ -81230,4 +81387,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtraplhs -->
+<!-- __MOCHI_EOF__ mtrcyncj -->

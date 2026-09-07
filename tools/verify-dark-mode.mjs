@@ -171,9 +171,13 @@ check('C11 聊天搜索框深底(原 #f6f6f6 bug 已修)', isDarkish(probe.searc
   check('C13 贪吃蛇开关选中态文字改深色(var(--ink) 底不再配白字)', m.length >= 3 && ((+m[0]) + (+m[1]) + (+m[2])) < 200, probe.snakeOn);
 }
 
-// ---- D. 切回浅色：属性移除、变量回浅、CSS 回白（回归） ----
+// ---- D. 切回浅色：属性移除、变量回浅、CSS 回白（回归；v3.27.x 三档=行点击开弹窗、需点「浅色」胶囊，#252 起走真实用户路径） ----
 await evalJs("(function(){var r=document.getElementById('row-theme-mode');if(r)r.click();return 1;})()");
-await sleep(400);
+await sleep(300);
+// 弹窗胶囊里点「浅色」（pillSubmit：点选即提交）。找不到胶囊直接点行兜底旧两档
+const pillOk = await evalJs("(function(){var ps=[].slice.call(document.querySelectorAll('#modal-pills .pill'));var t=ps.filter(function(b){return b.textContent.indexOf('浅色')>=0;})[0];if(t){t.click();return 1;}return 0;})()");
+await sleep(500);
+check('D0 三档弹窗「浅色」胶囊在位且可点', pillOk === 1);
 check('D1 点击设置行切回浅色(data-theme 移除)', await evalJs("!document.documentElement.hasAttribute('data-theme')"));
 const lv = JSON.parse(await evalJs(`(function(){var cs=getComputedStyle(document.documentElement);var el=document.querySelector('#dk-probe .loc-panel');return JSON.stringify({inBg:cs.getPropertyValue('--msg-in-bg'),time:cs.getPropertyValue('--msg-time-ink'),locBg:el?getComputedStyle(el).backgroundColor:'',scheme:cs.getPropertyValue('color-scheme')});})()`) || '{}') || {};
 check('D2 浅色下联系人气泡回白(#ffffff)', norm(lv.inBg) === '#ffffff', lv.inBg);
@@ -181,9 +185,11 @@ check('D3 浅色下时间戳回黑(#111111)', norm(lv.time) === '#111111', lv.ti
 check('D4 浅色下位置面板回白底', !isDarkish(lv.locBg) && hasRGB(lv.locBg), lv.locBg);
 check('D5 浅色下 color-scheme 不再是 dark', !/dark/i.test(String(lv.scheme)), lv.scheme);
 
-// 再切回深色一次验证双向切换稳定
+// 再切回深色一次验证双向切换稳定（同样走三档弹窗「深色」胶囊）
 await evalJs("(function(){var r=document.getElementById('row-theme-mode');if(r)r.click();return 1;})()");
-await sleep(400);
+await sleep(300);
+await evalJs("(function(){var ps=[].slice.call(document.querySelectorAll('#modal-pills .pill'));var t=ps.filter(function(b){return b.textContent.indexOf('深色')>=0;})[0];if(t)t.click();return 1;})()");
+await sleep(500);
 const dv2 = await evalJs("(function(){var cs=getComputedStyle(document.documentElement);return cs.getPropertyValue('--msg-in-bg').trim()+'|'+document.documentElement.getAttribute('data-theme');})()");
 check('D6 再次切回深色：变量即时重算(MutationObserver 生效)', /^#2a2a2a\|dark$/.test(norm(dv2).replace('|', '|')) || dv2 === '#2a2a2a|dark', dv2);
 

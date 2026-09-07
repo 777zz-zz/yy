@@ -20,7 +20,10 @@
      对带 Referer 的请求返回 403（防盗链），移动端 WebView/Edge 对
      audio.referrerPolicy 属性支持不完整，页面级 meta 是更可靠的保证 -->
 <meta name="referrer" content="no-referrer">
-<script>try{if(localStorage.getItem('xy-home-v2:theme-mode')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<!-- v3.27.x 三档主题的启动落位（#252 收口）：浅色/深色按存储直挂；auto 档此前头部
+     脚本只认 dark、系统深色的 auto 用户会先白闪再由 personalize.js 纠正（FOUC）。
+     另：旧版本残留的 data-theme 属性在此强制清掉，保证「选浅色」真回浅色。 -->
+<script>try{var _tm=localStorage.getItem('xy-home-v2:theme-mode');if(_tm==='dark'||(_tm!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.setAttribute('data-theme','dark');else document.documentElement.removeAttribute('data-theme');}catch(e){}</script>
 <style>
 /*__STYLES__*/
 </style>
@@ -4572,6 +4575,11 @@
         <button class="ma-btn" data-act="quote" title="引用">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11H6a2 2 0 01-2-2V6a2 2 0 012-2h2a2 2 0 012 2v7a4 4 0 01-4 4"/><path d="M20 11h-4a2 2 0 01-2-2V6a2 2 0 012-2h2a2 2 0 012 2v7a4 4 0 01-4 4"/></svg>
           <span>引用</span>
+        </button>
+        <!-- 对齐聊天设置「允许删除联系人消息」：开启后成员消息可从菜单真删除（默认隐藏，group-chat.js 按 gc-del-msg 开关显隐） -->
+        <button class="ma-btn ma-del-gc" data-act="del" title="删除" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2"/><path d="M6 6l1 14a2 2 0 002 2h6a2 2 0 002-2l1-14"/></svg>
+          <span>删除</span>
         </button>
       </div>
       <!-- 群聊设置面板（v3.9.x：我的群聊形象 + 成员群聊形象，内容 JS 渲染） -->

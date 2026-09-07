@@ -37,6 +37,20 @@ check('S5 滑块逻辑（0-40）', /slider: \{\s*min: 0, max: 40/.test(src));
 check('S6 群聊分数方案钩子挂到 window', /window\.saveGcBeautyScheme = function/.test(src) && /window\.openGcBeautySchemes = function/.test(src));
 check('S7 .gc-set-stepper 样式在位', css.includes('.gc-set-stepper'));
 check('S8 深色模式 stepper 文字色在位', dark.includes('.gc-set-stepper .txt'));
+// ---- #251 群聊设置对齐聊天设置：输入与消息 / 数据 / 删除消息（静态锚） ----
+const tmpl = readFileSync(join(root, 'src/template.html'), 'utf8');
+check('S9 输入与消息组五开关接线（回车/批量/语音/隐藏表情包/允许删除）',
+  ['回车键发送消息', '批量发送消息', '我可发送语音', '隐藏联系人的表情包', '允许删除成员消息'].every(s => src.includes("'" + s + "'"))
+  && src.includes("gcGlobalSet(key, cb.checked)"));
+check('S10 回车 keydown 读 cs-enter-send off 放行换行（与 chat.js 同语义）',
+  src.includes("if (window.activeStore().get('cs-enter-send') === 'off') return;"));
+check('S11 数据组导出/导入/清空（流式 JSON + 三结构兼容 + 二次确认）',
+  src.includes('"app":"mochi-zika-group-chat"') && src.includes("data.ls[MSG_KEY]") && src.includes("确认删除「"));
+check('S12 气泡菜单删除按钮（模板锚 + 按开关显隐 + 仅成员消息）',
+  tmpl.includes('data-act="del"') && tmpl.includes('ma-del-gc')
+  && src.includes("gcMsgActions.querySelector('.ma-del-gc')")
+  && src.includes("delBtn.hidden = !(delEn && side === 'in');")
+  && src.includes("delEn = window.activeStore().get('cs-del-ta-msg') === '1'"));
 
 // ---- 运行时（无头 Chrome 端到端） ----
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
@@ -146,8 +160,8 @@ await sleep(300);
 g = await J("(function(){return JSON.stringify(window.groupChatCfg()['gc-rs-max']);})()");
 check('R6 回复速度最长 40 → 39', g === 39, String(g));
 
-// 美化视图：点击「美化聊天」入口（.gc-set-link） → 断言新增行
-await evalJs("(function(){var el=document.querySelector('#gc-set-body .gc-set-link');if(el){el.click();return 1;}return 0;})()");
+// 美化视图：点击「美化聊天」入口（按文本定位——#251 后主视图里数据组 .gc-set-link 在前，首个不再是美化入口）
+await evalJs("(function(){var links=Array.from(document.querySelectorAll('#gc-set-body .gc-set-link'));var el=links.find(function(x){return x.innerText.indexOf('美化聊天')>=0;});if(el){el.click();return 1;}return 0;})()");
 await sleep(500);
 const beautyState = await evalJs("(function(){var b=document.getElementById('gc-set-body');var t=b?b.innerText:'';return JSON.stringify({radius:t.indexOf('气泡边缘圆角')>=0,time:t.indexOf('时间轴颜色')>=0,typing:t.indexOf('正在输入颜色')>=0,save:t.indexOf('保存当前为美化方案')>=0,manage:t.indexOf('美化方案管理')>=0});})()");
 let bs = {}; try { bs = JSON.parse(beautyState); } catch (e) {}
@@ -175,6 +189,28 @@ const listState = await evalJs("(function(){var m=document.getElementById('gc-be
 let ls = {}; try { ls = JSON.parse(listState); } catch (e) {}
 check('R15 保存方案后管理列表出现该方案', ls.has === true, listState);
 check('R16 方案管理含 应用/改名/删除/导出/导入/预览 操作按钮', ls.n >= 6, 'n=' + ls.n);
+
+// ---- #251 运行时：输入与消息 / 数据 组 ----
+// 回到主视图（R7 已点进美化视图）
+await evalJs("(function(){var b=document.querySelector('#gc-set-body .gc-set-back');if(b){b.click();return 1;}return 0;})()");
+await sleep(400);
+// R17 五个开关行在面板内且默认态正确（hide-ta-sticker 默认不勾、cs-enter-send 默认勾）
+const tgState = await evalJs("(function(){var b=document.getElementById('gc-set-body');if(!b)return '{}';var rows=Array.from(b.querySelectorAll('.gc-set-toggle'));return JSON.stringify({n:rows.length,labels:rows.map(function(r){return r.querySelector('.gc-set-name').textContent.split('\\n')[0];}),enter:rows[0]?rows[0].querySelector('input').checked:null});})()");
+let ts = {}; try { ts = JSON.parse(tgState); } catch (e) {}
+check('R17 输入与消息组 5 个开关行渲染', ts.n === 5, tgState);
+check('R18 回车发送开关默认开（cs-enter-send 默认 on）', ts.enter === true, String(ts.enter));
+// R19 点开「隐藏联系人的表情包」→ 写全局键 + 广播事件
+await evalJs("(function(){var rows=Array.from(document.querySelectorAll('#gc-set-body .gc-set-toggle'));var r=rows.find(function(x){return x.innerText.indexOf('隐藏联系人的表情包')>=0});if(r){r.querySelector('input').click();}return 1;})()");
+await sleep(300);
+const hts = await evalJs("(function(){return JSON.stringify({v:(window.xyStore?window.xyStore('xy-home-v2').get('hide-ta-sticker'):null)});})()");
+check('R19 隐藏表情包开关点击写全局键 hide-ta-sticker=1', hts.indexOf('"1"') >= 0, hts);
+// 还原，避免污染其他用例
+await evalJs("(function(){var rows=Array.from(document.querySelectorAll('#gc-set-body .gc-set-toggle'));var r=rows.find(function(x){return x.innerText.indexOf('隐藏联系人的表情包')>=0});if(r){r.querySelector('input').click();}return 1;})()");
+await sleep(200);
+// R20 数据组三行渲染（导出/导入/删除全部）
+const dataState = await evalJs("(function(){var b=document.getElementById('gc-set-body');if(!b)return '{}';return JSON.stringify({exp:b.innerText.indexOf('导出聊天记录')>=0,imp:b.innerText.indexOf('导入聊天记录')>=0,clr:b.innerText.indexOf('删除全部聊天记录')>=0});})()");
+let ds = {}; try { ds = JSON.parse(dataState); } catch (e) {}
+check('R20 数据组导出/导入/清空三入口渲染', ds.exp && ds.imp && ds.clr, dataState);
 
 chrome.kill();
 server.close();

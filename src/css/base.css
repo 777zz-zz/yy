@@ -4,8 +4,12 @@
   /* v3.26.x：显式声明浅色 color-scheme，主动告知浏览器「本页为浅色设计、深色由
      data-theme 手动切换管理」。缺失时安卓 Chrome 强制深色(Auto Dark)会在系统深色下
      无视网页配色把内容整体压黑（实测现象：群聊气泡/字体换色无效、纯黑）。
-     深色时下方 [data-theme="dark"] 以更高优先级(更靠后)覆盖回 dark。 */
-  color-scheme:light;
+     v3.26.x #252：必须带 only 关键字——「only light」才是 Chrome Auto Dark 的文档
+     退出开关（网页自述完全不支持深色=禁止 UA 代客压黑）；裸 light 只是偏好声明，
+     部分安卓 Chromium/WebView 仍在系统深色下压黑（#252 用户报「选浅色颜色依旧不对」
+     ＝ #107 同症状复发，裸 light 拦不住）。深色时下方 [data-theme="dark"] 以
+     更高优先级(更靠后)覆盖回 dark。 */
+  color-scheme:only light;
   --ink:#111111; --muted:#8a8a8a; --line:#e6e6e6;
   /* v3.6.x 深色模式语义变量——浅色值（默认），[data-theme="dark"] 覆盖为深色值 */
   --page-bg:#e9e9e9; --page-bg-grad:#f6f6f6;

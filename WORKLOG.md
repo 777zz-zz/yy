@@ -1,3 +1,8 @@
+### 2026-09-07 23:0x（#252 深色模式选「浅色」颜色依旧不对——#107 复发收口；已构建·sw mochi-mtrcqne0·本次构建者：本会话）
+- [AI-B 域+跨域 build.mjs/FIX-REGRESSION（树上有 #251 并行批在途 group-chat/template 尾部/verify-gc-settings，其 WORKLOG 11:0x 已声明；本批构建产物同时包含其已声明完整批次的 src 改动——构建前树上无半成品标记，视同其 11:0x 条「本次构建者：本会话」随库收口，请其知悉并复跑 verify-gc-settings）]（**改动文件：src/css/base.css（:root color-scheme:light→only light，#107 修复升级：裸 light 是偏好声明不是 Chrome Auto Dark 退出开关，系统深色下部分安卓 Chromium/WebView 仍压黑=「选浅色颜色依旧不对」）；src/template.html（头部启动脚本三档语义：dark 或「非 light 且系统 prefers-dark」→挂属性，否则 removeAttribute——补 auto 档首帧落位修白闪 FOUC+浅色档强制清残留 data-theme）；src/js/personalize.js（applyThemeMode 浅色档显式 removeAttribute 双保险，注释固化语义）；build.mjs（#107 needle 同步 only light + 哨兵+2=540）；tools/verify-dark-mode.mjs（D 段适配 v3.27.x 三档弹窗真实用户路径：行点击→点「浅色」胶囊，旧脚本直接点行从未提交=此前 D 段 5 项恒假失败的口径修复）；FIX-REGRESSION.md（+#252 行）**；构建状态：**已构建·sw mochi-mtrcqne0·本会话执行**）。
+- 根因/方案/验证详见 FIX-REGRESSION #252。验证：--check-sentinels 与构建哨兵 **540/540 全绿哑 0**；verify-dark-mode **29/29**（新增 D0 断言，D5 实测 `light only`）；布局 verify **10/10**；verify-device-env **27/27**、verify-contact-switch-perf **9/9** 复测无回归。
+- 【真机:待验证】（报障机型优先）：系统深色+app 选「浅色」→界面真回浅色不再发黑；「跟随系统」开屏不白闪；深色档与 #107 清单（iQOO Neo10 群聊换色）复测正常。
+
 ### 2026-09-07 23:0x（OPPO Reno6 5G/雨见「其他功能字卡页下面无法滑动显示字卡」——定性=v3.26.513 旧版残留（#239 修复上线于 516），非回归；verify-fun-cards-layout 加固 360×658 断言；src 无产品改动·本会话未构建·本次构建者：无——本批纯工具+台账）
 - [AI-A 域 tools/ + 共享 FIX-REGRESSION.md/WORKLOG.md]（**改动文件：tools/verify-fun-cards-layout.mjs（SERVE_DIR 红绿对照支持+S 段 OPPO 同款 360×658 三断言）、FIX-REGRESSION.md（#239 行复发定性+设备索引 OPPO Reno6 行+239）**；构建状态：**src 无改动无需构建**——本批=诊断定性+防复发加固，产物与远端一致）。
 - 需求：OPPO Reno6 5G/雨见报「【系统预设字卡】的【其他功能字卡】页面下面无法滑动显示字卡…其他设备型号也有」，附 v3.26.513 诊断。
@@ -7,11 +12,11 @@
 - 【真机:待验证】（OPPO Reno6 5G/雨见）：更新到 516+（顶部更新条刷新或关全部标签页重开）后——字卡库→系统预设字卡→其他互动功能字卡：打开即见摸鱼字卡列表可点，往下滑能滚出更多字卡，页面底部是「使用概率」13 行；若更新后仍异常再按新版本号报障。
 - 顺带核对：诊断里 SyntaxError: redeclaration of let JSInterface / TypeError: JSInterface.sysonSelectTextChange×2 全部出自雨见壳自身注入脚本（全仓 grep 无 JSInterface，@anonymous:1:1 入栈），与本页滚动无关，无需处理。
 
-### 2026-09-07 11:0x（#251 群聊设置对齐聊天设置·输入/数据/删除消息——未构建·本次构建者：本会话）
-- [AI-A 域]（**改动文件：src/js/group-chat.js、src/css/group-chat.css、src/template.html、build.mjs、tools/verify-gc-settings.mjs**；构建状态：**未构建·本会话收口**）。
+### 2026-09-07 11:0x（#251 群聊设置对齐聊天设置·输入/数据/删除消息——已构建·本会话末次重建 sw mochi-mtrcyncj·本次构建者：本会话；#252 会话已先行随库收口过本批）
+- [AI-A 域]（**改动文件：src/js/group-chat.js、src/css/group-chat.css、src/template.html（仅群聊气泡菜单段）、build.mjs（哨兵+2=540）、tools/verify-gc-settings.mjs（扩到 34 断言）、tools/verify-gc-color.mjs（美化入口定位改按文本，#251 后首个 .gc-set-link 不再是美化入口）**；构建状态：**已构建·sw mochi-mtrcyncj·本会话执行**——#252 会话 23:0x 构建时已把本批 src 随库打入（其 WORKLOG 已声明），本会话在其上复跑全部验证并末次重建刷新版本号，产物=当前树 src）。
 - 需求：用户反馈「群聊右上角没有聊天设置里的全部功能」。盘点结论：美化类已全有（壁纸/气泡/字体/方案），真缺口=回车发送开关、批量发送/语音/隐藏表情包/允许删除四个开关、导出/导入/清空记录、删除消息。
 - 方案：群聊设置主视图新增「输入与消息」（5 开关，读写与聊天设置同一批键 cs-enter-send[on/off]/cs-batch-send/cs-voice-send/cs-del-ta-msg/hide-ta-sticker）+「数据」组（导出=流式 Blob JSON、导入=兼容单聊/裸数组/整份备份、清空=二次确认，均只作用当前群）；气泡操作菜单加「删除」按钮（ma-del-gc，按 cs-del-ta-msg 显隐，仅成员消息）；keydown 回车读 cs-enter-send==='off' 放行换行（与 chat.js 8751 同语义）。
-- 验证：node --check 过；verify-gc-settings 扩 S9-S12/R17-R20（开关行渲染与写键/删除按钮开关显隐/导出导入清空静态锚/回车开关行为）；构建后跑哨兵+群聊家族。
+- 验证：node --check 过；verify-gc-settings **34/34**（新增 S9-S12 静态锚+R17-R20 运行时：5 开关渲染/写键、hide-ta-sticker 走根命名空间、数据三入口渲染；红绿对照修正 R7 美化入口定位）；构建哨兵 **540/540 哑 0**；布局 verify **10/10**；group-chat-fixes **19/19**、gc-continue 1/1、cc-group-off 12/12、group-decision 13/13、group-desk-icon 6/6；群聊家族存量红 stash 对照逐条一致=非本批（gc-more 3 项=more-cats 同源口径过期、gc-pool-scope T3=#157 语义改版、gc-send 1 项=批量断言过期，均已在 #130 挂账）；verify-dark-mode 29/29（#252 同树复测）。
 - 【真机:待验证】群聊设置新两组操作正常、导出文件可再导入、删除消息刷新后不复活。
 
 ### 2026-09-07 09:0x（设备判定收口第二批：mochiDevice 新增 env 能力层，清掉 v3.16.x 漏网的 4 处 UA/平台特判复刻——已构建·sw mochi-mtr7zghg·本次构建者：本会话）

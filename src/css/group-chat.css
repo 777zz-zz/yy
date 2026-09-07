@@ -95,6 +95,14 @@
 .gc-set-btn:active { background: #eee; }
 .gc-set-btn.ghost { color: #a32; border-color: #f3c0c0; background: #fff5f5; }
 .gc-set-note { padding: 12px 16px 0; font-size: 11px; color: #aaa; line-height: 1.6; }
+/* v3.34.x：群聊设置「输入与消息/数据」组——开关行 / 副标题 / 危险项（复用全站 .toggle） */
+.gc-set-toggle .toggle { flex-shrink: 0; }
+.gc-set-sub {
+  display: block; font-size: 11px; font-weight: 400; color: #999; margin-top: 2px;
+  white-space: normal; line-height: 1.5;
+}
+.gc-set-danger .gc-set-name { color: #c0392b; }
+.gc-set-danger .gc-set-av { color: #c0392b; }
 
 /* ---- 美化聊天视图（v3.9.x，群聊设置内嵌，与聊天设置同款行） ---- */
 .gc-set-back {

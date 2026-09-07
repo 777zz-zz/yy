@@ -1314,6 +1314,9 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   }
   if (input) input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) {
+      // 对齐聊天设置「回车键发送消息」开关（cs-enter-send：'off' = 回车换行不发送，
+      // 与 chat.js 同一语义同一键）；contenteditable 换行由浏览器默认行为完成
+      try { if (window.activeStore().get('cs-enter-send') === 'off') return; } catch (err) {}
       e.preventDefault();
       addMsg(input.innerText);
     }
@@ -1759,6 +1762,129 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     rNote.className = 'gc-set-note';
     rNote.textContent = '这里的回复概率与速度对所有群聊成员统一生效（全局）；完整的每项概率/条数/开关在「设置 → 回复设置 → 群聊被动回复」里调整。';
     settingsBody.appendChild(rNote);
+    // —— 输入与消息（对齐聊天设置「功能」页镜像开关：群聊页内可直接改这些状态） ——
+    const tIn = document.createElement('div');
+    tIn.className = 'gc-set-title';
+    tIn.textContent = '输入与消息';
+    settingsBody.appendChild(tIn);
+    // 开关行（label + toggle，复用全站 .toggle 样式；存全局根命名空间键）
+    const gcToggleRow = (label, sub, key, onchange) => {
+      const row = document.createElement('div');
+      row.className = 'gc-set-item gc-set-toggle';
+      row.innerHTML =
+        '<div class="gc-set-info"><div class="gc-set-name">' + esc(label) +
+        (sub ? '<span class="gc-set-sub">' + esc(sub) + '</span>' : '') + '</div></div>' +
+        '<label class="toggle"><input type="checkbox"><span class="tk"></span></label>';
+      const cb = row.querySelector('input');
+      cb.checked = gcGlobalOn(key);
+      cb.addEventListener('change', () => { gcGlobalSet(key, cb.checked); if (onchange) onchange(cb.checked); });
+      return row;
+    };
+    // 回车键发送消息（与 chat.js 同一键 cs-enter-send，'off'=不发送；默认开）
+    settingsBody.appendChild(gcToggleRow('回车键发送消息', '关闭后按回车键换行，不再直接发送', 'cs-enter-send', null));
+    // 批量发送消息（群聊输入栏右侧「批量发送」按钮显隐即读 cs-batch-send）
+    settingsBody.appendChild(gcToggleRow('批量发送消息', '输入栏右侧显示「批量发送」按钮，可插入表情包/图片/文字批量发送', 'cs-batch-send',
+      () => syncGcInputBtns()));
+    // 我可发送语音（群聊输入栏左侧「麦克风」按钮显隐即读 cs-voice-send）
+    settingsBody.appendChild(gcToggleRow('我可发送语音', '输入栏左侧显示「麦克风」按钮，可录音并发送语音', 'cs-voice-send',
+      () => syncGcInputBtns()));
+    // 隐藏联系人的表情包（全局键 hide-ta-sticker，表情包面板每次打开时读）
+    settingsBody.appendChild(gcToggleRow('隐藏联系人的表情包', '表情包面板只显示「我的表情包」', 'hide-ta-sticker',
+      (en) => { try { document.dispatchEvent(new Event('hide-ta-sticker-changed')); } catch (e) {} toast(en ? '已隐藏：表情包面板只显示「我的表情包」' : '已恢复显示 TA 的和公用表情包'); }));
+    // 允许删除成员消息（气泡操作菜单出现「删除」，真删除不可恢复）
+    settingsBody.appendChild(gcToggleRow('允许删除成员消息', '点击成员消息气泡可在操作菜单里删除该条消息', 'cs-del-ta-msg',
+      (en) => toast(en ? '已开启：点击成员消息可在操作菜单里删除该条消息' : '已关闭删除成员消息功能')));
+    // —— 群聊数据（对齐聊天设置「数据」页：导出/导入/清空当前群记录） ——
+    const tD = document.createElement('div');
+    tD.className = 'gc-set-title';
+    tD.textContent = '数据';
+    settingsBody.appendChild(tD);
+    const gcDataLink = (label, sub, danger, fn) => {
+      const row = document.createElement('div');
+      row.className = 'gc-set-item gc-set-link' + (danger ? ' gc-set-danger' : '');
+      row.innerHTML =
+        '<div class="gc-set-av">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>' +
+        '</div>' +
+        '<div class="gc-set-info"><div class="gc-set-name">' + esc(label) + '</div>' +
+        (sub ? '<div class="gc-set-desk">' + esc(sub) + '</div>' : '') + '</div>' +
+        '<span class="gc-set-chev">›</span>';
+      row.addEventListener('click', fn);
+      return row;
+    };
+    const curGroupName = currentGroup().name || '群聊';
+    // 导出：与单聊同格式 JSON（流式构建防超长），文件名带群名
+    settingsBody.appendChild(gcDataLink('导出聊天记录', '当前群聊全部消息导出为 JSON 文件', false, () => {
+      try {
+        gFlushPersistNow();
+        const n = msgs.length;
+        if (!n) { toast('没有聊天记录可导出'); return; }
+        toast('正在导出，请稍候…');
+        const parts = ['{"app":"mochi-zika-group-chat","version":"1.0","gid":"' + attrEsc(curGid) + '","exportTime":"' + new Date().toISOString() + '","msgs":['];
+        for (let i = 0; i < n; i++) { if (i) parts.push(','); parts.push(JSON.stringify(msgs[i])); }
+        parts.push(']}');
+        const blob = new Blob(parts, { type: 'application/json;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = curGroupName + '_聊天记录_' + new Date().toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        toast('已导出 ' + n + ' 条聊天记录');
+      } catch (e) { toast('导出失败：' + (e && e.message || '未知错误')); }
+    }));
+    // 导入：读取 JSON → 预览确认 → 覆盖当前群记录（兼容单聊导出/裸数组/整份备份）
+    settingsBody.appendChild(gcDataLink('导入聊天记录', '从 JSON 文件导入并覆盖当前群聊记录', false, () => {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = '.json,application/json';
+      inp.onchange = () => {
+        const f = inp.files && inp.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          let data;
+          try { data = JSON.parse(String(reader.result || '')); } catch (e) { toast('无效的聊天记录文件'); return; }
+          if (!data || typeof data !== 'object') { toast('无效的聊天记录文件'); return; }
+          // 兼容：群聊/单聊导出 {app,msgs} / 裸数组 / 整份 mochi 备份（聊天记录或默认群键）
+          let arr = Array.isArray(data) ? data : null;
+          if (!arr && data.msgs && Array.isArray(data.msgs)) arr = data.msgs;
+          if (!arr && data.ls && typeof data.ls === 'object') {
+            const raw = (data.idb && data.idb[MSG_KEY]) || data.ls[MSG_KEY];
+            try { arr = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { arr = null; }
+          }
+          if (!Array.isArray(arr) || !arr.length) { toast('文件里没有聊天记录数据'); return; }
+          const total = arr.length;
+          const fmt = (t) => t ? new Date(t).toLocaleString() : '未知';
+          const lines = ['文件包含 ' + total + ' 条消息：',
+            '· 最早：' + fmt(arr[0] && arr[0].ts),
+            '· 最新：' + fmt(arr[total - 1] && arr[total - 1].ts),
+            '导入将覆盖当前群聊的全部聊天记录（不可恢复）。'];
+          if (!window.openModal) return;
+          window.openModal('确认导入聊天记录？', '', () => {
+            arr = arr.filter(m => m && typeof m === 'object');
+            gFlushPersistNow();
+            msgs = arr;
+            saveNow();
+            renderAll();
+            toast('已导入 ' + arr.length + ' 条聊天记录');
+          }, { noInput: true, staticText: lines.join('\n') });
+        };
+        reader.onerror = () => { toast('文件读取失败，请重试'); };
+        reader.readAsText(f, 'utf-8');
+      };
+      inp.click();
+    }));
+    // 清空当前群记录（危险操作二次确认；自定义群连消息键一并清）
+    settingsBody.appendChild(gcDataLink('删除全部聊天记录', '清空「' + curGroupName + '」的全部消息（不可恢复）', true, () => {
+      if (!window.openModal) return;
+      window.openModal('确认删除「' + curGroupName + '」的全部聊天记录？（不可恢复）', '', () => {
+        msgs = [];
+        saveNow();
+        renderAll();
+        toast('聊天记录已清空');
+      }, { noInput: true });
+    }));
     // —— 美化聊天入口（v3.9.x） ——
     const bRow = document.createElement('div');
     bRow.className = 'gc-set-item gc-set-link';
@@ -2372,6 +2498,27 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
   function gcSettingOn(key) {
     try { return window.activeStore().get(key) === '1'; } catch (e) { return false; }
   }
+  // 群聊设置面板「输入与消息」开关组读写：
+  // · hide-ta-sticker 是全局根命名空间键（xy-home-v2:hide-ta-sticker，聊天/朋友圈共用，
+  //   contacts.js EXCLUDE 排除迁移）——必须走 xyStore(G)；
+  // · cs-enter-send / cs-batch-send / cs-voice-send / cs-del-ta-msg 是每联系人键，
+  //   群聊页/表情包面板与聊天页共享这些状态源——走当前桌面命名空间（与
+  //   syncGcInputBtns、chat.js 读取同一处），切桌面后重开面板即显示该桌面值。
+  function gcGlobalOn(key) {
+    if (key === 'hide-ta-sticker') {
+      try { return window.xyStore(G).get(key) === '1'; } catch (e) { return false; }
+    }
+    if (key === 'cs-enter-send') { // 回车发送默认开：仅显式 'off' 视为关（与 chat.js 语义一致）
+      try { return window.activeStore().get(key) !== 'off'; } catch (e) { return true; }
+    }
+    try { return window.activeStore().get(key) === '1'; } catch (e) { return false; }
+  }
+  function gcGlobalSet(key, en) {
+    try {
+      if (key === 'hide-ta-sticker') { window.xyStore(G).set(key, en ? '1' : '0'); return; }
+      window.activeStore().set(key, key === 'cs-enter-send' ? (en ? 'on' : 'off') : (en ? '1' : '0'));
+    } catch (e) {}
+  }
   function syncGcInputBtns() {
     if (gcMicBtn) gcMicBtn.style.display = gcSettingOn('cs-voice-send') ? '' : 'none';
     if (gcContinueBtn) gcContinueBtn.style.display = gcSettingOn('cs-trigger-bar') ? '' : 'none';
@@ -2596,6 +2743,15 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     // v3.26.x：群聊消息操作菜单（引用）同样支持「长按 + 轻点」双手势，与聊天页保持一致
     function gcOpenMsgActions(item, bk) {
       gcActiveMsgEl = item;
+      // 对齐聊天页：删除按钮按「允许删除联系人消息」开关（cs-del-ta-msg）显隐，
+      // 仅成员消息可删；开关默认关，在群聊设置→输入与消息 里开启
+      const delBtn = gcMsgActions.querySelector('.ma-del-gc');
+      if (delBtn) {
+        let delEn = false;
+        try { delEn = window.activeStore().get('cs-del-ta-msg') === '1'; } catch (e) {}
+        const side = item.classList.contains('msg-out') ? 'out' : 'in';
+        delBtn.hidden = !(delEn && side === 'in');
+      }
       gcMsgActions.hidden = false;
       // 定位：气泡上方居中，放不下换下方；clamp 在视口内（与聊天页同款算法）
       try {
@@ -2666,6 +2822,16 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
           gcLastQuote = gcQuoteSnapOf(rec);
           renderGcDraft();
           try { if (input) input.focus(); } catch (err) {}
+        }
+      } else if (btn.dataset.act === 'del' && gcActiveMsgEl) {
+        // 对齐聊天设置「允许删除联系人消息」（cs-del-ta-msg 开关，gcOpenMsgActions
+        // 显隐同口径）——真删除该条成员消息，不可恢复
+        const idx = Number(gcActiveMsgEl.dataset.gcIdx);
+        if (idx >= 0 && msgs[idx] && msgs[idx].side === 'in') {
+          msgs.splice(idx, 1);
+          saveMsgs();
+          renderAll();
+          toast('已删除该消息');
         }
       }
       closeGcMsgActions();
