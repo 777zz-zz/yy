@@ -1,3 +1,10 @@
+### 2026-09-07 08:0x（#245 打开聊天「精简快照残留整窗重画」→原位升级——用户报障 #241 后真机依旧闪屏+弹一下；本次构建者：AI-A 本会话）
+- [AI-A 域+跨域 build.mjs]（**改动文件：src/js/chat.js（inplacePatchIfSameWindow 的 lite 残留扫描从「见残留 return false 整窗重渲」改为 liteUpgrade 收集+DOM 校验通过后残留下标原位 replaceChild 换节点：batchRendering 抑制入场动画/滚动副作用、collect/restoreInplaceDrafts 保草稿、贴底保持/高度差补偿防弹、任一节点缺失仍整窗兜底）；build.mjs（哨兵+1=525）；FIX-REGRESSION.md（+#245 行）；tools/verify-chat-lite-upgrade.mjs（新增 8 断言）**；构建状态：**已构建·sw 视 version.json·本会话（AI-A）执行**）。
+- 需求/根因：用户（小米15Pro 同机）报「打开聊天页依旧闪屏+弹一下后恢复正常」。#241 只覆盖「LS 快照缺尾部、无 lite 残留」形态；大历史桌面 LS 兜底快照被 liteSnapArray 必然剥负载（img/voice→''+_lsLite，2MB 门槛），打开聊天先渲精简快照→IDB 权威读回→残留扫描 return false→整窗清空重画=闪+弹。该形态对「历史里含任何图片/语音/超长文本」的账号每次打开必现，真机 IDB 慢（精简首渲与权威收尾间隔数百 ms）肉眼可见，无头快故此前漏测。
+- 验证：node --check 过；verify-chat-lite-upgrade.mjs 红绿对照——修复前（旧产物）J1/J2 红实测 rm5+add5=整窗重画（报障现场复现）、修复后 8/8（权威收尾仅 rm1+add1 换图片那条/气泡数从未归零/图片原位升级为真实 dataURL/贴底不弹/重开零重建/静态锚）；--check-sentinels 525 全绿哑 0；布局 verify 10/10。
+- 【真机:待验证】（小米15Pro 及任意机型，更新到最新 sw 后）：打开有图片/语音历史的聊天页，不再整屏闪+弹；图片气泡从占位平滑补齐为真图，滚动位置不跳。
+- 【并行声明】本口开工时树上无他人在途 src 改动（0303be2…0303be4 之后干净）；git add 显式列文件。
+
 ### 2026-09-07 07:2x（#242/#243/#244 群聊串群三连收口+撤回查看安全化——用户问「群聊模式有什么缺陷」后代码核查自查出、经用户确认修复；已构建·本次构建者：AI-A 本会话）
 - [AI-A 域+跨域 build.mjs]（**改动文件：src/js/group-chat.js（三处修复：①#242 串群——scheduleReply/gcContinueSay 捕获来源群 gid 穿透 memberReply，新增 gcDeliverReply/gcReadGroupKey/gcWriteGroupKey 统一投递（同群原路径，跨群读改写来源群存储键不碰当前 msgs/DOM，群已删丢弃），retractGcMsg(idx,gid) 跨群落来源群存储，打字指示 show/hide 加 gid===curGid 守卫+进群/切群 hideTyping 清共享指示器残留；②#243——loadMsgs 的 idbGet 回调首行加 key!==groupMsgKey(curGid) 整包丢弃守卫；③#244——retractGcMsg 撤回前存渲染快照 rec.orig（无 DOM 走 gcRetractFallbackHtml 安全回退：媒体占位/文本 escTxtBr），渲染分支 dataset.orig 不再兜底直出 rec.text）；build.mjs（哨兵+4=524）；FIX-REGRESSION.md（+#242/#243/#244 三行）**；构建状态：**已构建·sw 视 version.json·本会话（AI-A）执行**）。
 - 根因回顾：①#242=v3.26.x 多群聊分组引入可达缺陷——回复/撤回 setTimeout 链在执行时刻读模块级 curGid，发消息后切群：回复写进新群+原群丢失、撤回 myIdx 撤错消息；②#243=loadMsgs 的 IDB 异步回填只比长度不校验 key，旧群回调切群后 resolve 整包覆盖 msgs 并被下次保存回写污染新群键；③#244=群聊撤回「点击查看」v3.9.x 上线时未对齐单聊 chat.js retractMsg 的渲染快照方案，innerHTML 直出原始 rec.text（多行丢换行/媒体点开整屏 base64/字卡含 HTML 被当标签执行）。

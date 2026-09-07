@@ -764,6 +764,13 @@ return !(keys || []).some(function (k) { return k === idbKey; });
 confirmMiss.then(function (isMiss) {
 if (window.activePrefix() !== myPrefix) return;
 if (!isMiss) { scheduleIdbRetry(); return; }
+// FIX 2026-09-07 #245：账本矛盾守卫——账本 n>0（#90 账本=「库里到底有多少条」的唯一
+// 小键依据）与「确认空库」矛盾＝探测在冷启动窗口说了谎（无头实证：键存在仍进本分支，
+// 随后 LS 会话快照被当唯一历史回写 IDB=历史被顶掉；权威收尾缺历史=真机「闪+弹后恢复」，
+// 「恢复」全靠相邻重复归一化兜底）。账本说有历史就按读取失败走重试，绝不进空库分支。
+let _ledN = 0;
+try { _ledN = chatLedger[myPrefix] || 0; } catch (e) {}
+if (_ledN > 0) { scheduleIdbRetry(); return; }
 chatDbReady = true;
 idbRetryCount = 0;
 authLoadedPrefix = myPrefix;
@@ -1851,6 +1858,10 @@ let renderEnd = 0;        // v3.10.x：渲染窗口终点（msgs 下标，开区
 let windowRenderedN = 0;
 let windowRenderedPrefix = null;
 let windowStale = false;
+// #245：整窗渲染时登记窗口内含精简快照残留（_lsLite/img==='' /voice===''）的下标——
+// 权威读库收尾据此对这些下标原位换节点补真实媒体（见 inplacePatchIfSameWindow）。
+// 必须在渲染时刻登记：权威合并后 msgs 已是全量数据，事后扫描扫不出「屏上渲的是精简」。
+let windowRenderedLite = null;
 const TIME_DIVIDER_GAP = 5 * 60 * 1000;
 function maybeInsertDivider(idx) {
 if (store.get('cs-time-style') !== 'divider') return;
@@ -1881,6 +1892,8 @@ windowRenderedN = len;
 windowRenderedPrefix = window.activePrefix();
 windowStale = false;
 collectInplaceDrafts();
+windowRenderedLite = null;
+const _liteIdx = [];
 body.innerHTML = '';
 batchRendering = true;
 const frag = document.createDocumentFragment();
@@ -1888,9 +1901,15 @@ appendTarget = frag;
 appendAvatarBatch(true);
 for (let i = start; i < len; i++) {
 maybeInsertDivider(i);
+const _rm = msgs[i];
+if (_rm && (_rm._lsLite || _rm.img === '' || _rm.voice === '' ||
+(Array.isArray(_rm.parts) && _rm.parts.some(p => p && typeof p.v === 'string' && p.v === '')))) {
+_liteIdx.push(i);
+}
 const m = renderMsg(msgs[i]);
 m.dataset.idx = i; // 覆盖 renderMsg 内的 msgs.length-1（批量渲染时必须为真实下标）
 }
+if (_liteIdx.length) windowRenderedLite = _liteIdx;
 appendAvatarBatch(false);
 appendTarget = null;
 batchRendering = false;
@@ -1931,13 +1950,14 @@ try { if (windowRenderedPrefix !== window.activePrefix()) return false; } catch 
 const grown = len - windowRenderedN;
 if (grown < 0) return false; // 屏上比权威多＝数据被裁/回滚，整窗重建兜底
 if (windowRenderedN === 0) return false; // 无屏上凭据（首渲场景）走原整窗渲染
-// 窗口内 lite 残留扫描（仅扫屏上已渲染段 renderStart..windowRenderedN-1，O(窗口)）——有残留必须整窗重渲升级
-for (let i = renderStart; i < windowRenderedN; i++) {
-const m = msgs[i];
-if (!m) continue;
-if (m._lsLite || m.img === '' || m.voice === '') return false;
-if (Array.isArray(m.parts) && m.parts.some(p => p && typeof p.v === 'string' && p.v === '')) return false;
-}
+// 窗口内 lite 残留清单（renderWindow 渲染时刻登记的 windowRenderedLite，仅取屏上段）——
+// FIX 2026-09-07 #245：不再见残留就 return false 整窗重渲。大历史 LS 兜底快照必然剥负载
+// （img/voice/超长文本→占位+_lsLite，见 liteSnapArray），每次打开聊天权威收尾都命中此处
+// =整窗清空重画=真机「闪屏+弹一下才正常」（小米15Pro 复发；#241 只覆盖「快照缺尾部」
+// 形态）。改为对这些下标原位换节点（权威合并后 msgs[i] 已是全量数据），其余节点零重建、
+// 窗口条数不变=滚动位置不弹。
+const liteUpgrade = (Array.isArray(windowRenderedLite) ? windowRenderedLite : [])
+.filter(i => i >= renderStart && i < windowRenderedN);
 // DOM [data-idx] 须恰为 renderStart..windowRenderedN-1 顺序排列（时间分隔线无 data-idx 不计；
 // 有裁剪/位移/脏节点即放弃，走整窗重建兜底）
 let n = renderStart;
@@ -1950,6 +1970,38 @@ if (el.dataset.pendingRead === '1') pending.push(el);
 n++;
 }
 if (n !== windowRenderedN) return false;
+if (liteUpgrade.length) {
+// #245 残留原位升级：renderMsg 内部 appendMsg 落到 body 末尾后立刻 replaceChild 挪到
+// 原位（同一同步任务内无中间绘制）；batchRendering=true 抑制 msg-enter 入场动画与
+// maybeScrollChatBottom 副作用，pendingOutScroll 原样保还。任一节点缺失/渲染异常仍
+// return false 走整窗重建兜底。
+collectInplaceDrafts();
+const wasNearBottom = chatNearBottom();
+const prevTop = body.scrollTop;
+const prevH = body.scrollHeight;
+const prevPendingOut = pendingOutScroll;
+batchRendering = true;
+for (let u = 0; u < liteUpgrade.length; u++) {
+const ui = liteUpgrade[u];
+const old = body.querySelector('.msg[data-idx="' + ui + '"]');
+if (!old) { batchRendering = false; return false; }
+let nu = null;
+try { nu = renderMsg(msgs[ui]); } catch (e) { nu = null; }
+if (!nu || nu.dataset.idx === undefined) { batchRendering = false; return false; }
+nu.dataset.idx = ui;
+old.parentNode.replaceChild(nu, old);
+}
+batchRendering = false;
+pendingOutScroll = prevPendingOut;
+windowRenderedLite = null; // 残留已全部原位补齐
+restoreInplaceDrafts();
+const dH = body.scrollHeight - prevH;
+if (dH) {
+if (wasNearBottom) scrollChatBottom(); // 原在底部：升级后保持贴底
+else body.scrollTop = prevTop + dH; // 不在底部：按高度差补偿，视口内内容不跳
+}
+suppressScrollUntil = Date.now() + 200;
+}
 for (let k = 0; k < pending.length; k++) {
 const el = pending[k];
 delete el.dataset.pendingRead;
@@ -2651,7 +2703,7 @@ sessionChangedIdx.clear();
 chatDbReady = true;
 renderStart = 0; // v3.6.x：分页窗口起点复位（消息已清空）
 // v3.26.x #220：消息清空＝屏上窗口作废（#220 同窗补丁凭据一并复位，防误判同窗）
-windowRenderedN = 0; windowRenderedPrefix = null; windowStale = false;
+windowRenderedN = 0; windowRenderedPrefix = null; windowStale = false; windowRenderedLite = null;
 cancelPersist();
 // v3.26.x #90：用户主动清空＝合法归零，账本必须同步（否则缩水守卫会一直拒绝后续保存）
 try { chatLedger[window.activePrefix()] = 0; } catch (e) {}
@@ -2673,7 +2725,7 @@ sessionChangedIdx.clear();
 chatDbReady = true;
 renderStart = 0;
 // v3.26.x #220：整包导入替换＝屏上窗口作废（同窗补丁凭据复位）
-windowRenderedN = 0; windowRenderedPrefix = null; windowStale = false;
+windowRenderedN = 0; windowRenderedPrefix = null; windowStale = false; windowRenderedLite = null;
 cancelPersist();
 chatTailClear(); // #180：整包导入替换＝旧日志作废
 try { if (window.idbSet) persistMsgsToIdb(window.activePrefix() + ':chat-msgs', msgs); } catch (e) {}
