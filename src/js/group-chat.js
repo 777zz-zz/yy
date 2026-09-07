@@ -430,7 +430,7 @@
     if (!run) return;
     const wait = G_PERSIST_MIN_GAP - (performance.now() - gLastPersistAt);
     if (wait > 0) { gPersistTimer = setTimeout(gRunPersist, wait); return; }
-    try { run(); gLastPersistAt = performance.now(); } catch (e) {}
+    try { Promise.resolve(run()).catch(function () {}); gLastPersistAt = performance.now(); } catch (e) {}
   }
   function gSchedulePersist(writer) {
     gPersistRun = writer;
@@ -442,9 +442,50 @@
     const run = gPersistRun;
     gPersistRun = null;
     gPersistTimer = null;
-    if (run) { try { run(); gLastPersistAt = performance.now(); } catch (e) {} }
+    if (run) { try { Promise.resolve(run()).catch(function () {}); gLastPersistAt = performance.now(); } catch (e) {} }
   }
-  function gcWriteMsgs() {
+  // v3.34.x #245 群聊媒体令牌化（对齐单聊 #142）：落盘前把消息里的 data:image 载荷
+  // 统一换成媒体池令牌 @@m:hash（内容寻址去重；渲染由 media-pool 文档级观察器解图，
+  // 池 GC 引用扫描已含群聊键 #186）。此前群聊每条表情/图片整段 base64 内联进消息数组，
+  // 消息无上限+每次落盘全量重写，数组一次比一次大，LS 配额超限后被静默吞掉只剩
+  // IDB 异步写。语音（data:audio）池暂不收、保持内联。令牌化失败/不支持环境回退原值。
+  async function gcNormalizeMedia() {
+    if (!window.mochiMediaTokenize) return;
+    const seen = new Map();
+    const collect = (v) => { if (typeof v === 'string' && v.indexOf('data:image/') === 0 && v.length >= 1024 && !seen.has(v)) seen.set(v, null); };
+    for (let i = 0; i < msgs.length; i++) {
+      const r = msgs[i];
+      if (!r) continue;
+      if (r.type === 'sticker' || r.type === 'image') collect(r.text);
+      if (r.parts && r.parts.length) r.parts.forEach(p => { if (p && p.k === 'img') collect(p.v); });
+      if (r.quote) {
+        if (typeof r.quote === 'string') collect(r.quote);
+        else if (r.quote.imgs && r.quote.imgs.length) r.quote.imgs.forEach(collect);
+      }
+    }
+    if (!seen.size) return;
+    await Promise.all(Array.from(seen.keys()).map(v =>
+      Promise.resolve(window.mochiMediaTokenize(v)).then(t => { seen.set(v, t || v); }).catch(() => {})
+    ));
+    const apply = (v) => { const t = seen.get(v); return (t && t !== v) ? t : v; };
+    for (let i = 0; i < msgs.length; i++) {
+      const r = msgs[i];
+      if (!r) continue;
+      if (r.type === 'sticker' || r.type === 'image') r.text = apply(r.text);
+      if (r.parts && r.parts.length) r.parts.forEach(p => { if (p && p.k === 'img') p.v = apply(p.v); });
+      if (r.quote) {
+        if (typeof r.quote === 'string') { if (seen.has(r.quote)) r.quote = apply(r.quote); }
+        else if (r.quote.imgs && r.quote.imgs.length) r.quote.imgs = r.quote.imgs.map(apply);
+      }
+    }
+  }
+  // quick=true（离页/切群保写）：跳过令牌化与池 flush 直接同步落盘——令牌化是真实异步
+  //（sha256+IDB 查池），unload 窗口内可能完不成导致丢写；池有独立的 hidden flush 兜底
+  async function gcWriteMsgs(quick) {
+    if (!quick) {
+      try { await gcNormalizeMedia(); } catch (e) {}
+      try { if (window.mochiMediaFlush) await window.mochiMediaFlush(); } catch (e) {} // #142：池先落盘，引用后落盘
+    }
     const data = JSON.stringify(msgs);
     const key = groupMsgKey(curGid);
     try { localStorage.setItem(key, data); } catch (e) {}
@@ -455,7 +496,7 @@
   }
   function saveNow() {
     gFlushPersistNow();
-    gcWriteMsgs();
+    gcWriteMsgs(true);
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') gFlushPersistNow(); });
   window.addEventListener('beforeunload', () => gFlushPersistNow());
@@ -530,6 +571,8 @@
   let gcVoiceBtn = null;
   function gcPlayVoice(btn, src) {
     if (!src) return;
+    // 令牌 resilient：池令牌（现仅图片，语音日后若入池）内存命中即展开为真实地址
+    try { const ex = window.mochiMediaExpand && window.mochiMediaExpand(src); if (ex) src = ex; } catch (e) {}
     if (gcVoiceBtn === btn) { try { gcVoiceAudio.pause(); } catch (e) {} gcVoiceAudio = null; if (gcVoiceBtn) gcVoiceBtn.classList.remove('playing'); gcVoiceBtn = null; return; }
     if (gcVoiceBtn) { try { gcVoiceAudio.pause(); } catch (e) {} gcVoiceBtn.classList.remove('playing'); }
     const a = new Audio(src);
@@ -546,7 +589,13 @@
     a.addEventListener('error', stop);
     a.play().catch(stop);
   }
-  function renderMsg(rec, idx) {
+  // 放置一条消息 DOM——beforeEl 传锚点时插到其前（#246「查看更早」向顶部补历史），否则追加
+  function gcPlaceMsg(m, beforeEl) {
+    if (beforeEl && beforeEl.parentNode === body) body.insertBefore(m, beforeEl);
+    else body.appendChild(m);
+    pruneGcDom();
+  }
+  function renderMsg(rec, idx, beforeEl) {
     const m = document.createElement('div');
     m.className = 'msg ' + (rec.side === 'out' ? 'msg-out' : 'msg-in');
     if (idx === undefined) idx = msgs.length - 1;
@@ -570,16 +619,14 @@
     if (rec.special === 'poke') {
       m.className = 'msg-poke';
       m.innerHTML = '<span>' + escTxt(rec.text || '') + '</span>';
-      body.appendChild(m);
-      pruneGcDom();
+      gcPlaceMsg(m, beforeEl);
       return m;
     }
     // v3.26.x：决定结果系统消息（群聊里使用【帮我决定】/【多人决定】的结果，居中系统样式，同拍一拍）
     if (rec.special === 'system') {
       m.className = 'msg-poke';
       m.innerHTML = '<span>' + escTxtBr(rec.text || '') + '</span>';
-      body.appendChild(m);
-      pruneGcDom();
+      gcPlaceMsg(m, beforeEl);
       return m;
     }
     const quoteStr = rec.quote ? gcQuoteHtml(rec.quote) : '';
@@ -666,16 +713,45 @@
           (label && label !== (rec.text || '') ? '<span>' + escTxt(label) + '</span>' : '') + '</div>';
       });
     }
-    body.appendChild(m);
-    pruneGcDom();
+    gcPlaceMsg(m, beforeEl); // #246：收发追加/历史前插统一走放置器
     return m;
   }
+  // v3.34.x #246 历史分页：进群只渲最近 RENDER_MAX 条（gcRenderStart=渲染窗口起点），
+  // 更早的历史点「查看更早的消息」按块向顶部补渲——此前 RENDER_MAX 只上不下，老消息
+  // 存了但界面永远看不到。插入按 scrollHeight 差值回补 scrollTop 保持视口不跳；
+  // 贴底跟随与 DOM 窗口裁剪逻辑不变（裁剪跳过分页按钮）
+  let gcRenderStart = 0;
+  const GC_EARLIER_CHUNK = 150;
   function renderAll() {
     body.innerHTML = '';
     const n = msgs.length;
-    const start = Math.max(0, n - RENDER_MAX);
-    for (let i = start; i < n; i++) renderMsg(msgs[i], i);
+    gcRenderStart = Math.max(0, n - RENDER_MAX);
+    if (gcRenderStart > 0) body.appendChild(gcEarlierBtn());
+    for (let i = gcRenderStart; i < n; i++) renderMsg(msgs[i], i);
     scrollToBottom();
+  }
+  function gcEarlierBtn() {
+    const d = document.createElement('div');
+    d.className = 'gc-earlier';
+    d.textContent = '查看更早的消息（还有 ' + gcRenderStart + ' 条）';
+    d.addEventListener('click', loadEarlier);
+    return d;
+  }
+  function gcSyncEarlierBtn() {
+    const btn = body.querySelector('.gc-earlier');
+    if (gcRenderStart <= 0) { if (btn) btn.remove(); return; }
+    if (btn) btn.textContent = '查看更早的消息（还有 ' + gcRenderStart + ' 条）';
+    else body.insertBefore(gcEarlierBtn(), body.firstElementChild);
+  }
+  function loadEarlier() {
+    if (gcRenderStart <= 0) return;
+    const newStart = Math.max(0, gcRenderStart - GC_EARLIER_CHUNK);
+    const anchor = body.querySelector('.gc-earlier') || body.firstElementChild;
+    const prevH = body.scrollHeight;
+    for (let i = newStart; i < gcRenderStart; i++) renderMsg(msgs[i], i, anchor);
+    gcRenderStart = newStart;
+    try { body.scrollTop += body.scrollHeight - prevH; } catch (e) {}
+    gcSyncEarlierBtn();
   }
   function scrollToBottom() { try { body.scrollTop = body.scrollHeight; } catch (e) {} }
   // v3.16.x：新消息自动跟底——收发消息后调用；用户正回看历史（离底 >150px）时不打扰，
@@ -697,7 +773,13 @@
       if (body.children.length <= GC_DOM_WINDOW) return;
       if (body.scrollHeight - body.scrollTop - body.clientHeight > 400) return; // 远离底部：在看历史
       let excess = body.children.length - GC_DOM_CUT;
-      while (excess-- > 0 && body.firstElementChild) body.firstElementChild.remove();
+      while (excess-- > 0) {
+        let el = body.firstElementChild;
+        if (!el) break;
+        if (el.classList && el.classList.contains('gc-earlier')) el = el.nextElementSibling; // 分页按钮不裁
+        if (!el) break;
+        el.remove();
+      }
     } catch (e) {}
   }
 
@@ -1072,8 +1154,13 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     if (idx < 0 || idx >= msgs.length) return;
     const rec = msgs[idx];
     if (!rec || rec.retracted) return;
-    const el = body.querySelector('.msg[data-gc-idx="' + idx + '"] .msg-bubble');
-    rec.orig = el ? el.innerHTML : gcRetractFallbackHtml(rec);
+    // 撤回快照防臃肿：媒体类记录（表情/图片/语音/含图组合）与超大快照（引用缩略图
+    // 已被观察器展开成 data:）不存 DOM 快照，走 gcRetractFallbackHtml 占位——
+    // 否则令牌化省下的空间被快照里的整段 base64 又吃回去
+    const mediaish = rec.type === 'sticker' || rec.type === 'image' || rec.type === 'voice' ||
+      (!!(rec.parts && rec.parts.length) && rec.parts.some(p => p && p.k === 'img'));
+    const el = mediaish ? null : body.querySelector('.msg[data-gc-idx="' + idx + '"] .msg-bubble');
+    rec.orig = (el && el.innerHTML.length <= 20000) ? el.innerHTML : gcRetractFallbackHtml(rec);
     rec.retracted = true;
     saveMsgs();
     const target = body.querySelector('.msg[data-gc-idx="' + idx + '"]');

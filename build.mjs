@@ -718,8 +718,12 @@ const FIX_SENTINELS = [
   { name: '#242 群聊串群收口·撤回落回来源群（定时器捕获调度时的 gid，切群后撤回不再写错群/撤错消息；去掉 gid 传参即回流串群）', file: 'js/group-chat.js', needle: 'retractGcMsg(myIdx, gid)' },
   { name: '#242 群聊串群收口·scheduleReply 绑定来源群（回复定时器落库不再读执行时刻的 curGid——发消息后切群回复写进新群+原群丢失）', file: 'js/group-chat.js', needle: 'memberReply(cid, userText, gid)' },
   { name: '#243 群聊 IDB 回填防串群（loadMsgs 异步回调 key 不等于当前群整包丢弃——否则旧群回调在切群后 resolve 会整包覆盖 msgs 并被下次保存回写污染新群存储键）', file: 'js/group-chat.js', needle: 'if (key !== groupMsgKey(curGid)) return;' },
-  { name: '#244 群聊撤回查看安全化（撤回先存渲染快照 rec.orig 对齐单聊 chat.js；无快照走 gcRetractFallbackHtml 转义回退——直出原始文本=多行丢换行/媒体点开整屏 base64/字卡含 HTML 被执行）', file: 'js/group-chat.js', needle: 'rec.orig = el ? el.innerHTML : gcRetractFallbackHtml(rec);' },
+  { name: '#244 群聊撤回查看安全化（撤回先存渲染快照 rec.orig 对齐单聊 chat.js；无快照走 gcRetractFallbackHtml 转义回退——直出原始文本=多行丢换行/媒体点开整屏 base64/字卡含 HTML 被执行。#245/#247 批 needle 同步：媒体类记录/超 20KB 快照改走占位回退防臃肿）', file: 'js/group-chat.js', needle: 'rec.orig = (el && el.innerHTML.length <= 20000) ? el.innerHTML : gcRetractFallbackHtml(rec);' },
   { name: '#245 打开聊天精简快照残留原位升级（大历史 LS 剥负载快照不再整窗清空重画=真机闪屏+弹一下；改 liteUpgrade 收集+残留下标 replaceChild 换节点，见 verify-chat-lite-upgrade.mjs）', file: 'js/chat.js', needle: 'old.parentNode.replaceChild(nu, old);' },
+  { name: '#247 群聊媒体令牌化（落盘前 data:image 统一换 @@m: 池令牌+池先落盘——删 normalize 则表情/图片继续整段 base64 内联进消息数组，全量重写一次比一次大直到 LS 配额静默丢写）', file: 'js/group-chat.js', needle: 'Promise.resolve(window.mochiMediaTokenize(v)).then(t => { seen.set(v, t || v); })' },
+  { name: '#247 群聊撤回快照防臃肿（媒体类记录/超大快照走占位回退不存 DOM 快照——否则令牌化省下的空间被快照里的整段 base64 吃回去）', file: 'js/group-chat.js', needle: "const mediaish = rec.type === 'sticker' || rec.type === 'image' || rec.type === 'voice' ||" },
+  { name: '#248 群聊历史分页·渲染窗口起点（进群只渲最近 RENDER_MAX 条，gcRenderStart 供「查看更早」续载——删则回归只上不下，老消息存了但界面永远看不到）', file: 'js/group-chat.js', needle: 'gcRenderStart = Math.max(0, n - RENDER_MAX);' },
+  { name: '#248 群聊历史分页·滚动位置保持（顶部补历史按 scrollHeight 差值回补 scrollTop——删则点查看更早视口跳底/闪跳）', file: 'js/group-chat.js', needle: 'try { body.scrollTop += body.scrollHeight - prevH; } catch (e) {}' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

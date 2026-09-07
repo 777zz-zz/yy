@@ -6606,6 +6606,14 @@ border-top: 1px solid rgba(0,0,0,.06);
 }
 .gc-gpick-ops .gc-set-btn { flex: 1; padding: 9px 0; text-align: center; }
 .gc-gpick-ops .gc-gpick-ok { font-weight: 600; }
+.gc-earlier {
+text-align: center; padding: 8px 14px; margin: 6px auto 2px;
+width: fit-content; max-width: 82%;
+font-size: 12px; color: var(--muted, #8a8a8a);
+background: var(--card-soft, rgba(127, 127, 127, .12));
+border-radius: 999px; cursor: pointer; user-select: none;
+}
+.gc-earlier:active { opacity: .65; }
 .set-title { font-size:22px; font-weight:700; padding:4px 2px 16px; letter-spacing:1px; }
 .set-group { border-radius:20px; overflow:hidden; margin-bottom:12px; }
 .cg-title { display:flex; align-items:center; gap:7px; margin:16px 6px 7px; font-size:11.5px; font-weight:600; color:var(--muted,#999); letter-spacing:.6px; }
@@ -8817,9 +8825,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788740830060">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.519</b></span>
-        <span class="sv-deploy">部署于 2026-09-07 08:27<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788740934736">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.520</b></span>
+        <span class="sv-deploy">部署于 2026-09-07 08:28<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -9975,7 +9983,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.519</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.520</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10266,7 +10274,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.519</span>
+              <span class="lic-ver">v3.26.520</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -10602,6 +10610,7 @@ transition-duration: .01ms !important;
           <div class="lic-li">成员管理：群成员列表查看，给自己和每位成员设群聊专属昵称 / 头像（覆盖桌面形象，可重置）</div>
           <div class="lic-li">成员回复参数独立可调：回复概率 / 速度 / 条数、拍一拍、表情包、emoji、图片、语音、颜文字、引用、撤回补发（回复设置 → 群聊）</div>
           <div class="lic-li">独立的群聊美化：壁纸 / 双方气泡色 / 字体大小 / 头像形状 / 时间轴等只作用于群聊页；表情包、多图、引用、语音、拍一拍与主聊天对齐</div>
+          <div class="lic-li">多群聊分组：可新建多个群聊按成员分组切换；消息列表底部「查看更早的消息」可一直往前翻历史，表情/图片走媒体池去重存储省内存</div>
             </div>
           </details>
 
@@ -32922,7 +32931,7 @@ gPersistRun = null;
 if (!run) return;
 const wait = G_PERSIST_MIN_GAP - (performance.now() - gLastPersistAt);
 if (wait > 0) { gPersistTimer = setTimeout(gRunPersist, wait); return; }
-try { run(); gLastPersistAt = performance.now(); } catch (e) {}
+try { Promise.resolve(run()).catch(function () {}); gLastPersistAt = performance.now(); } catch (e) {}
 }
 function gSchedulePersist(writer) {
 gPersistRun = writer;
@@ -32934,9 +32943,43 @@ function gFlushPersistNow() {
 const run = gPersistRun;
 gPersistRun = null;
 gPersistTimer = null;
-if (run) { try { run(); gLastPersistAt = performance.now(); } catch (e) {} }
+if (run) { try { Promise.resolve(run()).catch(function () {}); gLastPersistAt = performance.now(); } catch (e) {} }
 }
-function gcWriteMsgs() {
+async function gcNormalizeMedia() {
+if (!window.mochiMediaTokenize) return;
+const seen = new Map();
+const collect = (v) => { if (typeof v === 'string' && v.indexOf('data:image/') === 0 && v.length >= 1024 && !seen.has(v)) seen.set(v, null); };
+for (let i = 0; i < msgs.length; i++) {
+const r = msgs[i];
+if (!r) continue;
+if (r.type === 'sticker' || r.type === 'image') collect(r.text);
+if (r.parts && r.parts.length) r.parts.forEach(p => { if (p && p.k === 'img') collect(p.v); });
+if (r.quote) {
+if (typeof r.quote === 'string') collect(r.quote);
+else if (r.quote.imgs && r.quote.imgs.length) r.quote.imgs.forEach(collect);
+}
+}
+if (!seen.size) return;
+await Promise.all(Array.from(seen.keys()).map(v =>
+Promise.resolve(window.mochiMediaTokenize(v)).then(t => { seen.set(v, t || v); }).catch(() => {})
+));
+const apply = (v) => { const t = seen.get(v); return (t && t !== v) ? t : v; };
+for (let i = 0; i < msgs.length; i++) {
+const r = msgs[i];
+if (!r) continue;
+if (r.type === 'sticker' || r.type === 'image') r.text = apply(r.text);
+if (r.parts && r.parts.length) r.parts.forEach(p => { if (p && p.k === 'img') p.v = apply(p.v); });
+if (r.quote) {
+if (typeof r.quote === 'string') { if (seen.has(r.quote)) r.quote = apply(r.quote); }
+else if (r.quote.imgs && r.quote.imgs.length) r.quote.imgs = r.quote.imgs.map(apply);
+}
+}
+}
+async function gcWriteMsgs(quick) {
+if (!quick) {
+try { await gcNormalizeMedia(); } catch (e) {}
+try { if (window.mochiMediaFlush) await window.mochiMediaFlush(); } catch (e) {} // #142：池先落盘，引用后落盘
+}
 const data = JSON.stringify(msgs);
 const key = groupMsgKey(curGid);
 try { localStorage.setItem(key, data); } catch (e) {}
@@ -32947,7 +32990,7 @@ gSchedulePersist(gcWriteMsgs);
 }
 function saveNow() {
 gFlushPersistNow();
-gcWriteMsgs();
+gcWriteMsgs(true);
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') gFlushPersistNow(); });
 window.addEventListener('beforeunload', () => gFlushPersistNow());
@@ -33008,6 +33051,7 @@ let gcVoiceAudio = null;
 let gcVoiceBtn = null;
 function gcPlayVoice(btn, src) {
 if (!src) return;
+try { const ex = window.mochiMediaExpand && window.mochiMediaExpand(src); if (ex) src = ex; } catch (e) {}
 if (gcVoiceBtn === btn) { try { gcVoiceAudio.pause(); } catch (e) {} gcVoiceAudio = null; if (gcVoiceBtn) gcVoiceBtn.classList.remove('playing'); gcVoiceBtn = null; return; }
 if (gcVoiceBtn) { try { gcVoiceAudio.pause(); } catch (e) {} gcVoiceBtn.classList.remove('playing'); }
 const a = new Audio(src);
@@ -33022,7 +33066,12 @@ a.addEventListener('ended', stop);
 a.addEventListener('error', stop);
 a.play().catch(stop);
 }
-function renderMsg(rec, idx) {
+function gcPlaceMsg(m, beforeEl) {
+if (beforeEl && beforeEl.parentNode === body) body.insertBefore(m, beforeEl);
+else body.appendChild(m);
+pruneGcDom();
+}
+function renderMsg(rec, idx, beforeEl) {
 const m = document.createElement('div');
 m.className = 'msg ' + (rec.side === 'out' ? 'msg-out' : 'msg-in');
 if (idx === undefined) idx = msgs.length - 1;
@@ -33043,15 +33092,13 @@ else fillAv(av, memberAvatar(rec.cid));
 if (rec.special === 'poke') {
 m.className = 'msg-poke';
 m.innerHTML = '<span>' + escTxt(rec.text || '') + '</span>';
-body.appendChild(m);
-pruneGcDom();
+gcPlaceMsg(m, beforeEl);
 return m;
 }
 if (rec.special === 'system') {
 m.className = 'msg-poke';
 m.innerHTML = '<span>' + escTxtBr(rec.text || '') + '</span>';
-body.appendChild(m);
-pruneGcDom();
+gcPlaceMsg(m, beforeEl);
 return m;
 }
 const quoteStr = rec.quote ? gcQuoteHtml(rec.quote) : '';
@@ -33128,16 +33175,41 @@ mm.innerHTML += '<div class="msg-mood' + (md.tag === '交流意图' ? ' msg-inte
 (label && label !== (rec.text || '') ? '<span>' + escTxt(label) + '</span>' : '') + '</div>';
 });
 }
-body.appendChild(m);
-pruneGcDom();
+gcPlaceMsg(m, beforeEl); // #246：收发追加/历史前插统一走放置器
 return m;
 }
+let gcRenderStart = 0;
+const GC_EARLIER_CHUNK = 150;
 function renderAll() {
 body.innerHTML = '';
 const n = msgs.length;
-const start = Math.max(0, n - RENDER_MAX);
-for (let i = start; i < n; i++) renderMsg(msgs[i], i);
+gcRenderStart = Math.max(0, n - RENDER_MAX);
+if (gcRenderStart > 0) body.appendChild(gcEarlierBtn());
+for (let i = gcRenderStart; i < n; i++) renderMsg(msgs[i], i);
 scrollToBottom();
+}
+function gcEarlierBtn() {
+const d = document.createElement('div');
+d.className = 'gc-earlier';
+d.textContent = '查看更早的消息（还有 ' + gcRenderStart + ' 条）';
+d.addEventListener('click', loadEarlier);
+return d;
+}
+function gcSyncEarlierBtn() {
+const btn = body.querySelector('.gc-earlier');
+if (gcRenderStart <= 0) { if (btn) btn.remove(); return; }
+if (btn) btn.textContent = '查看更早的消息（还有 ' + gcRenderStart + ' 条）';
+else body.insertBefore(gcEarlierBtn(), body.firstElementChild);
+}
+function loadEarlier() {
+if (gcRenderStart <= 0) return;
+const newStart = Math.max(0, gcRenderStart - GC_EARLIER_CHUNK);
+const anchor = body.querySelector('.gc-earlier') || body.firstElementChild;
+const prevH = body.scrollHeight;
+for (let i = newStart; i < gcRenderStart; i++) renderMsg(msgs[i], i, anchor);
+gcRenderStart = newStart;
+try { body.scrollTop += body.scrollHeight - prevH; } catch (e) {}
+gcSyncEarlierBtn();
 }
 function scrollToBottom() { try { body.scrollTop = body.scrollHeight; } catch (e) {} }
 function nearGcBottom() {
@@ -33152,7 +33224,13 @@ try {
 if (body.children.length <= GC_DOM_WINDOW) return;
 if (body.scrollHeight - body.scrollTop - body.clientHeight > 400) return; // 远离底部：在看历史
 let excess = body.children.length - GC_DOM_CUT;
-while (excess-- > 0 && body.firstElementChild) body.firstElementChild.remove();
+while (excess-- > 0) {
+let el = body.firstElementChild;
+if (!el) break;
+if (el.classList && el.classList.contains('gc-earlier')) el = el.nextElementSibling; // 分页按钮不裁
+if (!el) break;
+el.remove();
+}
 } catch (e) {}
 }
 let gcDraftImgs = [];
@@ -33475,8 +33553,10 @@ return;
 if (idx < 0 || idx >= msgs.length) return;
 const rec = msgs[idx];
 if (!rec || rec.retracted) return;
-const el = body.querySelector('.msg[data-gc-idx="' + idx + '"] .msg-bubble');
-rec.orig = el ? el.innerHTML : gcRetractFallbackHtml(rec);
+const mediaish = rec.type === 'sticker' || rec.type === 'image' || rec.type === 'voice' ||
+(!!(rec.parts && rec.parts.length) && rec.parts.some(p => p && p.k === 'img'));
+const el = mediaish ? null : body.querySelector('.msg[data-gc-idx="' + idx + '"] .msg-bubble');
+rec.orig = (el && el.innerHTML.length <= 20000) ? el.innerHTML : gcRetractFallbackHtml(rec);
 rec.retracted = true;
 saveMsgs();
 const target = body.querySelector('.msg[data-gc-idx="' + idx + '"]');
@@ -81127,4 +81207,4 @@ return { lock: document.body.classList.contains('scroll-lock'), open: open };
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtqi3trg -->
+<!-- __MOCHI_EOF__ mtqi62j4 -->

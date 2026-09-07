@@ -251,3 +251,12 @@
 }
 .gc-gpick-ops .gc-set-btn { flex: 1; padding: 9px 0; text-align: center; }
 .gc-gpick-ops .gc-gpick-ok { font-weight: 600; }
+/* v3.34.x #246 历史分页入口（消息列表顶部「查看更早的消息」） */
+.gc-earlier {
+  text-align: center; padding: 8px 14px; margin: 6px auto 2px;
+  width: fit-content; max-width: 82%;
+  font-size: 12px; color: var(--muted, #8a8a8a);
+  background: var(--card-soft, rgba(127, 127, 127, .12));
+  border-radius: 999px; cursor: pointer; user-select: none;
+}
+.gc-earlier:active { opacity: .65; }
