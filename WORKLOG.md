@@ -1,4 +1,10 @@
-### 2026-09-08 00:4x（#258 深色下拍一拍字卡全白看不见文字——dark.css 原生嵌套老内核丢规则；已构建·sw mochi-mtreyay3·本次构建者：本会话）
+### 2026-09-09 12:4x（应用锁（防偷看）功能落地——设置页新增「应用锁」：数字密码+安全问答重置；已构建·sw mochi-mttlonw1·本次构建者：本会话）
+- [AI-B 域新功能（无并行在途：开工 git status 仅 docs/阿里云OSS 文档未提交，src 干净）]（**改动文件：src/js/applock.js（新增，隐私锁全逻辑：冷启动/新开标签锁屏、cyrb53 摘要存 PIN/答案、安全问答重置、设置页开关与子按钮、全交互自绘[数字键盘/文本输入/说明屏]不依赖 openModal——其取消无回调会卡死且层级低）；src/css/applock.css（新增，遮罩/键盘/输入屏样式，全变量深浅双主题）；src/template.html（设置页加「应用锁」开关组 #applock-en/#applock-sub）；src/js/contacts.js（applock-en/pin/qa 进 migrateLegacy EXCLUDE）；src/js/mobile-adapt.js（FLOAT_SELECTORS +#applock-mask 背景滚动锁）；build.mjs（jsFiles/cssFiles 注册+哨兵+3=553：applock 本体/EXCLUDE 锚/template 入口；#121 call-active 哨兵 needle 同步防失配）；tools/verify-applock.mjs（新增无头 24 断言）**；构建状态：**已构建·sw mochi-mttlonw1·本会话执行**）。
+- 需求：用户要「防别人偷手机打开这个网站偷看聊天记录」。形态经用户确认：数字密码锁（4-6 位）；仅打开时锁（冷启动/新开标签要密码，同标签刷新不重锁，切后台不锁）；忘记密码走安全问题问答重设。安全边界已如实告知：纯前端本地锁挡日常偷看，懂技术者可直读本机存储。
+- 设计要点：解锁态存 sessionStorage（非数据层）；en=1 无密码异常态自愈关闭防把用户锁死；锁屏/问答/重设全在 #applock-mask 单遮罩内流转；README 未动（用户可感知新功能待用户决定是否加开屏介绍）。
+- 验证：node --check 全过；构建哨兵 **553/553 全绿哑 0**；tools/verify-applock.mjs **24/24**（A 冷启动锁/B 错密/C 解锁+session 标记/D 同标签刷新不重锁/E 会话清后重锁/F 异常自愈置 0/G 忘密码问答全流程新旧密替换/H 静态防线）。【真机:待验证】设置→应用锁→开启设 4-6 位密码（建议顺手设安全问答）→ 关闭浏览器重开 → 输密码进入；关开关/改密码需先验证当前密码。
+
+
 - [AI-B 域+跨域 build.mjs/FIX-REGRESSION（开工时树上另有 #251 群聊设置批/#257 死点击批在途，其 build.mjs 哨兵与 src 改动已随本批产物一并构建，均已 WORKLOG 声明；本会话未触碰其文件内容）]（**改动文件：src/css/dark.css（749 条嵌套规则机械展平为带 [data-theme="dark"] 完整前缀的扁平选择器——语义等价：特异性/级联顺序/garden·memo 镜像链 +1 特异性全保持；文件头加「禁止 CSS 原生嵌套」铁律）；src/css/chat-main.css（删拍一拍 tab 段一个不配对多余 `}`）；build.mjs（哨兵+1=550）；tools/verify-dark-mode.mjs（扩 E1-E3 静态断言：产物含展平拍一拍规则/产物零嵌套深色块/src dark.css 平衡零嵌套）；FIX-REGRESSION.md（+#258 行）**；构建状态：**已构建·sw mochi-mtreyay3·本会话执行**）。
 - 需求/根因：用户报「深色模式聊天打开拍一拍功能的页面，拍一拍字卡全是白的看不见文字」。无头 Chrome（新内核）复测一切正常=老内核专属病：dark.css 深色组件覆盖全用 CSS 原生嵌套（需 Chromium 112+/iOS 16.5+），夸克/华为/UC/旧 Edge/iOS≤16.4 等把嵌套规则整段丢弃——浅色白底扁平规则（#poke-list .cc-item）独存+文字 var(--ink) 被扁平变量翻白=白卡白字；桌面 tabbar 白条/各页组件回白同源。排查期间顺带证伪：单聊拍一拍面板三 tab 在新内核深色渲染本就正常（临时探针已删）。
 - 验证：node --check 过；构建哨兵 **550/550 哑 0**；verify-dark-mode **32/32**（D 段三档真实路径+新 E 段静态防线）；布局 verify **10/10**。【真机:待验证】（老内核机型——夸克/华为/UC/旧 Edge/iOS≤16.4 优先）：深色下拍一拍字卡深底亮字；桌面/聊天/设置各组件深色不再回白；新内核机型零变化。

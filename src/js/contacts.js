@@ -123,7 +123,10 @@
     // v3.26.x #121：通话进行中标记（call.js）——全局根键，call.js 每次启动 recoverCall
     // 读它恢复中断通话。绝不能被 migrateLegacy 当旧顶层业务键迁进 default 桌面并删根键
     // （否则 localStorage 兜底副本每次启动被搬走，关浏览器重开后恢复读不到标记）
-    'call-active'];
+    'call-active',
+    // 应用锁（applock.js 隐私防护）：开关/密码摘要/安全问题问答均为全局根键。
+    // 绝不随联系人隔离，防 migrateLegacy 当旧顶层业务键迁进 default 并删根键（锁失效=门户大开）
+    'applock-en', 'applock-pin', 'applock-qa'];
   function isExcluded(k) {
     const r = k.slice(G.length + 1);
     // #233：__ 前缀＝系统键（idb.js 根命名空间专用：__wr-journal 写日志＝LS 回滚自愈
