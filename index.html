@@ -8735,6 +8735,14 @@ transition-duration: .01ms !important;
 .applock-btns .al-primary { border: none; background: var(--btn-bg, #111); color: var(--btn-ink, #fff); font-weight: 600; }
 .applock-btns .al-primary:active { transform: scale(.98); }
 .applock-btns .al-ghost { border: 1px solid var(--card-border, rgba(0, 0, 0, .1)); background: var(--card-bg-97, #fff); color: var(--soft-ink, #555); }
+.al-qa-list { text-align: left; max-height: 40vh; overflow-y: auto; margin: 4px 0 2px; }
+.al-qa-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 4px; border-bottom: 1px solid var(--line, rgba(0,0,0,.06)); font-size: 13px; }
+.al-qa-row:last-child { border-bottom: none; }
+.al-qa-idx { flex: 0 0 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 7px; background: var(--static-bg, rgba(0,0,0,.05)); color: var(--muted, #8a8a8a); font-size: 12px; }
+.al-qa-q { flex: 1; color: var(--ink, #111); line-height: 1.5; word-break: break-word; }
+.al-qa-ops { flex: 0 0 auto; display: flex; gap: 6px; }
+.al-qa-ops button { border: 1px solid var(--card-border, rgba(0,0,0,.1)); background: var(--card-bg-97, #fff); color: var(--soft-ink, #555); border-radius: 8px; padding: 3px 9px; font-size: 12px; cursor: pointer; }
+.al-qa-ops button:active { background: var(--static-bg, rgba(0,0,0,.06)); }
 </style>
 </head>
 <body>
@@ -8950,9 +8958,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788928239601">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.530</b></span>
-        <span class="sv-deploy">部署于 2026-09-09 12:30<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788931624401">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.531</b></span>
+        <span class="sv-deploy">部署于 2026-09-09 13:27<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10009,6 +10017,15 @@ transition-duration: .01ms !important;
         </div>
         <div class="gs-sub" id="applock-sub">纯本地功能：可设数字密码 + 安全问题（忘记时重置）。提醒：网页数据存于本机，此锁防日常偷看，防不了懂技术的人读取本机数据。</div>
       </div>
+      <!-- 开屏问答门（可不设应用锁单独用；逻辑在 applock.js） -->
+      <div class="set-group glass">
+        <div class="set-row">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3.5V11c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5.5z"/><path d="M9.6 9.2a2.6 2.6 0 014.9 1.1c0 1.6-2.5 2-2.5 3.4"/><circle cx="12" cy="16.6" r=".4" fill="#111111"/></svg></div>
+          <div class="txt">开屏问答门<span class="sub">答对问题才放行，可不设数字密码</span></div>
+          <label class="toggle"><input type="checkbox" id="applock-qa-en"><span class="tk"></span></label>
+        </div>
+        <div class="gs-sub" id="applock-qa-sub">纯本地功能：开启后每次打开本站先答对问答题；可单独使用。锁屏时输暗号 0929 可让本机永久跳过问答层。</div>
+      </div>
       <div class="set-group glass">
         <div class="set-row" id="row-general">
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M4.2 4.2l2.2 2.2M17.6 17.6l2.2 2.2M1 12h3M20 12h3M4.2 19.8l2.2-2.2M17.6 6.4l2.2-2.2"/></svg></div>
@@ -10117,7 +10134,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.530</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.531</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10408,7 +10425,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.530</span>
+              <span class="lic-ver">v3.26.531</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -16965,7 +16982,8 @@ const EXCLUDE = ['contacts', 'active-contact', 'feed-posts', 'migrated-v1', 'js-
 'beauty-schemes', 'chat-beauty-schemes', 'hide-ta-sticker',
 'full-beauty-schemes', 'beauty-undo-stack', 'ver-update-ack-ts', 'ver-update-notify',
 'call-active',
-'applock-en', 'applock-pin', 'applock-qa'];
+'applock-en', 'applock-pin', 'applock-qa',
+'applock-qa-en', 'applock-qalist', 'applock-qaskip'];
 function isExcluded(k) {
 const r = k.slice(G.length + 1);
 if (r.indexOf('__') === 0) return true;
@@ -17549,6 +17567,10 @@ const K_EN = 'applock-en';
 const K_PIN = 'applock-pin';
 const K_QA = 'applock-qa';
 const SESS = 'mochi-applock-ok';
+const K_QA_EN = 'applock-qa-en';
+const K_QA_LIST = 'applock-qalist';
+const K_QA_SKIP = 'applock-qaskip';
+const QA_CODE = '0929';
 function gGet(k) {
 try { const v = window.xyStore ? window.xyStore(G).get(k) : null; if (v !== null && v !== undefined) return v; } catch (e) {}
 try { return localStorage.getItem(G + ':' + k); } catch (e2) { return null; }
@@ -17584,6 +17606,39 @@ function enabled() { return gGet(K_EN) === '1'; }
 function setEn(v) { gSet(K_EN, v ? '1' : '0'); }
 function savePin(pin) { gSet(K_PIN, h53(pin)); }
 function saveQa(q, h) { gSet(K_QA, JSON.stringify({ q: String(q), h: String(h) })); }
+const QA_SKIP_CODE = '0929';
+const DEFAULT_QA = [
+{ q: 'mj 是什么意思？', a: '梦角' },
+{ q: '是否已知晓：全站为随机代码运行，不含任何 AI，请不要添加负面字卡吓唬自己？', a: '是' }
+];
+function qaRaw() {
+try {
+const v = gGet(K_QA_LIST);
+if (v && typeof v === 'string') {
+const arr = JSON.parse(v);
+if (Array.isArray(arr) && arr.length && arr.every(function (it) { return it && it.q && it.h; })) {
+return arr.map(function (it) { return { q: String(it.q), h: String(it.h) }; });
+}
+}
+} catch (e) {}
+return null;
+}
+function qaList() {
+const r = qaRaw();
+if (r) return r;
+return DEFAULT_QA.map(function (it) { return { q: it.q, h: h53(String(it.a).trim()) }; });
+}
+function qaSave(items) {
+gSet(K_QA_LIST, JSON.stringify(items.map(function (it) {
+return { q: String(it.q), h: h53(String(it.a).trim()) };
+})));
+}
+function qaSeedDefault() { if (!qaRaw()) qaSave(DEFAULT_QA); }
+function qaEnabled() { return gGet(K_QA_EN) === '1'; }
+function qaSetEn(v) { gSet(K_QA_EN, v ? '1' : '0'); }
+function qaSkipped() { return gGet(K_QA_SKIP) === '1'; }  // 本机已输暗号 → 永久跳过问答层
+function qaSkipSet(v) { gSet(K_QA_SKIP, v ? '1' : '0'); }
+function qaAnswerOk(v, h) { return h53(String(v == null ? '' : v).trim()) === h; }
 function sessOk() { try { return sessionStorage.getItem(SESS) === '1'; } catch (e) { return false; } }
 function sessMark() { try { sessionStorage.setItem(SESS, '1'); } catch (e) {} }
 function toast(msg) {
@@ -17618,17 +17673,41 @@ let inner = '<div class="applock-box">' +
 (o.sub ? '<div class="applock-sub">' + o.sub + '</div>' : '');
 if (o.kind === 'text') {
 inner += '<input class="applock-txt" type="text" id="applock-txt" maxlength="' + (o.maxlen || 60) + '"' +
+(o.value != null ? ' value="' + String(o.value).replace(/"/g, '&quot;') + '"' : '') +
 (o.placeholder ? ' placeholder="' + o.placeholder + '"' : '') + ' autocomplete="off">' +
 '<div class="applock-err" id="applock-err"></div>' +
 '<div class="applock-btns">' +
 (o.cancel !== false ? '<button type="button" class="al-ghost" data-link="cancel">' + (o.cancelLabel || '取消') + '</button>' : '') +
 '<button type="button" class="al-primary" data-submit="1">' + (o.okLabel || '确定') + '</button>' +
-'</div>';
+'</div>' +
+(o.links && o.links.length ? '<div class="applock-links">' + o.links.map(function (l) {
+return '<button data-link="' + l.act + '">' + l.label + '</button>';
+}).join('') + '</div>' : '');
 } else if (o.kind === 'info') {
 inner += '<div class="applock-btns" style="margin-top:6px">' +
 (o.secondary ? '<button type="button" class="al-ghost" data-link="' + o.secondary.act + '">' + o.secondary.label + '</button>' : '') +
 '<button type="button" class="al-primary" data-ok="1">' + (o.okLabel || '知道了') + '</button>' +
 '</div>';
+} else if (o.kind === 'qalist') {
+const items = o.items || [];
+inner += '<div class="applock-err" id="applock-err"></div>' +
+'<div class="al-qa-list" id="al-qa-list">' +
+(items.length ? items.map(function (it, i) {
+return '<div class="al-qa-row">' +
+'<span class="al-qa-idx">' + (i + 1) + '</span>' +
+'<span class="al-qa-q">' + it.q + '</span>' +
+'<span class="al-qa-ops">' +
+'<button type="button" data-qal="edit:' + i + '">改</button>' +
+(items.length > 1 ? '<button type="button" data-qal="del:' + i + '">删</button>' : '') +
+'</span>' +
+'</div>';
+}).join('') : '<div class="applock-empty">还没有题目，点下方「添加题目」新建。</div>') +
+'</div>' +
+'<div class="applock-btns" style="margin-top:4px">' +
+'<button type="button" class="al-ghost" data-qal="add">＋ 添加题目</button>' +
+'<button type="button" class="al-primary" data-qal="done">完成</button>' +
+'</div>' +
+(o.extra ? '<div class="applock-sub" style="margin-top:8px">' + o.extra + '</div>' : '');
 } else { // pad
 let dots = '';
 for (let i = 0; i < o.max; i++) dots += '<i></i>';
@@ -17704,7 +17783,7 @@ if (cb) cb(); else if (oc) oc();
 }
 function padOpen(o) {
 cur = Object.assign({}, o);
-if (o.kind !== 'text' && o.kind !== 'info') { cur.kind = 'pad'; if (!cur.max) cur.max = 6; if (cur.min == null) cur.min = 1; }
+if (o.kind !== 'text' && o.kind !== 'info' && o.kind !== 'qalist') { cur.kind = 'pad'; if (!cur.max) cur.max = 6; if (cur.min == null) cur.min = 1; }
 buf = '';
 render();
 maskEl().hidden = false;
@@ -17721,6 +17800,12 @@ if (/^\d$/.test(k)) { padAdd(k); return; }
 return;
 }
 if (t.closest('#applock-ok')) { padTry(); return; }
+if (t.closest('[data-qal]')) {
+if (!cur || cur.kind !== 'qalist') return;
+const act = t.closest('[data-qal]').getAttribute('data-qal');
+onQal(act);
+return;
+}
 if (t.closest('[data-ok]')) {
 if (!cur || cur.kind !== 'info') return;
 const oc = cur.onPrimary;
@@ -17887,18 +17972,65 @@ cancel: function () { padVerify(opts); }
 });
 }, function () { padVerify(opts); });
 }
+function qaStart(afterAll) {
+const items = qaList();
+qaAsk(items, 0, afterAll);
+}
+function qaAsk(items, i, afterAll) {
+if (i >= items.length) { if (afterAll) afterAll(); return; }
+const it = items[i];
+textAsk({
+title: '开屏问答 ' + (i + 1) + '/' + items.length,
+sub: it.q,
+placeholder: '输入答案', okLabel: (i + 1 >= items.length ? '进入' : '下一题'), cancel: false,
+links: [{ act: 'skipqa', label: '输暗号 0929，本机永久跳过问答' }],
+onSubmit: function (v) {
+if (qaAnswerOk(v, it.h)) { qaAsk(items, i + 1, afterAll); }
+else {
+const inp = document.getElementById('applock-txt'); if (inp) inp.value = '';
+showErr('答案不对，再想想～');
+}
+},
+onLink: function (act) { if (act === 'skipqa') qaSkipAsk(items, i, afterAll); }
+});
+}
+function qaSkipAsk(items, i, afterAll) {
+textAsk({
+title: '跳过开屏问答', sub: '输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。',
+placeholder: '输暗号', maxlen: 12, okLabel: '确定', cancelLabel: '返回',
+onSubmit: function (v) {
+if (String(v || '').trim() === QA_SKIP_CODE) {
+qaSkipSet(true);
+toast('已跳过：本机以后不再问答');
+qaAsk(items, items.length, afterAll);   // 直接进下一层（密码锁 或 解锁完成）
+} else {
+const inp = document.getElementById('applock-txt'); if (inp) inp.value = '';
+showErr('暗号不对');
+}
+},
+onCancel: function () { qaAsk(items, i, afterAll); }
+});
+}
 function evalLock() {
 if (MASK && !MASK.hidden) return;   // 已锁屏中
-if (!enabled()) return;
-if (!pinHash()) {                    // 异常态：开关开着却没密码 → 自愈关闭防把用户锁死
-setEn(false);
-return;
-}
-if (sessOk()) return;                // 本会话已解过锁
+if (enabled() && !pinHash()) setEn(false);  // 异常态自愈（原逻辑保留）
+const needPin = enabled() && !!pinHash();
+const needQa = qaEnabled() && !qaSkipped();
+if (!needPin && !needQa) return;
+if (sessOk()) return;               // 本会话已解过锁
+if (needQa) {
+qaStart(function () {
+if (needPin) showLock();
+else { sessMark(); maskEl().hidden = true; }
+});
+} else {
 showLock();
+}
 }
 function enEl() { return document.getElementById('applock-en'); }
 function subEl() { return document.getElementById('applock-sub'); }
+function qaEl() { return document.getElementById('applock-qa-en'); }
+function qaSubEl() { return document.getElementById('applock-qa-sub'); }
 function syncUi() {
 const c = enEl();
 const s = subEl();
@@ -17958,6 +18090,147 @@ onForgetDone: function () { toast('密码已重设（如需再改安全问题请
 onCancel: function () { syncUi(); }
 });
 }
+let qaBuf = null;
+function qaOpenEdit() {
+qaBuf = (qaRaw() || qaList()).map(function (it) { return { q: String(it.q), h: String(it.h) }; });
+qaPanel();
+}
+function qaPanel() {
+padOpen({ kind: 'qalist', title: '开屏问答题', sub: '答案加密存储不显示；改题时答案留空＝不变。至少保留 1 道。', ico: ICON_SHIELD, items: qaBuf });
+}
+function qaRerender() {
+if (!cur || cur.kind !== 'qalist' || !qaBuf) return;
+cur.items = qaBuf;
+render();
+}
+function onQal(act) {
+if (act === 'done') {
+const arr = (qaBuf || []).filter(function (it) { return it && it.q; });
+if (!arr.length) { showErr('至少要保留一道题'); return; }
+gSet(K_QA_LIST, JSON.stringify(arr.map(function (it) { return { q: it.q, h: it.h }; })));
+qaBuf = null;
+maskEl().hidden = true; cur = null; buf = '';
+toast('问答题已保存');
+syncQaUi(); syncUi();
+return;
+}
+if (act === 'add') { qaEditItem(null); return; }
+if (act.indexOf('edit:') === 0) { qaEditItem(parseInt(act.slice(5), 10)); return; }
+if (act.indexOf('del:') === 0) {
+const i = parseInt(act.slice(4), 10);
+if (!qaBuf || i < 0 || i >= qaBuf.length) return;
+if (qaBuf.length <= 1) { showErr('至少保留一道题'); return; }
+qaBuf.splice(i, 1);
+qaRerender();
+}
+}
+function qaEditItem(idx) {
+const isNew = idx === null || idx === undefined;
+const editing = !isNew ? qaBuf[idx] : null;
+textAsk({
+title: isNew ? '添加题目' : '修改题目', sub: isNew ? '输入问题内容：' : '输入新的问题内容（或直接下一步不改）：',
+placeholder: '问题', maxlen: 80, okLabel: '下一步', cancel: false,
+value: editing ? editing.q : '',
+onSubmit: function (q) {
+if (!q) { showErr('问题不能为空'); return; }
+textAsk({
+title: isNew ? '设置答案' : '设置答案（留空＝不变）',
+sub: isNew ? '输入该题的正确答案（原样输入，区分大小写）：' : '输入新答案；留空则沿用原答案：',
+placeholder: '答案', maxlen: 60, okLabel: isNew ? '添加' : '保存', cancel: false,
+onSubmit: function (a) {
+if (isNew) {
+if (!a) { showErr('答案不能为空'); return; }
+qaBuf.push({ q: q, h: h53(String(a).trim()) });
+} else {
+editing.q = q;
+if (a) editing.h = h53(String(a).trim());
+}
+qaPanel();
+}
+});
+}
+});
+}
+function qaGuard(next, cancel) {
+const onCancel = function () { if (cancel) cancel(); else { syncQaUi(); syncUi(); } };
+if (pinHash()) {
+padVerify({
+title: '验证身份', sub: '先输入当前密码', forget: true,
+onOk: function () { next(); },
+onForgetDone: function () { toast('密码已重设'); next(); },
+onCancel: onCancel
+});
+return;
+}
+textAsk({
+title: '验证身份', sub: '本机未设数字密码，请输入开屏问答的暗号继续：',
+placeholder: '暗号', maxlen: 12, okLabel: '确定', cancelLabel: '取消',
+onSubmit: function (v) {
+if (String(v || '').trim() === QA_SKIP_CODE) { next(); }
+else {
+const inp = document.getElementById('applock-txt'); if (inp) inp.value = '';
+showErr('暗号不对');
+}
+},
+onCancel: onCancel
+});
+}
+function syncQaUi() {
+const c = qaEl();
+const s = qaSubEl();
+if (!c || !s) return;
+const on = qaEnabled();
+c.checked = on;
+const raw = qaRaw();
+const n = raw ? raw.length : (qaList().length);
+let html;
+if (on) {
+const acts = [{ act: 'qa-manage', label: '编辑问答题' }];
+if (qaSkipped()) acts.push({ act: 'qa-unskip', label: '恢复本机问答' });
+html = '<span>已开启：每次打开本站需先答对 <b>' + n + '</b> 道问答题' +
+(enabled() && !!pinHash() ? '，再输入数字密码' : '') + '。' +
+(qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号 0929」可让本机永久跳过问答层。') +
+'</span>' + actsHtml(acts);
+} else {
+html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时输暗号 <b>0929</b> 可让本机永久跳过问答层。</span>' +
+(raw ? actsHtml([{ act: 'qa-manage', label: '编辑问答题' }]) : '');
+}
+s.innerHTML = html;
+Array.prototype.forEach.call(s.querySelectorAll('[data-aa]'), function (b) {
+b.addEventListener('click', function () {
+const act = b.getAttribute('data-aa');
+if (act === 'qa-manage') qaGuard(qaOpenEdit);
+else if (act === 'qa-unskip') { qaSkipSet(false); toast('已恢复：本机再次打开会询问问答'); syncQaUi(); }
+});
+});
+}
+function bindQaSettings() {
+const c = qaEl();
+const s = qaSubEl();
+if (!c || !s) return;
+syncQaUi();
+c.addEventListener('change', function () {
+const wantOn = c.checked;
+c.disabled = true;
+const done = function () { c.disabled = false; syncQaUi(); syncUi(); };
+if (wantOn) {
+if (!qaRaw()) { gSet(K_QA_LIST, JSON.stringify(qaList().map(function (it) { return { q: it.q, h: it.h }; }))); }
+qaSetEn(true);
+done();
+toast('开屏问答已开启');
+} else {
+qaGuard(function () {
+qaSetEn(false);
+done();
+toast('开屏问答已关闭');
+}, function () {
+c.disabled = false;
+c.checked = true;    // 验证未通过 → 保持开启
+syncQaUi(); syncUi();
+});
+}
+});
+}
 function bindSettings() {
 const c = enEl();
 const s = subEl();
@@ -17966,7 +18239,7 @@ syncUi();
 c.addEventListener('change', function () {
 const wantOn = c.checked;
 c.disabled = true;
-const done = function () { c.disabled = false; syncUi(); };
+const done = function () { c.disabled = false; syncUi(); syncQaUi(); };
 if (wantOn) {
 if (pinHash()) { setEn(true); done(); toast('应用锁已开启'); return; }
 flowNewPin({
@@ -17999,6 +18272,7 @@ onCancel: function () { done(); }
 }
 function init() {
 bindSettings();
+bindQaSettings();
 try { evalLock(); } catch (e) {}
 document.addEventListener('mochi-restore-done', function () {
 try { evalLock(); } catch (e) {}
@@ -18007,6 +18281,10 @@ try { evalLock(); } catch (e) {}
 if (document.body) init();
 else document.addEventListener('DOMContentLoaded', init);
 window.__applockReady = true;
+window.__applockQaTest = {
+openEdit: function () { qaOpenEdit(); },
+getList: function () { return qaRaw() || qaList(); }
+};
 })();
 } catch (__e) { try { console.error("[JS] applock.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
 (function () { try {
@@ -82224,4 +82502,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mttlonw1 -->
+<!-- __MOCHI_EOF__ mttnp7m9 -->

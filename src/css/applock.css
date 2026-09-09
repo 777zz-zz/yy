@@ -36,3 +36,12 @@
 .applock-btns .al-primary { border: none; background: var(--btn-bg, #111); color: var(--btn-ink, #fff); font-weight: 600; }
 .applock-btns .al-primary:active { transform: scale(.98); }
 .applock-btns .al-ghost { border: 1px solid var(--card-border, rgba(0, 0, 0, .1)); background: var(--card-bg-97, #fff); color: var(--soft-ink, #555); }
+/* 开屏问答 · 题目管理列表 */
+.al-qa-list { text-align: left; max-height: 40vh; overflow-y: auto; margin: 4px 0 2px; }
+.al-qa-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 4px; border-bottom: 1px solid var(--line, rgba(0,0,0,.06)); font-size: 13px; }
+.al-qa-row:last-child { border-bottom: none; }
+.al-qa-idx { flex: 0 0 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 7px; background: var(--static-bg, rgba(0,0,0,.05)); color: var(--muted, #8a8a8a); font-size: 12px; }
+.al-qa-q { flex: 1; color: var(--ink, #111); line-height: 1.5; word-break: break-word; }
+.al-qa-ops { flex: 0 0 auto; display: flex; gap: 6px; }
+.al-qa-ops button { border: 1px solid var(--card-border, rgba(0,0,0,.1)); background: var(--card-bg-97, #fff); color: var(--soft-ink, #555); border-radius: 8px; padding: 3px 9px; font-size: 12px; cursor: pointer; }
+.al-qa-ops button:active { background: var(--static-bg, rgba(0,0,0,.06)); }

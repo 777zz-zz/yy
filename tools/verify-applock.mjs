@@ -102,7 +102,7 @@ async function seedAndReload(o) {
     try{sessionStorage.removeItem('mochi-applock-ok');}catch(e){}
     var G='xy-home-v2';
     function rm(k){try{if(window.xyStore)window.xyStore(G).remove(k);}catch(e){}try{localStorage.removeItem(G+':'+k);}catch(e2){}}
-    ['applock-en','applock-pin','applock-qa'].forEach(rm);
+    ['applock-en','applock-pin','applock-qa','applock-qa-en','applock-qalist','applock-qaskip'].forEach(rm);
     var ks=${JSON.stringify(o)};
     for(var k in ks){try{if(window.xyStore)window.xyStore(G).set(k,ks[k]);else localStorage.setItem(G+':'+k,ks[k]);}catch(e){try{localStorage.setItem(G+':'+k,ks[k]);}catch(e2){}}}
     return 1;
@@ -240,11 +240,156 @@ const artifact = readFileSync(join(root, 'index.html'), 'utf8');
 const tpl = readFileSync(join(root, 'src', 'template.html'), 'utf8');
 const contacts = readFileSync(join(root, 'src', 'js', 'contacts.js'), 'utf8');
 check('H1 模板含设置入口开关 #applock-en', tpl.indexOf('id="applock-en"') >= 0);
-check('H2 contacts EXCLUDE 含 applock 三键', contacts.indexOf("'applock-en', 'applock-pin', 'applock-qa']") >= 0);
+check('H2 contacts EXCLUDE 含应用锁+问答门键', contacts.indexOf("'applock-qa-en', 'applock-qalist', 'applock-qaskip']") >= 0);
 check('H3 产物含锁屏样式 .applock-mask', artifact.indexOf('.applock-mask') >= 0);
 check('H4 产物含脚本就绪标志 __applockReady', artifact.indexOf('window.__applockReady') >= 0);
 check('H5 产物含 FLOAT 注册 #applock-mask', artifact.indexOf('#applock-mask') >= 0);
 check('H6 产物含密码摘要函数 cyrb53(不存明文)', /function h53\(str\)/.test(artifact) || artifact.indexOf('2654435761') >= 0);
+
+// ---- I. 开屏问答门：开启后冷启动先问答，答对放行 ----
+// 只开问答门（无数字密码），题目用默认两道：mj→梦角 / 知晓→是
+await seedAndReload({ 'applock-qa-en': '1' });
+st = JSON.parse(await lockState() || '{}');
+check('I1 问答门开启：冷启动出现问答屏', st.has && st.shown === true && st.title.indexOf('开屏问答') === 0, JSON.stringify(st));
+
+// 答错第一题 → 报错
+await typeText('梦角x');
+await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('I2 答错提示且仍锁屏', st.shown === true && st.err.indexOf('不对') >= 0, st.err);
+
+// 答对第一题 → 进第二题
+await typeText('梦角');
+await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('I3 第一题通过进入第二题', st.shown === true && st.title.indexOf('开屏问答 2/2') === 0, st.title);
+
+// 答对第二题 → 放行（无密码锁）
+await typeText('是');
+await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('I4 全部答对解锁进入', st.shown === false, JSON.stringify(st));
+
+// 会话保留刷新不再问（同标签不重锁）
+await cdp('Page.reload');
+await sleep(1200);
+st = JSON.parse(await lockState() || '{}');
+check('I5 同标签刷新不再问答', st.shown === false, JSON.stringify(st));
+
+// 新会话（等效新开标签）→ 再问；输入暗号 0929 永久跳过
+await clearSessAndReload();
+st = JSON.parse(await lockState() || '{}');
+check('I6 新会话再次问答', st.shown === true && st.title.indexOf('开屏问答') === 0, st.title);
+await clickLink('skipqa');
+st = JSON.parse(await lockState() || '{}');
+check('I7 出现暗号输入屏', st.shown === true && st.title.indexOf('跳过') >= 0, st.title);
+await typeText('0929');
+await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('I8 输对暗号放行', st.shown === false, JSON.stringify(st));
+
+// 之后新会话也不再问（本机已跳过）
+await clearSessAndReload();
+st = JSON.parse(await lockState() || '{}');
+check('I9 暗号后本机永久不再问答', st.shown === false, JSON.stringify(st));
+check('I10 qaskip 标记已落库', (await evalJs("localStorage.getItem('" + P + "applock-qaskip')")) === '1');
+
+// 恢复本机问答 → 重新要问答
+await seedAndReload({ 'applock-qa-en': '1', 'applock-qaskip': '0' });
+st = JSON.parse(await lockState() || '{}');
+check('I11 恢复后重新问答', st.shown === true && st.title.indexOf('开屏问答') === 0, st.title);
+await typeText('梦角'); await clickSubmit();
+await typeText('是'); await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('I12 恢复后答对放行', st.shown === false, JSON.stringify(st));
+
+// ---- J. 双重验证：问答门 + 数字密码锁都开 → 先问答后密码 ----
+await seedAndReload({ 'applock-qa-en': '1', 'applock-en': '1', 'applock-pin': h53('1234') });
+st = JSON.parse(await lockState() || '{}');
+check('J1 双重开启：先出问答屏', st.shown === true && st.title.indexOf('开屏问答') === 0, st.title);
+await typeText('梦角'); await clickSubmit();
+await typeText('是'); await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('J2 问答通过进入密码屏', st.shown === true && st.title.indexOf('应用锁已开启') === 0, st.title);
+await clickKeys('4321'); await clickOk();
+st = JSON.parse(await lockState() || '{}');
+check('J3 密码错仍锁', st.shown === true && st.err.indexOf('不正确') >= 0, st.err);
+await clickKeys('1234'); await clickOk();
+st = JSON.parse(await lockState() || '{}');
+check('J4 密码对解锁进入', st.shown === false, JSON.stringify(st));
+
+// ---- K. 静态防线 ----
+check('K1 模板含问答门开关 #applock-qa-en', tpl.indexOf('id="applock-qa-en"') >= 0);
+check('K2 contacts EXCLUDE 含问答门三键', contacts.indexOf("'applock-qa-en', 'applock-qalist', 'applock-qaskip']") >= 0);
+check('K3 产物含问答门暗号 0929 常量', artifact.indexOf("QA_SKIP_CODE = '0929'") >= 0 || artifact.indexOf("'0929'") >= 0);
+check('K4 产物含问答屏入口 skipqa', artifact.indexOf('skipqa') >= 0);
+check('K5 产物含问答管理面板 qalist', artifact.indexOf('qalist') >= 0);
+check('K6 产物含题目列表样式 .al-qa-row', artifact.indexOf('.al-qa-row') >= 0);
+
+// ---- L. 题目管理面板：增删改 + 答案留空保留 + 新题立即生效 ----
+// 先进站并解锁问答门（默认两题）
+await seedAndReload({ 'applock-qa-en': '1' });
+await typeText('梦角'); await clickSubmit();
+await typeText('是'); await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('L0 解锁进入管理前提', st.shown === false, JSON.stringify(st));
+
+// 打开管理面板
+await evalJs('(function(){try{window.__applockQaTest.openEdit();}catch(e){return String(e);}return 1;})()');
+await sleep(300);
+st = JSON.parse(await lockState() || '{}');
+check('L1 管理面板打开（题目列表）', st.shown === true && st.title.indexOf('开屏问答题') === 0, st.title);
+check('L2 面板列出两道默认题', (await evalJs("document.querySelectorAll('#al-qa-list .al-qa-row').length")) === 2);
+
+// 新增第三题：mj 是什么？→ 梦角（保留）；新题：我们要去哪？→ 宇宙
+await evalJs("(function(){var b=document.querySelector('[data-qal=\"add\"]');if(b)b.click();return 1;})()");
+await sleep(200);
+await typeText('我们要去哪？'); await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('L3 进入新增答案输入屏', st.shown === true && st.title.indexOf('设置答案') >= 0, st.title);
+await typeText('宇宙'); await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('L4 新增后回到面板共 3 题', st.shown === true && st.title.indexOf('开屏问答题') === 0, st.title);
+check('L5 面板计数=3', (await evalJs("document.querySelectorAll('#al-qa-list .al-qa-row').length")) === 3);
+
+// 修改第 2 题（知晓→是）：把题目文字改掉，答案留空保留
+await evalJs("(function(){var b=document.querySelector('[data-qal=\"edit:1\"]');if(b)b.click();return 1;})()");
+await sleep(200);
+await typeText('是否已知晓本站为随机代码？'); await clickSubmit();
+await typeText('是'); await clickSubmit();
+check('L6 修改后回面板', (await evalJs("document.querySelectorAll('#al-qa-list .al-qa-row').length")) === 3);
+
+// 删除第 3 题
+await evalJs("(function(){var b=document.querySelector('[data-qal=\"del:2\"]');if(b)b.click();return 1;})()");
+await sleep(200);
+check('L7 删除后剩 2 题', (await evalJs("document.querySelectorAll('#al-qa-list .al-qa-row').length")) === 2);
+
+// 完成保存
+await evalJs("(function(){var b=document.querySelector('[data-qal=\"done\"]');if(b)b.click();return 1;})()");
+await sleep(300);
+const lst = JSON.parse(await evalJs("JSON.stringify(window.__applockQaTest ? window.__applockQaTest.getList() : null)") || 'null');
+check('L8 已保存为 2 题', Array.isArray(lst) && lst.length === 2, JSON.stringify(lst));
+check('L9 修改后的第 2 题生效（新文案+保留原答案「是」）', Array.isArray(lst) && lst[1].q.indexOf('随机代码') >= 0 && lst[1].h === h53('是'), JSON.stringify(lst));
+
+// 新会话冷启动 → 问答用修改后的题目
+await clearSessAndReload();
+st = JSON.parse(await lockState() || '{}');
+check('L10 修改后冷启动再问', st.shown === true && st.title.indexOf('开屏问答 1/2') === 0, st.title);
+await typeText('梦角'); await clickSubmit();
+await typeText('是'); await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('L11 修改后仍可正常解锁', st.shown === false, JSON.stringify(st));
+
+// 只保留 1 题：删到 1 后再次删除应被阻止（至少保留一道）
+await seedAndReload({ 'applock-qa-en': '1', 'applock-qalist': JSON.stringify([{ q: '唯一题', h: h53('答案') }]) });
+await typeText('答案'); await clickSubmit();
+await evalJs('(function(){try{window.__applockQaTest.openEdit();}catch(e){}return 1;})()');
+await sleep(250);
+const hasDelOnSingle = await evalJs("document.querySelectorAll('[data-qal=\"del:0\"]').length");
+check('L12 仅 1 题时不显示删除按钮', hasDelOnSingle === 0, String(hasDelOnSingle));
+
+// ---- M. 静态防线 ----
+check('M1 产物含 __applockQaTest 验证钩子', artifact.indexOf('__applockQaTest') >= 0);
 
 try { if (ws) ws.close(); } catch (e) {}
 try { chrome.kill(); } catch (e) {}
