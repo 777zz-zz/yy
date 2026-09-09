@@ -19,11 +19,10 @@
   const K_PIN = 'applock-pin';
   const K_QA = 'applock-qa';
   const SESS = 'mochi-applock-ok';
-  // v3.31.x 开屏问答门（可不设数字密码单独用；本机输暗号 QA_CODE 永久跳过问答层）
+  // v3.31.x 开屏问答门（可不设数字密码单独用；本机输暗号 QA_SKIP_CODE 永久跳过问答层）
   const K_QA_EN = 'applock-qa-en';
   const K_QA_LIST = 'applock-qalist';
   const K_QA_SKIP = 'applock-qaskip';
-  const QA_CODE = '0929';
 
   // ---------- 存储（根命名空间，localStorage 直读兜底） ----------
   function gGet(k) {
@@ -67,7 +66,7 @@
   // ---------- 开屏问答门数据 ----------
   // 存储为 JSON：[{ q:'题目', h:'答案摘要(cyrb53)' }]，答案不落明文（同数字密码）。
   // 可独立于数字密码锁开关（应用锁可不设）；本机输暗号 QA_SKIP_CODE 后 qaskip=1 永久跳过问答层。
-  const QA_SKIP_CODE = '0929';
+  const QA_SKIP_CODE = '990915';
   const DEFAULT_QA = [
     { q: 'mj 是什么意思？', a: '梦角' },
     { q: '是否已知晓：全站为随机代码运行，不含任何 AI，请不要添加负面字卡吓唬自己？', a: '是' }
@@ -460,8 +459,8 @@
     }, function () { padVerify(opts); });
   }
 
-  // ---------- 开屏问答门流程（可独立于数字密码锁；0929 本机永久跳过问答层） ----------
-  // items 为 [{q,h}]；答对全部进入 afterAll()；每屏底部可「输暗号 0929 跳过问答」
+  // ---------- 开屏问答门流程（可独立于数字密码锁；暗号 990915 本机永久跳过问答层） ----------
+  // items 为 [{q,h}]；答对全部进入 afterAll()；每屏底部可「输暗号 990915 跳过问答」
   function qaStart(afterAll) {
     const items = qaList();
     qaAsk(items, 0, afterAll);
@@ -473,7 +472,7 @@
       title: '开屏问答 ' + (i + 1) + '/' + items.length,
       sub: it.q,
       placeholder: '输入答案', okLabel: (i + 1 >= items.length ? '进入' : '下一题'), cancel: false,
-      links: [{ act: 'skipqa', label: '输暗号 0929，本机永久跳过问答' }],
+      links: [{ act: 'skipqa', label: '输暗号 990915，本机永久跳过问答' }],
       onSubmit: function (v) {
         if (qaAnswerOk(v, it.h)) { qaAsk(items, i + 1, afterAll); }
         else {
@@ -650,7 +649,7 @@
       }
     });
   }
-  // 管理操作前置验证：有数字密码→输密码；否则→输暗号 0929（防旁人顺手删题/关问答门）
+  // 管理操作前置验证：有数字密码→输密码；否则→输暗号 990915（防旁人顺手删题/关问答门）
   // next() 通过；cancel() 用户取消
   function qaGuard(next, cancel) {
     const onCancel = function () { if (cancel) cancel(); else { syncQaUi(); syncUi(); } };
@@ -690,10 +689,10 @@
       if (qaSkipped()) acts.push({ act: 'qa-unskip', label: '恢复本机问答' });
       html = '<span>已开启：每次打开本站需先答对 <b>' + n + '</b> 道问答题' +
         (enabled() && !!pinHash() ? '，再输入数字密码' : '') + '。' +
-        (qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号 0929」可让本机永久跳过问答层。') +
+        (qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号 990915」可让本机永久跳过问答层。') +
         '</span>' + actsHtml(acts);
     } else {
-      html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时输暗号 <b>0929</b> 可让本机永久跳过问答层。</span>' +
+      html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时输暗号 <b>990915</b> 可让本机永久跳过问答层。</span>' +
         (raw ? actsHtml([{ act: 'qa-manage', label: '编辑问答题' }]) : '');
     }
     s.innerHTML = html;

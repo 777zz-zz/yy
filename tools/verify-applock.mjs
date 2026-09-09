@@ -276,14 +276,14 @@ await sleep(1200);
 st = JSON.parse(await lockState() || '{}');
 check('I5 同标签刷新不再问答', st.shown === false, JSON.stringify(st));
 
-// 新会话（等效新开标签）→ 再问；输入暗号 0929 永久跳过
+// 新会话（等效新开标签）→ 再问；输入暗号 990915 永久跳过
 await clearSessAndReload();
 st = JSON.parse(await lockState() || '{}');
 check('I6 新会话再次问答', st.shown === true && st.title.indexOf('开屏问答') === 0, st.title);
 await clickLink('skipqa');
 st = JSON.parse(await lockState() || '{}');
 check('I7 出现暗号输入屏', st.shown === true && st.title.indexOf('跳过') >= 0, st.title);
-await typeText('0929');
+await typeText('990915');
 await clickSubmit();
 st = JSON.parse(await lockState() || '{}');
 check('I8 输对暗号放行', st.shown === false, JSON.stringify(st));
@@ -321,7 +321,7 @@ check('J4 密码对解锁进入', st.shown === false, JSON.stringify(st));
 // ---- K. 静态防线 ----
 check('K1 模板含问答门开关 #applock-qa-en', tpl.indexOf('id="applock-qa-en"') >= 0);
 check('K2 contacts EXCLUDE 含问答门三键', contacts.indexOf("'applock-qa-en', 'applock-qalist', 'applock-qaskip']") >= 0);
-check('K3 产物含问答门暗号 0929 常量', artifact.indexOf("QA_SKIP_CODE = '0929'") >= 0 || artifact.indexOf("'0929'") >= 0);
+check('K3 产物含问答门暗号 990915 常量', artifact.indexOf("QA_SKIP_CODE = '990915'") >= 0 || artifact.indexOf("'990915'") >= 0);
 check('K4 产物含问答屏入口 skipqa', artifact.indexOf('skipqa') >= 0);
 check('K5 产物含问答管理面板 qalist', artifact.indexOf('qalist') >= 0);
 check('K6 产物含题目列表样式 .al-qa-row', artifact.indexOf('.al-qa-row') >= 0);

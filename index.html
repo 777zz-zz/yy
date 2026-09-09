@@ -8958,9 +8958,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788931624401">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.531</b></span>
-        <span class="sv-deploy">部署于 2026-09-09 13:27<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788932097705">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.532</b></span>
+        <span class="sv-deploy">部署于 2026-09-09 13:34<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10024,7 +10024,7 @@ transition-duration: .01ms !important;
           <div class="txt">开屏问答门<span class="sub">答对问题才放行，可不设数字密码</span></div>
           <label class="toggle"><input type="checkbox" id="applock-qa-en"><span class="tk"></span></label>
         </div>
-        <div class="gs-sub" id="applock-qa-sub">纯本地功能：开启后每次打开本站先答对问答题；可单独使用。锁屏时输暗号 0929 可让本机永久跳过问答层。</div>
+        <div class="gs-sub" id="applock-qa-sub">纯本地功能：开启后每次打开本站先答对问答题；可单独使用。锁屏时输暗号 990915 可让本机永久跳过问答层。</div>
       </div>
       <div class="set-group glass">
         <div class="set-row" id="row-general">
@@ -10134,7 +10134,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.531</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.532</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10425,7 +10425,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.531</span>
+              <span class="lic-ver">v3.26.532</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -17570,7 +17570,6 @@ const SESS = 'mochi-applock-ok';
 const K_QA_EN = 'applock-qa-en';
 const K_QA_LIST = 'applock-qalist';
 const K_QA_SKIP = 'applock-qaskip';
-const QA_CODE = '0929';
 function gGet(k) {
 try { const v = window.xyStore ? window.xyStore(G).get(k) : null; if (v !== null && v !== undefined) return v; } catch (e) {}
 try { return localStorage.getItem(G + ':' + k); } catch (e2) { return null; }
@@ -17606,7 +17605,7 @@ function enabled() { return gGet(K_EN) === '1'; }
 function setEn(v) { gSet(K_EN, v ? '1' : '0'); }
 function savePin(pin) { gSet(K_PIN, h53(pin)); }
 function saveQa(q, h) { gSet(K_QA, JSON.stringify({ q: String(q), h: String(h) })); }
-const QA_SKIP_CODE = '0929';
+const QA_SKIP_CODE = '990915';
 const DEFAULT_QA = [
 { q: 'mj 是什么意思？', a: '梦角' },
 { q: '是否已知晓：全站为随机代码运行，不含任何 AI，请不要添加负面字卡吓唬自己？', a: '是' }
@@ -17983,7 +17982,7 @@ textAsk({
 title: '开屏问答 ' + (i + 1) + '/' + items.length,
 sub: it.q,
 placeholder: '输入答案', okLabel: (i + 1 >= items.length ? '进入' : '下一题'), cancel: false,
-links: [{ act: 'skipqa', label: '输暗号 0929，本机永久跳过问答' }],
+links: [{ act: 'skipqa', label: '输暗号 990915，本机永久跳过问答' }],
 onSubmit: function (v) {
 if (qaAnswerOk(v, it.h)) { qaAsk(items, i + 1, afterAll); }
 else {
@@ -18189,10 +18188,10 @@ const acts = [{ act: 'qa-manage', label: '编辑问答题' }];
 if (qaSkipped()) acts.push({ act: 'qa-unskip', label: '恢复本机问答' });
 html = '<span>已开启：每次打开本站需先答对 <b>' + n + '</b> 道问答题' +
 (enabled() && !!pinHash() ? '，再输入数字密码' : '') + '。' +
-(qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号 0929」可让本机永久跳过问答层。') +
+(qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号 990915」可让本机永久跳过问答层。') +
 '</span>' + actsHtml(acts);
 } else {
-html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时输暗号 <b>0929</b> 可让本机永久跳过问答层。</span>' +
+html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时输暗号 <b>990915</b> 可让本机永久跳过问答层。</span>' +
 (raw ? actsHtml([{ act: 'qa-manage', label: '编辑问答题' }]) : '');
 }
 s.innerHTML = html;
@@ -82502,4 +82501,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mttnp7m9 -->
+<!-- __MOCHI_EOF__ mttnzctl -->
