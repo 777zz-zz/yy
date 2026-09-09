@@ -122,6 +122,7 @@
     if (!MASK) {
       MASK = document.createElement('div');
       MASK.id = 'applock-mask';
+      MASK.className = 'applock-mask';   // CSS 全用 .applock-mask 类选择器，id 仅供脚本/测试定位
       MASK.hidden = true;
       MASK.addEventListener('click', onMaskClick);
       document.body.appendChild(MASK);

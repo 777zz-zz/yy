@@ -169,6 +169,11 @@ await seedAndReload({ 'applock-en': '1', 'applock-pin': h53('1234') });
 let st = JSON.parse(await lockState() || '{}');
 check('A1 已启用应用锁：冷启动出现锁屏遮罩', st.has && st.shown === true, JSON.stringify(st));
 check('A2 锁屏标题为「应用锁已开启」', st.title === '应用锁已开启', st.title);
+// A3 视觉层断言：遮罩必须真正挂上 CSS（position:fixed 全屏浮层 + 背景），
+// 否则如 v3.31.x 早期 bug——只设了 id 没设 class、CSS 用 .applock-mask 类选择器——
+// DOM 在、hidden=false，但只是无样式普通 div，用户根本看不见锁屏（无头只查 DOM 抓不到）。
+const vs = JSON.parse(await evalJs("(function(){var m=document.getElementById('applock-mask');if(!m)return JSON.stringify({has:false});var cs=getComputedStyle(m);return JSON.stringify({has:true,cls:m.className||'',pos:cs.position,z:cs.zIndex,bg:cs.background&&cs.background!=='none'?true:false,display:cs.display});})()") || '{}');
+check('A3 遮罩已挂 .applock-mask 样式（fixed+高 z+遮底）', vs.has && vs.cls.indexOf('applock-mask') >= 0 && vs.pos === 'fixed' && vs.z === '999999' && vs.bg === true, JSON.stringify(vs));
 
 // ---- B. 错误密码 ----
 await clickKeys('9999');
