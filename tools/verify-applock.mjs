@@ -396,6 +396,26 @@ check('L12 仅 1 题时不显示删除按钮', hasDelOnSingle === 0, String(hasD
 // ---- M. 静态防线 ----
 check('M1 产物含 __applockQaTest 验证钩子', artifact.indexOf('__applockQaTest') >= 0);
 
+// ---- N. 默认开启（v3.32.x）：键未显式设置 = 真机默认开 ----
+// 无头默认 navigator.webdriver=true → applock 把「未设键」当关（保护 278 个空库回归脚本）。
+// 本组注入脚本把 webdriver 覆盖为 false 模拟真机 + 移除开屏（等价用户已点进入），
+// 验证：清空全部锁键（不设 applock-qa-en）后冷启动仍应出现问答屏。
+const injR = await cdp('Page.addScriptToEvaluateOnNewDocument', {
+  source:
+    "try{Object.defineProperty(navigator,'webdriver',{get:function(){return false;}});}catch(e){}" +
+    "try{Object.defineProperty(navigator,'userAgent',{get:function(){return 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile Safari/604.1';}});}catch(e){}" +
+    "var __qg=setInterval(function(){try{var s=document.getElementById('splash');if(s&&s.parentNode){s.parentNode.removeChild(s);clearInterval(__qg);}}catch(e){}},100);"
+});
+await seedAndReload({});
+await sleep(1000);
+st = JSON.parse(await lockState() || '{}');
+check('N1 键未设+真机语义：默认出现问答屏', st.has && st.shown === true && st.title.indexOf('开屏问答') === 0, st.title);
+await typeText('梦角'); await clickSubmit();
+await typeText('是'); await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('N2 默认开启下答对两题放行', st.shown === false, JSON.stringify(st));
+try { if (injR && injR.identifier) await cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: injR.identifier }); } catch (e) {}
+
 try { if (ws) ws.close(); } catch (e) {}
 try { chrome.kill(); } catch (e) {}
 try { server.close(); } catch (e) {}

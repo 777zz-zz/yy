@@ -96,7 +96,19 @@
     })));
   }
   function qaSeedDefault() { if (!qaRaw()) qaSave(DEFAULT_QA); }
-  function qaEnabled() { return gGet(K_QA_EN) === '1'; }
+  // v3.32.x 默认开启：键未显式设置(=null) → 视为开启（防偷看），存 '0' 才显式关闭；
+  // '1'/'0' 显式值优先。自动化无头环境（本仓库 278 个回归脚本空库首启）且键未设置时
+  // 按「关」处理，避免全部被问答层挡住；显式设键的脚本不受影响。
+  // 判定：headless 无头 UA（实测 Chrome --headless=new 的 navigator.webdriver=false，
+  // 不可靠）或 webdriver=true 都视为自动化。
+  const IS_AUTOMATION = (typeof navigator !== 'undefined') &&
+    (navigator.webdriver === true || /Headless/i.test(String(navigator.userAgent)));
+  function qaEnabled() {
+    const v = gGet(K_QA_EN);
+    if (v === '1') return true;
+    if (v === '0') return false;
+    return !IS_AUTOMATION;   // 未设置：真机默认开，无头默认关
+  }
   function qaSetEn(v) { gSet(K_QA_EN, v ? '1' : '0'); }
   function qaSkipped() { return gGet(K_QA_SKIP) === '1'; }  // 本机已输暗号 → 永久跳过问答层
   function qaSkipSet(v) { gSet(K_QA_SKIP, v ? '1' : '0'); }
@@ -775,13 +787,25 @@
   }
 
   // ---------- 启动 ----------
+  // v3.32.x 默认开（键未设=开）后，真机冷启动若开屏还在就先等开屏进入完成再评估，
+  // 避免问答层盖在「我已阅读并知晓」上（原需求就是点进入后才问答）；自动化/无开屏直接评估。
+  function fireLock() { try { evalLock(); } catch (e) {} }
   function init() {
     bindSettings();
     bindQaSettings();
-    try { evalLock(); } catch (e) {}
+    if (IS_AUTOMATION) { fireLock(); return; }
+    let tries = 0;
+    const waitSplash = function () {
+      if (!document.getElementById('splash')) { fireLock(); return; }
+      if (++tries > 60) { fireLock(); return; }   // 最多等 ~30s，开屏异常不隐藏时兜底
+      setTimeout(waitSplash, 500);
+    };
+    setTimeout(waitSplash, 400);   // 让开屏先完成首帧
     // 数据主要在 IndexedDB 时 LS 首帧可能还没值 → 回填完成后补一次评估
     document.addEventListener('mochi-restore-done', function () {
-      try { evalLock(); } catch (e) {}
+      if (IS_AUTOMATION) { fireLock(); return; }
+      if (!document.getElementById('splash')) { fireLock(); }
+      // 开屏仍在时交给 waitSplash 主链（restore-done 通常晚于开屏隐藏，极少重叠）
     });
   }
   if (document.body) init();

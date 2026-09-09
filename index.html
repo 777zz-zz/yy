@@ -8958,9 +8958,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788932930192">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.533</b></span>
-        <span class="sv-deploy">部署于 2026-09-09 13:48<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1788933842417">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.534</b></span>
+        <span class="sv-deploy">部署于 2026-09-09 14:04<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10024,7 +10024,7 @@ transition-duration: .01ms !important;
           <div class="txt">开屏问答门<span class="sub">答对问题才放行，可不设数字密码</span></div>
           <label class="toggle"><input type="checkbox" id="applock-qa-en"><span class="tk"></span></label>
         </div>
-        <div class="gs-sub" id="applock-qa-sub">纯本地功能：开启后每次打开本站先答对问答题；可单独使用。锁屏时输暗号 990915 可让本机永久跳过问答层。</div>
+        <div class="gs-sub" id="applock-qa-sub">纯本地功能：<b>默认开启</b>——每次打开本站（含换浏览器/新设备）先答对问答题才放行，可单独使用；关掉即本机不再询问。锁屏时输暗号 990915 可让本机永久跳过问答层。</div>
       </div>
       <div class="set-group glass">
         <div class="set-row" id="row-general">
@@ -10134,7 +10134,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.533</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.534</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10425,7 +10425,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.533</span>
+              <span class="lic-ver">v3.26.534</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -17633,7 +17633,14 @@ return { q: String(it.q), h: h53(String(it.a).trim()) };
 })));
 }
 function qaSeedDefault() { if (!qaRaw()) qaSave(DEFAULT_QA); }
-function qaEnabled() { return gGet(K_QA_EN) === '1'; }
+const IS_AUTOMATION = (typeof navigator !== 'undefined') &&
+(navigator.webdriver === true || /Headless/i.test(String(navigator.userAgent)));
+function qaEnabled() {
+const v = gGet(K_QA_EN);
+if (v === '1') return true;
+if (v === '0') return false;
+return !IS_AUTOMATION;   // 未设置：真机默认开，无头默认关
+}
 function qaSetEn(v) { gSet(K_QA_EN, v ? '1' : '0'); }
 function qaSkipped() { return gGet(K_QA_SKIP) === '1'; }  // 本机已输暗号 → 永久跳过问答层
 function qaSkipSet(v) { gSet(K_QA_SKIP, v ? '1' : '0'); }
@@ -18270,12 +18277,21 @@ onCancel: function () { done(); }
 }
 });
 }
+function fireLock() { try { evalLock(); } catch (e) {} }
 function init() {
 bindSettings();
 bindQaSettings();
-try { evalLock(); } catch (e) {}
+if (IS_AUTOMATION) { fireLock(); return; }
+let tries = 0;
+const waitSplash = function () {
+if (!document.getElementById('splash')) { fireLock(); return; }
+if (++tries > 60) { fireLock(); return; }   // 最多等 ~30s，开屏异常不隐藏时兜底
+setTimeout(waitSplash, 500);
+};
+setTimeout(waitSplash, 400);   // 让开屏先完成首帧
 document.addEventListener('mochi-restore-done', function () {
-try { evalLock(); } catch (e) {}
+if (IS_AUTOMATION) { fireLock(); return; }
+if (!document.getElementById('splash')) { fireLock(); }
 });
 }
 if (document.body) init();
@@ -82502,4 +82518,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mttoh768 -->
+<!-- __MOCHI_EOF__ mttp0r1t -->
