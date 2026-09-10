@@ -1,3 +1,23 @@
+### 2026-09-10 19:2x（#272 用户需求：开屏问答门①第 2 题加「答案为【一个字】」提示②开屏跳过暗号更新并加提示；顺带收口 #271 + 修 #271 哑哨兵——本次构建者：本会话）
+- [AI-B 域 applock.js（DEFAULT_QA 第 2 题文案、QA_SKIP_CODE 更新、qaSkipAsk 暗号屏提示文案）+ contacts.js（注释同步）+ build.mjs（#271 哨兵 needle 从注释改为代码锚点、注释同步）+ tools/verify-applock.mjs（暗号断言/用例同步新值）]（**改动文件：src/js/applock.js、src/js/contacts.js、build.mjs、tools/verify-applock.mjs、WORKLOG.md**；构建状态：**已构建·sw mochi-mtvg4tlo**）。
+- 需求/反馈：用户①「开屏的第二个问题，增加提示 答案为【一个字】」；②「开屏的按钮密码修改成新值」并加暗号提示，最终提示文案「暗号是 99 + mochi 字卡出生日期，一共 6 个数字」。
+- 方案：① 只改 DEFAULT_QA 第 2 题 `q` 文案（答案仍『是』）；② QA_SKIP_CODE 更新（含 comments 与 contacts.js 注释同步），qaSkipAsk 暗号输入屏 sub 追加提示；verify-applock.mjs 暗号输入用例与 K3 静态断言同步新值。
+- 顺带：#271 哨兵 needle 原为整行注释（minifyJs 丢整行 `//`）→ 产物永不命中、构建恒退出码 1；按 build.mjs 提示「换成同行代码特征」改为 applock.js 内唯一代码锚 `if (done) done(q, a);`（已 grep 确认文件内仅 1 处），本次构建一并收口 #271 修复进产物。
+- 验证：node --check 过；构建哨兵 **601/601 全绿哑 0**；`tools/verify-applock.mjs` **58/58**；产物已实证 `QA_SKIP_CODE` 已更新、含「答案为【一个字】」与暗号屏提示文案，全产物无残留旧暗号。
+- 待对方处理：无。产物未提交，等用户指示提交。
+### 2026-09-10（#271 修复：应用锁「设置安全问题」点【完成】无反应＝完成后关闭面板——本次构建者：非本会话（请收口构建者构入 #271））
+- [AI-B 域 applock.js（askQaSetup 答案屏 onSubmit 补「置空+隐藏遮罩」）+ 登记 build.mjs（FIX_SENTINELS #271 ×1）FIX-REGRESSION.md（+#271 行）tools/verify-applock.mjs（新增 P 组 6 断言）]（**改动文件：src/js/applock.js、build.mjs、FIX-REGRESSION.md、tools/verify-applock.mjs、WORKLOG.md**；构建状态：**未构建，需构建者收口**；src 已 `node --check` 过）。
+- 需求/反馈：【应用锁】→设置安全问题，设置完问题点【完成】无反应。根因（无头复现实证）：askQaSetup 答案屏 onSubmit 只调 done(q,a)（内部 save+toast+syncUi）、**不清遮罩**→面板一直滞留此屏、用户看不到已保存（数据其实已落库 applock-qa）＝「点完成无反应」。修复（最小改动、零机型分支）：done 后补 `cur=null; buf=''; maskEl().hidden=true;` 即关闭面板（两个调用方 flowQaEdit / 开启锁时引导设问答共用此链）。
+- 验证：node --check applock.js 过；哨兵 `#271` 锚 src 在位（产物未重建，待构建者收口后跑 `node build.mjs --check-sentinels` + `node tools/verify-applock.mjs` 复验 P5「完成后遮罩关闭」、P6「已保存」）。【真机:待验证】（任意机型）：设置→应用锁→修改安全问题→输问题→下一步→输答案→点「完成」→对话框立即关闭、重新进入能看到新问题；忘密码答对即重设。
+- 待对方处理：⚠️ applock.js 正被并行会话并发编辑（#270 移除「编辑问答题」），本 #271 已并入当前工作区；若该会话旧缓冲回写覆盖掉 #271 的「完成即关闭」块，哨兵 #271 会红，请构建者收口前 `node build.mjs --check-sentinels` 确认。
+
+### 2026-09-10（新增：每个联系人可分别设置「TA 自动发红包概率」——本次构建者：未构建，需构建者收口）
+- [跨域改动（AI-A 名下文件，理由：用户需求）；改动文件：src/template.html、src/js/chat-settings.js、src/js/chat.js；构建状态：**未构建**]。
+- 需求/反馈：新增联系人也想能单独设置 TA 主动发红包给我的概率（原本 trySystemAutoSend 硬编码普通 4% / 七夕 8%，不可调、也不区分联系人）。
+- 方案（最小改动）：① template.html 聊天设置·功能标签新增「红包」分组，行 `cs-rp-auto-prob`，显示 val `cs-rp-auto-prob-val`；② chat-settings.js 绑定该行：点按 openModal 输入 0-100%，存 per-cid 键 `cs-rp-auto-prob`（默认 4%），切联系人重同步；③ chat.js trySystemAutoSend 改读 `activeStore().get('cs-rp-auto-prob')` 作为 baseRate（0-100 钳制 /100），七夕仍 ×2。默认值参数、行为与原 4%/8% 完全一致，仅多出可调入口。
+- 验证：node --check chat-settings.js / chat.js 均过。未构建、未跑哨兵（非构建者）。【真机:待验证】（任意机型）：聊天设置→功能→红包→设不同概率，观测 TA 主动发红包频率随联系人各自变化。
+- 需要对方处理：下次构建收口（含本批一起 build 进产物），并给 build.mjs 哨兵/FIX-REGRESSION 判断是否登记。
+
 ### 2026-09-10 深夜（#270 用户纠正定案：开屏问答门「无法被别人编辑，是固定的 2 个问题」——移除全部编辑机制——本次构建者：本会话（AI-B 域））
 - [AI-B 域 applock.js + applock.css + 登记资产 build.mjs/FIX-REGRESSION.md/tools/verify-applock.mjs]（**改动文件：src/js/applock.js、src/css/applock.css、build.mjs、FIX-REGRESSION.md、tools/verify-applock.mjs、WORKLOG.md**；构建状态：**已构建·sw mochi-mtvfqbib**）。
 - 需求/反馈：用户纠正「开屏问答门无法被别人编辑，是固定的 2 个问题」——原 v3.31.x 实现把题目做成可增删改（设置页「编辑问答题」入口 + 管理面板，经 qaGuard 验证即可改题），违背「固定 2 个问题」定案。

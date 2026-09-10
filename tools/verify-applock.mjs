@@ -4,7 +4,7 @@
 // 覆盖：A 冷启动锁屏出现  B 错误密码  C 正确密码解锁+会话标记  D 刷新不重锁（仅密码锁）
 //       E 会话清除后重锁  F 异常态(en=1 无密码)自愈关闭  G 忘密码问答重置全流程
 //       H 静态防线（EXCLUDE/模板/产物接线）
-//       I 开屏问答门（未输暗号时每次加载必问/答对放行/暗号 990915 永久跳过）
+//       I 开屏问答门（未输暗号时每次加载必问/答对放行/暗号 990815 永久跳过）
 //       J 问答门+数字密码双重验证  K/M 静态防线  N 默认开启（模拟真机）
 // 说明：开屏问答门为固定 2 道题，无「编辑问答题」入口（v3.3x 起移除编辑）。
 import { spawn } from 'node:child_process';
@@ -243,6 +243,36 @@ await clickOk();
 st = JSON.parse(await lockState() || '{}');
 check('G8 新密码可解锁', st.shown === false, JSON.stringify(st));
 
+// ---- P. 设置安全问答 → 点【完成】后面板必须关闭（#271，防「点完成无反应」回流） ----
+// 复现开启应用锁→设 PIN→引导设安全问答→输答案→点「完成」：
+// 旧版完成后只 save+toast、不清遮罩，面板滞留在此屏＝用户以为「点完成无反应」。修复＝完成即关闭。
+await seedAndReload({ 'applock-qa-en': '0' });
+// 打开设置页应用锁开关（走真实 bindSettings 的 flowNewPin → askQaSetup 引导链）
+await evalJs(`(function(){var c=document.getElementById('applock-en');if(!c)return 0;c.checked=true;c.dispatchEvent(new Event('change'));return 1;})()`);
+await sleep(400);
+st = JSON.parse(await lockState() || '{}');
+check('P1 开启应用锁：进入设置解锁密码屏', st.shown === true && st.title === '设置解锁密码', st.title);
+await clickKeys('1234'); await clickOk();
+st = JSON.parse(await lockState() || '{}');
+check('P2 第一遍密码：进入确认屏', st.shown === true && /确认/.test(st.title), st.title);
+await clickKeys('1234'); await clickOk();
+await sleep(600); // 等 enable done 后 setTimeout(300) 弹「设置安全问题」
+st = JSON.parse(await lockState() || '{}');
+check('P3 密码设好：引导设置安全问题屏出现（en=1/pin 已落库）', st.shown === true && st.title === '设置安全问题' && st.lsEn === '1' && st.lsPin === true, JSON.stringify(st));
+await typeText('我们第一次见面的城市？'); await clickSubmit();
+st = JSON.parse(await lockState() || '{}');
+check('P4 输完问题进答案屏', st.shown === true && st.title === '设置答案', st.title);
+await typeText('巴黎'); await clickSubmit();
+await sleep(300);
+st = JSON.parse(await lockState() || '{}');
+check('P5 点【完成】后遮罩关闭（#271 核心：不再滞留此屏）', st.shown === false, JSON.stringify(st));
+const qaStored = await evalJs("localStorage.getItem('" + P + "applock-qa')");
+check('P6 完成同时已保存安全问答', !!qaStored && qaStored.indexOf('我们第一次见面的城市') >= 0, String(qaStored));
+// 清理：关掉开关，避免后续组被锁屏挡住
+await evalJs(`(function(){var c=document.getElementById('applock-en');if(c){c.checked=false;c.dispatchEvent(new Event('change'));}return 1;})()`);
+await sleep(200);
+await seedAndReload({}); // 重置为无锁态，抹掉刚才的数据
+
 // ---- H. 静态防线 ----
 const artifact = readFileSync(join(root, 'index.html'), 'utf8');
 const tpl = readFileSync(join(root, 'src', 'template.html'), 'utf8');
@@ -286,14 +316,14 @@ st = JSON.parse(await lockState() || '{}');
 check('I5 同标签刷新仍问答（问答门每次加载都问）', st.shown === true && st.title.indexOf('开屏问答 1/2') === 0, JSON.stringify(st));
 check('I5b 会话标记不影响问答门（sess=1 仍问）', st.sess === '1', st.sess);
 
-// 新会话（等效新开标签）→ 再问；输入暗号 990915 永久跳过
+// 新会话（等效新开标签）→ 再问；输入暗号 990815 永久跳过
 await clearSessAndReload();
 st = JSON.parse(await lockState() || '{}');
 check('I6 新会话再次问答', st.shown === true && st.title.indexOf('开屏问答') === 0, st.title);
 await clickLink('skipqa');
 st = JSON.parse(await lockState() || '{}');
 check('I7 出现暗号输入屏', st.shown === true && st.title.indexOf('跳过') >= 0, st.title);
-await typeText('990915');
+await typeText('990815');
 await clickSubmit();
 st = JSON.parse(await lockState() || '{}');
 check('I8 输对暗号放行', st.shown === false, JSON.stringify(st));
@@ -331,7 +361,7 @@ check('J4 密码对解锁进入', st.shown === false, JSON.stringify(st));
 // ---- K. 静态防线 ----
 check('K1 模板含问答门开关 #applock-qa-en', tpl.indexOf('id="applock-qa-en"') >= 0);
 check('K2 contacts EXCLUDE 含问答门三键', contacts.indexOf("'applock-qa-en', 'applock-qalist', 'applock-qaskip']") >= 0);
-check('K3 产物含问答门暗号 990915 常量', artifact.indexOf("QA_SKIP_CODE = '990915'") >= 0 || artifact.indexOf("'990915'") >= 0);
+check('K3 产物含问答门暗号 990815 常量', artifact.indexOf("QA_SKIP_CODE = '990815'") >= 0 || artifact.indexOf("'990815'") >= 0);
 check('K4 产物含问答屏入口 skipqa', artifact.indexOf('skipqa') >= 0);
 check('K5 产物不再含题目管理面板（data-qal 增删改按钮已移除）', artifact.indexOf('data-qal') < 0);
 check('K6 产物不含题目列表样式 .al-qa-row（编辑面板已移除）', artifact.indexOf('.al-qa-row') < 0);

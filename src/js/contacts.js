@@ -130,7 +130,7 @@
     // 应用锁（applock.js 隐私防护）：开关/密码摘要/安全问题问答均为全局根键。
     // 绝不随联系人隔离，防 migrateLegacy 当旧顶层业务键迁进 default 并删根键（锁失效=门户大开）
     'applock-en', 'applock-pin', 'applock-qa',
-    // v3.31.x 开屏问答门：开关/题目列表/本机跳过标记（暗号 990915 永久跳过问答层）——
+    // v3.31.x 开屏问答门：开关/题目列表/本机跳过标记（暗号本机永久跳过问答层）——
     // 与应用锁同属入口验证，必须全局根键防 migrateLegacy 迁移删键
     'applock-qa-en', 'applock-qalist', 'applock-qaskip'];
   function isExcluded(k) {

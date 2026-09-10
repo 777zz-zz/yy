@@ -1477,6 +1477,32 @@
     document.addEventListener('mochi-wrj-heal', syncVs);
   }
 
+  // 红包：TA 自动主动发红包概率（每联系人独立，默认 4%，0-100%）。点击弹输入框设百分比；
+  // 存 cs-rp-auto-prob，chat.js trySystemAutoSend 读同一键控制 TA 主动发红包的概率门。
+  const csRpProb = row('cs-rp-auto-prob');
+  if (csRpProb) {
+    const rpProbGet = () => {
+      let v = null; try { v = parseFloat(store.get('cs-rp-auto-prob')); } catch (e) {}
+      return (v !== null && isFinite(v)) ? Math.max(0, Math.min(100, Math.round(v))) : 4;
+    };
+    const rpProbSync = () => { const el = document.getElementById('cs-rp-auto-prob-val'); if (el) el.textContent = rpProbGet() + '%'; };
+    rpProbSync();
+    csRpProb.addEventListener('click', () => {
+      if (!window.openModal) return;
+      window.openModal('TA 自动发红包概率（0-100%·每联系人独立）', String(rpProbGet()), (v) => {
+        const t = String(v || '').trim();
+        let n = parseFloat(t);
+        if (!isFinite(n)) n = 4;
+        n = Math.max(0, Math.min(100, Math.round(n)));
+        store.set('cs-rp-auto-prob', String(n));
+        rpProbSync();
+        toast('已设置：TA 自动发红包概率为 ' + n + '%');
+      }, { maxlength: 3 });
+    });
+    document.addEventListener('contact-switched', rpProbSync);
+    if (typeof csAddSync === 'function') csAddSync(rpProbSync);
+  }
+
   // v3.12.x：「隐藏联系人的表情包」开关——默认关闭，全局生效（存根命名空间，与
   // my-emoji-groups 全局化同口径：聊天/朋友圈表情包面板是跨桌面共用 UI，不随桌面切换）。
   // 开启后聊天与朋友圈的表情包面板只显示「我的表情包」，不再显示 TA 的/公用表情包。

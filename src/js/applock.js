@@ -67,10 +67,10 @@
   // ---------- 开屏问答门数据 ----------
   // 固定 2 道题，不可被别人编辑（无增删改入口，也不读任何已存储的自定义题目列表）。
   // 可独立于数字密码锁开关（应用锁可不设）；本机输暗号 QA_SKIP_CODE 后 qaskip=1 永久跳过问答层。
-  const QA_SKIP_CODE = '990915';
+  const QA_SKIP_CODE = '990815';
   // 开屏问答门固定 2 道题，不可被别人编辑（无增删改入口，也不读任何已存储的自定义题目列表）
   const DEFAULT_QA = [
-    { q: 'mj 是什么意思？', a: '梦角' },
+    { q: 'mj 是什么意思？（提示：答案为【两个字】）', a: '梦角' },
     { q: '是否已知晓：全站为随机代码运行，不含任何 AI，请不要添加负面字卡吓唬自己？（提示：答案为【一个字】）', a: '是' }
   ];
   // 展示用：永远是这固定 2 道题（答案不落明文）
@@ -430,8 +430,8 @@
     }, function () { padVerify(opts); });
   }
 
-  // ---------- 开屏问答门流程（可独立于数字密码锁；暗号 990915 本机永久跳过问答层） ----------
-  // items 为 [{q,h}]；答对全部进入 afterAll()；每屏底部可「输暗号 990915 跳过问答」
+  // ---------- 开屏问答门流程（可独立于数字密码锁；暗号（本机永久跳过问答层）） ----------
+  // items 为 [{q,h}]；答对全部进入 afterAll()；每屏底部可「输暗号跳过问答」
   function qaStart(afterAll) {
     const items = qaList();
     qaAsk(items, 0, afterAll);
@@ -456,7 +456,7 @@
   }
   function qaSkipAsk(items, i, afterAll) {
     textAsk({
-      title: '跳过开屏问答', sub: '输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。',
+      title: '跳过开屏问答', sub: '暗号是 99 + mochi 字卡出生日期，一共 6 个数字。输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。',
       placeholder: '输暗号', maxlen: 12, okLabel: '确定', cancelLabel: '返回',
       onSubmit: function (v) {
         if (String(v || '').trim() === QA_SKIP_CODE) {
@@ -559,7 +559,7 @@
   }
 
   // ---------- 开屏问答门 · 设置页管理 ----------
-  // 管理操作前置验证：有数字密码→输密码；否则→输暗号 990915（防旁人顺手删题/关问答门）
+  // 管理操作前置验证：有数字密码→输密码；否则→输暗号（防旁人顺手删题/关问答门）
   // next() 通过；cancel() 用户取消（仅用于「关闭问答门」的防顺手关闭）
   function qaGuard(next, cancel) {
     const onCancel = function () { if (cancel) cancel(); else { syncQaUi(); syncUi(); } };

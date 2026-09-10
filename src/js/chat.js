@@ -4908,8 +4908,11 @@ return true;
 }
 function trySystemAutoSend() {
 if (rpDailyCount() >= 5) return;
+// v3.6.x：TA 自动红包概率可调——读对话设置「红包-自动发红包概率」cs-rp-auto-prob（每联系人独立，默认 4%）
+let baseRate = 0.04;
+try { const ap = window.activeStore ? window.activeStore().get('cs-rp-auto-prob') : null; const pv = parseFloat(ap); if (pv !== null && isFinite(pv)) baseRate = Math.max(0, Math.min(100, pv)) / 100; } catch (e) {}
 const qixi = isQixiToday();
-const baseRate = qixi ? 0.08 : 0.04;
+if (qixi) baseRate *= 2;
 if (Math.random() >= baseRate) return;
 // v3.15.x：TA 自动红包不再受余额约束——余额不足也照发（可透支为负），金额上限维持原 ¥52000 档
 let amtFen, wish;

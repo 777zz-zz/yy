@@ -8954,9 +8954,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789039171523">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.537</b></span>
-        <span class="sv-deploy">部署于 2026-09-10 19:19<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789042251348">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.539</b></span>
+        <span class="sv-deploy">部署于 2026-09-10 20:10<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10130,7 +10130,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.537</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.539</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10421,7 +10421,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.537</span>
+              <span class="lic-ver">v3.26.539</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -13687,6 +13687,16 @@ transition-duration: .01ms !important;
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div>
           <div class="txt">我可发送语音<span class="sub">聊天输入栏左侧出现「麦克风」按钮：点击打开录音窗口，最长录 60 秒，可先试听再发送为语音消息</span></div>
           <label class="toggle"><input type="checkbox" id="cs-voice-send"><span class="tk"></span></label>
+        </div>
+      </div>
+      <!-- 红包：TA 自动主动发红包概率（每联系人独立，默认 4%，0-100%）。
+            chat.js trySystemAutoSend 读 cs-rp-auto-prob */}
+      <div class="gs-title">红包</div>
+      <div class="set-group glass">
+        <div class="set-row" id="cs-rp-auto-prob">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M3 11.5h18"/><path d="M12 11.5V21"/><path d="M12 11.5Q9 8 7 5.5A2.5 2.5 0 0112 6.5A2.5 2.5 0 0117 5.5Q15 8 12 11.5z"/></svg></div>
+          <div class="txt">TA 自动发红包概率<span class="sub">联系人有概率主动发个红包给你，每个联系人可单独设置</span></div>
+          <div class="val" id="cs-rp-auto-prob-val">4%</div>
         </div>
       </div>
       <!-- v3.12.x：隐藏联系人的表情包开关（默认关闭，全局生效）。开启后聊天与朋友圈的
@@ -17679,10 +17689,10 @@ function enabled() { return gGet(K_EN) === '1'; }
 function setEn(v) { gSet(K_EN, v ? '1' : '0'); }
 function savePin(pin) { gSet(K_PIN, h53(pin)); }
 function saveQa(q, h) { gSet(K_QA, JSON.stringify({ q: String(q), h: String(h) })); }
-const QA_SKIP_CODE = '990915';
+const QA_SKIP_CODE = '990815';
 const DEFAULT_QA = [
-{ q: 'mj 是什么意思？', a: '梦角' },
-{ q: '是否已知晓：全站为随机代码运行，不含任何 AI，请不要添加负面字卡吓唬自己？', a: '是' }
+{ q: 'mj 是什么意思？（提示：答案为【两个字】）', a: '梦角' },
+{ q: '是否已知晓：全站为随机代码运行，不含任何 AI，请不要添加负面字卡吓唬自己？（提示：答案为【一个字】）', a: '是' }
 ];
 function qaList() {
 return DEFAULT_QA.map(function (it) { return { q: it.q, h: h53(String(it.a).trim()) }; });
@@ -18033,7 +18043,7 @@ onLink: function (act) { if (act === 'skipqa') qaSkipAsk(items, i, afterAll); }
 }
 function qaSkipAsk(items, i, afterAll) {
 textAsk({
-title: '跳过开屏问答', sub: '输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。',
+title: '跳过开屏问答', sub: '暗号是 99 + mochi 字卡出生日期，一共 6 个数字。输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。',
 placeholder: '输暗号', maxlen: 12, okLabel: '确定', cancelLabel: '返回',
 onSubmit: function (v) {
 if (String(v || '').trim() === QA_SKIP_CODE) {
@@ -29713,8 +29723,10 @@ return true;
 }
 function trySystemAutoSend() {
 if (rpDailyCount() >= 5) return;
+let baseRate = 0.04;
+try { const ap = window.activeStore ? window.activeStore().get('cs-rp-auto-prob') : null; const pv = parseFloat(ap); if (pv !== null && isFinite(pv)) baseRate = Math.max(0, Math.min(100, pv)) / 100; } catch (e) {}
 const qixi = isQixiToday();
-const baseRate = qixi ? 0.08 : 0.04;
+if (qixi) baseRate *= 2;
 if (Math.random() >= baseRate) return;
 let amtFen, wish;
 if (qixi && Math.random() < 0.6) {
@@ -40603,6 +40615,29 @@ toast(csVs.checked ? '已开启：聊天输入栏左侧显示「麦克风」按�
 });
 document.addEventListener('contact-switched', syncVs);
 document.addEventListener('mochi-wrj-heal', syncVs);
+}
+const csRpProb = row('cs-rp-auto-prob');
+if (csRpProb) {
+const rpProbGet = () => {
+let v = null; try { v = parseFloat(store.get('cs-rp-auto-prob')); } catch (e) {}
+return (v !== null && isFinite(v)) ? Math.max(0, Math.min(100, Math.round(v))) : 4;
+};
+const rpProbSync = () => { const el = document.getElementById('cs-rp-auto-prob-val'); if (el) el.textContent = rpProbGet() + '%'; };
+rpProbSync();
+csRpProb.addEventListener('click', () => {
+if (!window.openModal) return;
+window.openModal('TA 自动发红包概率（0-100%·每联系人独立）', String(rpProbGet()), (v) => {
+const t = String(v || '').trim();
+let n = parseFloat(t);
+if (!isFinite(n)) n = 4;
+n = Math.max(0, Math.min(100, Math.round(n)));
+store.set('cs-rp-auto-prob', String(n));
+rpProbSync();
+toast('已设置：TA 自动发红包概率为 ' + n + '%');
+}, { maxlength: 3 });
+});
+document.addEventListener('contact-switched', rpProbSync);
+if (typeof csAddSync === 'function') csAddSync(rpProbSync);
 }
 const csHts = document.getElementById('cs-hide-ta-sticker');
 if (csHts) {
@@ -82851,4 +82886,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtvfqbib -->
+<!-- __MOCHI_EOF__ mtvhkbx0 -->

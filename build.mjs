@@ -811,7 +811,7 @@ const FIX_SENTINELS = [
   // 安卓 contenteditable .ce-box 随输入行数无限增高，把下方控件顶出屏且整列无法上划=「一直跳且拉不上去」。
   { name: '多人决定「自定义选项」gd-opts ce-box 限高+框内滚动（同帮我决定 dec-opts 修法；删掉=安卓选项框无限增高顶出控件）', file: 'css/chat-main.css', needle: '#chat-gdecision-body .dec-inp-wrap .ce-box[data-for="gd-opts"] {\nmax-height:176px;' },
   // ==== v3.26.x #270 开屏问答门改为「固定 2 道题、不可被别人编辑」（原 v3.31.x 提供增删改题目入口）====
-  // 根因：题目可被编辑=设密码/暗号 990915 的管理验证由「防顺手」退化为「可被持暗号者改动」，违背
+  // 根因：题目可被编辑=设密码/暗号的管理验证由「防顺手」退化为「可被持暗号者改动」，违背
   // 「开屏问答门是固定 2 个问题」的定案。移除增删改 UI/逻辑（qalist 面板、onQal、qaEditItem、
   // data-qal 按钮、正文的「编辑问答题」入口），qaList 恒返回 DEFAULT_QA、不再读任何已存储的自定义列表。
   { name: '#270 开屏问答门恒返回固定 2 题（qaList 去掉「先读已存自定义列表、有则用之」分支、直接 mapped DEFAULT_QA；回改=又读旧版本存的编辑列表=「固定 2 题」被已改过的历史数据顶替）', file: 'js/applock.js', needle: 'return DEFAULT_QA.map(function (it) { return { q: it.q, h: h53(String(it.a).trim()) }; });' },
@@ -819,7 +819,7 @@ const FIX_SENTINELS = [
   // ==== v3.33.x #271 应用锁·设安全问答完成后面板滞留「点完成无反应」====
   // 根因：askQaSetup 答案屏的 onSubmit 只调 done(q,a)（save+toast）、不清遮罩，
   // 面板一直滞留在此屏，用户看不到已保存、以为点了完成没反应。
-  { name: '#271 设安全问答完成即关闭面板（askQaSetup 答案屏 onSubmit 补「置空+隐藏遮罩」；删则完成后面板又滞留=「点完成无反应」回流）', file: 'js/applock.js', needle: '完成即关闭面板：此前只 save+toast、不隐藏遮罩，面板一直滞留在此屏，' },
+  { name: '#271 设安全问答完成即关闭面板（askQaSetup 答案屏 onSubmit 补「置空+隐藏遮罩」；删则完成后面板又滞留=「点完成无反应」回流）', file: 'js/applock.js', needle: 'if (done) done(q, a);' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
