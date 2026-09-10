@@ -144,6 +144,15 @@
   background: #fff5f5; border: 1px solid #f3c0c0;
 }
 
+/* ---- #288 美化视图重设计：对齐聊天设置页观感——gs-title 分组标题 + set-group.glass
+   玻璃卡片 + set-row 图标行（复用全站 setting.css 类，暗色随 --glass-bg 等变量适配；
+   行类保留 gc-set-row 供验证脚本按文本点行） ---- */
+.gc-set-body .gs-title { padding: 12px 18px 6px; }
+.gc-set-body .set-group { margin: 0 12px 12px; }
+.gc-set-body .set-row .val { max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+.gc-set-body .set-row:active { background: rgba(0,0,0,.04); }
+[data-theme="dark"] .gc-set-body .set-row:active { background: rgba(255,255,255,.06); }
+
 /* ---- 群聊时间轴样式（gc-beauty 独立；page 级类，始终挂类含默认还原，
    隔离聊天页 body 级 cs-time-* 对群聊的泄漏，规则与聊天页一致） ---- */
 #page-group-chat.cs-time-under-av .msg-side { flex-direction: column; align-items: center; gap: 3px; }

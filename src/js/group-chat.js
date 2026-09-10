@@ -615,6 +615,12 @@
     const b = m.querySelector('.msg-bubble');
     if (rec.side === 'out') fillAv(av, myAvatar());
     else fillAv(av, memberAvatar(rec.cid));
+    // #287：点成员头像拍 TA（对齐聊天页点头像「对 TA 拍一拍」）——面板/发送见下方 gc-poke 区
+    if (rec.side === 'in' && rec.cid) {
+      av.style.cursor = 'pointer';
+      av.title = '拍一拍 ' + memberName(rec.cid);
+      av.addEventListener('click', (e) => { e.stopPropagation(); gcOpenPokeCard(rec.cid); });
+    }
     // 拍一拍：居中系统样式
     if (rec.special === 'poke') {
       m.className = 'msg-poke';
@@ -1932,13 +1938,111 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
     settingsBody.appendChild(note);
   }
 
-  // ================= 美化视图（与聊天设置同款行） =================
+  // 主设置视图行（成员昵称显示等）：纯文字行，与美化视图的 set-row 图标行分开
   function beautyRow(label, val, fn) {
     const row = document.createElement('div');
     row.className = 'gc-set-row';
     row.innerHTML = '<span class="txt">' + escapeHtml(label) + '</span><span class="val">' + escapeHtml(val) + '</span><span class="chev">›</span>';
     row.addEventListener('click', fn);
     return row;
+  }
+  // ================= 美化视图（#288 重设计：对齐聊天设置页观感——gs-title 分组标题 +
+  // set-group.glass 玻璃卡片 + set-row 图标行，样式类全站通用/暗色随变量适配；
+  // 行类保留 gc-set-row、.txt 仅放行名，供 verify-gc-color / verify-gc-settings 按文本点行） =================
+  function renderBeautyView() {
+    const g = gcBeautyGet;
+    // 返回主设置
+    const back = document.createElement('div');
+    back.className = 'gc-set-back';
+    back.innerHTML = '<span class="arr">‹</span> 返回群聊设置';
+    back.addEventListener('click', () => { gcBeautyView = false; renderSettingsPanel(); });
+    settingsBody.appendChild(back);
+    const svgIco = (p) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
+    const ICO = {
+      bg: svgIco('<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5-9 9"/>'),
+      trash: svgIco('<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12"/><path d="M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2"/>'),
+      palette: svgIco('<path d="M12 21a9 9 0 110-18"/><path d="M12 3a9 9 0 019 9"/><path d="M21 12a9 9 0 01-9 9"/><circle cx="12" cy="12" r="2"/>'),
+      ink: svgIco('<path d="M5 20L10 6h4l5 14"/><path d="M7.5 14.5h9"/>'),
+      eye: svgIco('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'),
+      sendbar: svgIco('<rect x="3" y="9" width="18" height="6" rx="3"/>'),
+      fontsize: svgIco('<path d="M4 7h16M4 12h16M4 17h10"/>'),
+      bubble: svgIco('<rect x="3" y="6" width="18" height="12" rx="3"/><path d="M7 10h.01M10 10h.01M13 10h.01"/>'),
+      radius: svgIco('<rect x="3" y="4" width="18" height="16" rx="8"/>'),
+      avatar: svgIco('<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.5-6 8-6s8 2 8 6"/>'),
+      clock: svgIco('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+      drop: svgIco('<path d="M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z"/>'),
+      typing: svgIco('<path d="M21 12a8 8 0 01-8 8H4l2-3a8 8 0 1115-5z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01"/>'),
+      font: svgIco('<path d="M6 4h12M12 4v16M9 20h6"/>'),
+      css: svgIco('<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>'),
+      save: svgIco('<path d="M12 17V9M9 11l3-3 3 3"/><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/>'),
+      list: svgIco('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>')
+    };
+    let curGroup = null;
+    const gtitle = (t) => {
+      const ttl = document.createElement('div');
+      ttl.className = 'gs-title';
+      ttl.textContent = t;
+      settingsBody.appendChild(ttl);
+      curGroup = document.createElement('div');
+      curGroup.className = 'set-group glass';
+      settingsBody.appendChild(curGroup);
+    };
+    const add = (label, val, fn, ico) => {
+      const row = document.createElement('div');
+      row.className = 'set-row gc-set-row';
+      row.innerHTML = '<div class="ico">' + (ico || '') + '</div><span class="txt">' + escapeHtml(label) + '</span><span class="val">' + escapeHtml(val) + '</span>';
+      row.addEventListener('click', fn);
+      (curGroup || settingsBody).appendChild(row);
+      return row;
+    };
+    const bgLabel = (v, def) => v === def ? '默认 ' + def : v;
+    // —— 壁纸 ——
+    gtitle('壁纸');
+    add('聊天壁纸', g('bg') ? '已设置' : '未设置', () => pickGcWallpaper(), ICO.bg);
+    if (g('bg')) add('清空群聊壁纸', '', () => { gcBeautySet('bg', ''); toast('已恢复默认壁纸'); }, ICO.trash);
+    // —— 气泡与文字 ——
+    gtitle('气泡与文字');
+    add('我的气泡颜色', bgLabel(g('out-bg'), '#111111'), () => pickGcColor('out-bg', '我的气泡颜色', GC_BUBBLE_BG), ICO.palette);
+    add('我的消息文字颜色', bgLabel(g('out-ink'), '#ffffff'), () => pickGcColor('out-ink', '我的消息文字颜色', gcInkSwatches()), ICO.ink);
+    add('联系人气泡颜色', bgLabel(g('in-bg'), '#ffffff'), () => pickGcColor('in-bg', '联系人气泡颜色', GC_BUBBLE_BG), ICO.palette);
+    add('联系人消息文字颜色', bgLabel(g('in-ink'), '#111111'), () => pickGcColor('in-ink', '联系人消息文字颜色', gcInkSwatches()), ICO.ink);
+    // 存量低对比度警告（我的/联系人气泡与文字同色系时提示，随卡片内提示条）
+    const warnRow = (key) => {
+      if (!gcColorPairBad(key)) return;
+      const w = document.createElement('div');
+      w.className = 'gc-set-warn';
+      w.textContent = '⚠️ ' + gcColorWarnText(key);
+      (curGroup || settingsBody).appendChild(w);
+    };
+    warnRow('out-bg');
+    warnRow('in-bg');
+    // —— 发送按钮 ——
+    gtitle('发送按钮');
+    add('发送按钮显示/隐藏', g('send-show') === 'hide' ? '隐藏' : '显示', () => pickGcPills('send-show', '显示发送按钮', [
+      { label: '显示', value: 'show' }, { label: '隐藏', value: 'hide' }
+    ], 'show'), ICO.eye);
+    add('发送按钮颜色', bgLabel(g('send-bg'), '#111111'), () => pickGcColor('send-bg', '发送按钮颜色', GC_SEND_BG), ICO.sendbar);
+    add('发送文字颜色', bgLabel(g('send-ink'), '#ffffff'), () => pickGcColor('send-ink', '发送文字颜色', GC_INK_COLORS), ICO.ink);
+    // —— 气泡外观 ——
+    gtitle('气泡外观');
+    add('聊天气泡字体大小', (GC_FONT_SIZES.find(p => p.value === g('font-size')) || {}).label || g('font-size'), () => pickGcPills('font-size', '聊天气泡字体大小', GC_FONT_SIZES, '14px'), ICO.fontsize);
+    add('聊天气泡框大小', (GC_BUBBLE_SIZES.find(p => p.value === g('bubble-size')) || { label: '自定义' }).label, () => pickGcBubbleSize(), ICO.bubble);
+    add('聊天头像形状', g('av-shape') === 'square' ? '方形' : '圆形', () => pickGcPills('av-shape', '聊天头像形状', [
+      { label: '圆形', value: 'circle' }, { label: '方形', value: 'square' }
+    ], 'circle'), ICO.avatar);
+    add('时间轴样式', (GC_BEAUTY_STYLES.find(s => s.value === g('time-style')) || {}).label || '头像下方', () => pickGcPills('time-style', '时间轴样式', GC_BEAUTY_STYLES, 'under-av'), ICO.clock);
+    // v3.28.x：对齐聊天美化——气泡边缘圆角 / 时间轴颜色 / 正在输入颜色
+    add('气泡边缘圆角', (GC_BUBBLE_RADII.find(p => p.value === g('bubble-radius')) || {}).label || (g('bubble-radius') === '0px' ? '方形' : g('bubble-radius')), () => pickGcBubbleRadius(), ICO.radius);
+    add('时间轴颜色', '默认 ' + g('time-ink'), () => pickGcColor('time-ink', '时间轴颜色', GC_INK_COLORS), ICO.drop);
+    add('正在输入颜色', '默认 ' + g('typing-ink'), () => pickGcColor('typing-ink', '正在输入颜色', GC_INK_COLORS), ICO.typing);
+    // —— 字体与样式 ——
+    gtitle('字体与样式');
+    add('群聊字体', g('font') ? (g('font').indexOf('data:') === 0 ? '已上传' : g('font')) : '默认', () => pickGcFont(), ICO.font);
+    add('气泡 CSS', g('css') ? '已设置' : '默认', () => pickGcCss(), ICO.css);
+    // —— 美化方案（v3.28.x：对齐聊天美化的保存/应用/导出/导入） ——
+    gtitle('美化方案');
+    add('保存当前为美化方案', '', () => window.saveGcBeautyScheme(), ICO.save);
+    add('美化方案管理', '(保存/应用/改名/删除/导出/导入)', () => window.openGcBeautySchemes(), ICO.list);
   }
   // 文字颜色色板里「默认黑」易被误认为默认选项（文字色默认其实是白色），
   // 在群聊美化里把第一格改标「黑色」，避免用户选成黑字黑底看不见
@@ -2114,65 +2218,6 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
       document.getElementById('tc-mask').hidden = true;
       toast('气泡样式已应用');
     });
-  }
-  function renderBeautyView() {
-    const g = gcBeautyGet;
-    // 返回主设置
-    const back = document.createElement('div');
-    back.className = 'gc-set-back';
-    back.innerHTML = '<span class="arr">‹</span> 返回群聊设置';
-    back.addEventListener('click', () => { gcBeautyView = false; renderSettingsPanel(); });
-    settingsBody.appendChild(back);
-    const gtitle = (t) => { const d = document.createElement('div'); d.className = 'gc-set-title'; d.textContent = t; settingsBody.appendChild(d); };
-    const add = (label, val, fn) => settingsBody.appendChild(beautyRow(label, val, fn));
-    const bgLabel = (v, def) => v === def ? '默认 ' + def : v;
-    // —— 壁纸 ——
-    gtitle('壁纸');
-    add('聊天壁纸', g('bg') ? '已设置' : '未设置', () => pickGcWallpaper());
-    if (g('bg')) add('清空群聊壁纸', '', () => { gcBeautySet('bg', ''); toast('已恢复默认壁纸'); });
-    // —— 气泡与文字 ——
-    gtitle('气泡与文字');
-    add('我的气泡颜色', bgLabel(g('out-bg'), '#111111'), () => pickGcColor('out-bg', '我的气泡颜色', GC_BUBBLE_BG));
-    add('我的消息文字颜色', bgLabel(g('out-ink'), '#ffffff'), () => pickGcColor('out-ink', '我的消息文字颜色', gcInkSwatches()));
-    add('联系人气泡颜色', bgLabel(g('in-bg'), '#ffffff'), () => pickGcColor('in-bg', '联系人气泡颜色', GC_BUBBLE_BG));
-    add('联系人消息文字颜色', bgLabel(g('in-ink'), '#111111'), () => pickGcColor('in-ink', '联系人消息文字颜色', gcInkSwatches()));
-    // 存量低对比度警告（我的/联系人气泡与文字同色系时提示）
-    const warnRow = (key) => {
-      if (!gcColorPairBad(key)) return;
-      const w = document.createElement('div');
-      w.className = 'gc-set-warn';
-      w.textContent = '⚠️ ' + gcColorWarnText(key);
-      settingsBody.appendChild(w);
-    };
-    warnRow('out-bg');
-    warnRow('in-bg');
-    // —— 发送按钮 ——
-    gtitle('发送按钮');
-    add('发送按钮显示/隐藏', g('send-show') === 'hide' ? '隐藏' : '显示', () => pickGcPills('send-show', '显示发送按钮', [
-      { label: '显示', value: 'show' }, { label: '隐藏', value: 'hide' }
-    ], 'show'));
-    add('发送按钮颜色', bgLabel(g('send-bg'), '#111111'), () => pickGcColor('send-bg', '发送按钮颜色', GC_SEND_BG));
-    add('发送文字颜色', bgLabel(g('send-ink'), '#ffffff'), () => pickGcColor('send-ink', '发送文字颜色', GC_INK_COLORS));
-    // —— 气泡外观 ——
-    gtitle('气泡外观');
-    add('聊天气泡字体大小', (GC_FONT_SIZES.find(p => p.value === g('font-size')) || {}).label || g('font-size'), () => pickGcPills('font-size', '聊天气泡字体大小', GC_FONT_SIZES, '14px'));
-    add('聊天气泡框大小', (GC_BUBBLE_SIZES.find(p => p.value === g('bubble-size')) || { label: '自定义' }).label, () => pickGcBubbleSize());
-    add('聊天头像形状', g('av-shape') === 'square' ? '方形' : '圆形', () => pickGcPills('av-shape', '聊天头像形状', [
-      { label: '圆形', value: 'circle' }, { label: '方形', value: 'square' }
-    ], 'circle'));
-    add('时间轴样式', (GC_BEAUTY_STYLES.find(s => s.value === g('time-style')) || {}).label || '头像下方', () => pickGcPills('time-style', '时间轴样式', GC_BEAUTY_STYLES, 'under-av'));
-    // v3.28.x：对齐聊天美化——气泡边缘圆角 / 时间轴颜色 / 正在输入颜色
-    add('气泡边缘圆角', (GC_BUBBLE_RADII.find(p => p.value === g('bubble-radius')) || {}).label || (g('bubble-radius') === '0px' ? '方形' : g('bubble-radius')), () => pickGcBubbleRadius());
-    add('时间轴颜色', '默认 ' + g('time-ink'), () => pickGcColor('time-ink', '时间轴颜色', GC_INK_COLORS));
-    add('正在输入颜色', '默认 ' + g('typing-ink'), () => pickGcColor('typing-ink', '正在输入颜色', GC_INK_COLORS));
-    // —— 字体与样式 ——
-    gtitle('字体与样式');
-    add('群聊字体', g('font') ? (g('font').indexOf('data:') === 0 ? '已上传' : g('font')) : '默认', () => pickGcFont());
-    add('气泡 CSS', g('css') ? '已设置' : '默认', () => pickGcCss());
-    // —— 美化方案（v3.28.x：对齐聊天美化的保存/应用/导出/导入） ——
-    gtitle('美化方案');
-    add('保存当前为美化方案', '', () => window.saveGcBeautyScheme());
-    add('美化方案管理', '(保存/应用/改名/删除/导出/导入)', () => window.openGcBeautySchemes());
   }
 
   // ================= 群聊美化方案（v3.28.x：保存/应用/改名/删除/导出/导入） =================
@@ -2862,6 +2907,87 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
       }
       closeGcMsgActions();
     });
+  }
+
+  // ---- #287 拍一拍：点成员头像拍 TA（对齐聊天页点头像「对 TA 拍一拍」） ----
+  // 面板复用聊天页 .poke-card 壳样式（DOM 锚点 #gc-poke-card 在 template 群聊页内）；
+  // 字卡来源与聊天页拍一拍面板同源：预设 + 公用拍一拍字卡（getPokeCards）+ 当前桌面
+  // 「我的拍一拍」自定义分组（poke-groups-mine / 存量 poke-user-mine，键走 activeStore）。
+  const gcPokeCard = document.getElementById('gc-poke-card');
+  const gcPokeList = document.getElementById('gc-poke-list');
+  const gcPokeNameEl = document.getElementById('gc-poke-name');
+  const gcPokeCloseBtn = document.getElementById('gc-poke-close');
+  let gcPokeCid = null;
+  const GC_POKE_PRESETS = ['拍了拍你', '戳了戳你的脸蛋', '弹了一下你的额头', '揉了揉你的头发', '捏了捏你的脸颊', '拍了拍你的肩膀'];
+  function gcPokeActions() {
+    const out = GC_POKE_PRESETS.slice();
+    try { (window.getPokeCards() || []).forEach(x => { if (typeof x === 'string' && x && out.indexOf(x) < 0) out.push(x); }); } catch (e) {}
+    [['poke-groups-mine', false], ['poke-user-mine', true]].forEach(([k, flat]) => {
+      try {
+        const v = JSON.parse(window.activeStore().get(k) || 'null');
+        if (flat && Array.isArray(v)) {
+          v.forEach(x => { if (typeof x === 'string' && x.trim() && out.indexOf(x) < 0) out.push(x); });
+        } else if (Array.isArray(v)) {
+          v.forEach(g => { if (Array.isArray(g) && Array.isArray(g[1])) g[1].forEach(x => { if (typeof x === 'string' && x.trim() && out.indexOf(x) < 0) out.push(x); }); });
+        }
+      } catch (e) {}
+    });
+    return out;
+  }
+  function gcClosePokeCard() { if (gcPokeCard) gcPokeCard.hidden = true; gcPokeCid = null; }
+  function renderGcPokeList() {
+    if (!gcPokeList) return;
+    gcPokeList.innerHTML = '';
+    const acts = gcPokeActions();
+    if (!acts.length) { gcPokeList.innerHTML = '<div class="cc-empty">暂无拍一拍文字</div>'; return; }
+    acts.forEach((a) => {
+      const d = document.createElement('div');
+      d.className = 'cc-item glass';
+      d.innerHTML = '<div class="cc-txt"><div class="t">' + escapeHtml(a) + '</div></div>';
+      d.addEventListener('click', () => { const cid = gcPokeCid; gcClosePokeCard(); if (cid) gcSendPoke(cid, a); });
+      gcPokeList.appendChild(d);
+    });
+  }
+  function gcOpenPokeCard(cid) {
+    if (!gcPokeCard || !gcPokeList) return;
+    closeGcMsgActions(); // 菜单开着时先收，防双浮层叠着（stopPropagation 会跳过 document 收菜单那条路）
+    gcPokeCid = cid;
+    if (gcPokeNameEl) gcPokeNameEl.textContent = memberName(cid);
+    renderGcPokeList();
+    gcPokeCard.hidden = false;
+    try { if (input) input.blur(); } catch (err) {} // 收起键盘，面板不被输入法遮挡（同聊天页 openPokeCard 的 closeIme）
+  }
+  if (gcPokeCloseBtn) gcPokeCloseBtn.addEventListener('click', gcClosePokeCard);
+  document.addEventListener('click', (e) => {
+    if (gcPokeCard && !gcPokeCard.hidden && !gcPokeCard.contains(e.target)) gcClosePokeCard();
+  });
+  // 人称映射与聊天页 sendPoke 同构：你→成员名、句中我→成员名、句首我去掉并改为我的名字开头
+  //（句首我+句中有你 的整句形态保留原句，仅替换你，不重复加速度词前缀——同 sendPoke 分支）；
+  // 群聊拍一拍落库即定稿文本（成员拍我 gcPokeText 同口径，渲染期不做占位符回填）
+  function gcPokeTextOf(action, name) {
+    const me = myName();
+    if (action.indexOf('你') >= 0) {
+      if (action.charAt(0) === '你') return me + action.slice(1).replace(/我(?![们])/g, name);
+      if (action.charAt(0) === '我') return action.replace(/你(?![们])/g, name);
+      return me + ' ' + action.replace(/你(?![们])/g, name);
+    }
+    if (action.indexOf('我') >= 0) {
+      if (action.charAt(0) === '我') return me + ' ' + action.slice(1).replace(/我(?![们])/g, name);
+      return me + ' ' + action.replace(/我(?![们])/g, name);
+    }
+    return me + ' ' + action;
+  }
+  function gcSendPoke(cid, action) {
+    const name = memberName(cid);
+    const rec = { side: 'out', text: gcPokeTextOf(action, name), special: 'poke', ts: Date.now() };
+    msgs.push(rec);
+    saveMsgs();
+    renderMsg(rec);
+    followGcBottom(true);
+    if (window.playSfx) window.playSfx('out');
+    // 被拍成员按既有成员回复链反应（拍回来/回消息，概率走群聊回复设置）——
+    // 对齐聊天页拍一拍后 TA 会已读/拍回/回复的语义
+    setTimeout(() => { try { memberReply(cid, rec.text, curGid); } catch (err) {} }, 1200 + Math.random() * 1600);
   }
 
   // ---- 切联系人：当前群消息不变，刷新群名 + 重渲染（"我"头像/成员名可能变） ----

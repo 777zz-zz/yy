@@ -4621,6 +4621,14 @@
           <span>删除</span>
         </button>
       </div>
+      <!-- #287：拍一拍面板（点成员消息头像拍 TA）——复用聊天页 .poke-card 壳样式，列表 group-chat.js 渲染 -->
+      <div class="poke-card" id="gc-poke-card" hidden>
+        <div class="poke-card-head">
+          <span>拍一拍 · <b id="gc-poke-name">成员</b></span>
+          <button class="poke-card-close" id="gc-poke-close">✕</button>
+        </div>
+        <div class="poke-card-scroll" id="gc-poke-list"></div>
+      </div>
       <!-- 群聊设置面板（v3.9.x：我的群聊形象 + 成员群聊形象，内容 JS 渲染） -->
       <div class="gc-settings-panel" id="gc-settings-panel" hidden>
         <div class="gc-set-head">
