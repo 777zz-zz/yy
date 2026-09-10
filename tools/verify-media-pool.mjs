@@ -161,6 +161,21 @@ const norm2 = await evalJs(`(function(){return window.chatMediaNormalizeNow().th
 const poolCount2 = await evalJs("(function(){return window.mochiMediaFlush().then(function(){return window.idbGetAllKeys().then(function(ks){return (ks||[]).filter(function(k){return String(k).indexOf('xy-home-v2:media:')===0;}).length;});});})()");
 check('T7 再次出现同图 → 同一令牌、池键数不增长', norm2 && norm2.same === true && poolCount2 === poolCount1, [poolCount1, poolCount2]);
 
+// T8 #275 池值体检：池条目被腐蚀成空串（旧「只备份文字」备份导入残留）→ 绝不许当有效数据。
+// 旧实现 typeof 判定放行空串 → map 缓存 '' + img.src=''（解析成页面 URL）＝永久坏图+误报占位；
+// 修复后与「池缺失」同路：令牌 src 原样保留（交 #186/#202 占位），且不入负缓存。
+const BAD_H = 'f'.repeat(32);
+await evalJs(`(function(){return window.idbSet('xy-home-v2:media:' + '${BAD_H}', '').then(function(ok){return ok;});})()`);
+const badRes = await evalJs(`(function(){return new Promise(function(res){var im=document.createElement('img');im.src='@@m:${BAD_H}';im.id='mp-bad-img';document.body.appendChild(im);setTimeout(function(){res({attr:im.getAttribute('src'),stillTok:im.src.indexOf('@@m:')>=0});},900);});})()`);
+check('T8 #275 池值空串（腐蚀条目）→ 令牌 src 原样保留，不被改写成空串/页面URL', badRes && badRes.attr === '@@m:' + BAD_H && badRes.stillTok === true, badRes);
+await evalJs("(function(){var n=document.getElementById('mp-bad-img');if(n)n.remove();return 1;})()");
+
+// T9 #275 自愈/回归双证：同一池键补回有效 dataURL（＝完整备份导入补池）→ 新令牌 img 经
+// map-miss→idbGet 异步路径解析成功（T4 走的是 map 命中同步路径，这条才覆盖体检放行分支）。
+const healRes = await evalJs(`(function(){return window.idbSet('xy-home-v2:media:' + '${BAD_H}', ${JSON.stringify(IMG_B)}).then(function(ok){return new Promise(function(res){var im=document.createElement('img');im.src='@@m:${BAD_H}';im.id='mp-heal-img';document.body.appendChild(im);setTimeout(function(){res({ok:im.src.slice(0,10)==='data:image',len:im.src.length});},900);});});})()`);
+check('T9 #275 池值补回有效数据 → 同令牌新渲染自愈（体检放行 data:image/ 且观察器照常改写）', healRes && healRes.ok === true && healRes.len > 1000, healRes);
+await evalJs("(function(){var n=document.getElementById('mp-heal-img');if(n)n.remove();return 1;})()");
+
 // 汇总
 const pass = results.filter(r => r.ok).length;
 console.log('-----\n结果：' + pass + '/' + results.length + ' 通过');

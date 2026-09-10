@@ -852,7 +852,40 @@ const FIX_SENTINELS = [
   // 延迟到 mochi-restore-done 后 4s；面板打开本就现读权威（#172 主链）；保存闸门同步扩为
   // 「未应用过权威值(__myeIdbApplied) 或 仍在挂起名单」防延迟窗口盲写覆盖 IDB 全量。
   { name: '#281 my-emoji 启动取回延迟（mochi-restore-done 后 4s 才整包读+解析；改回脚本求值即取回=大库机刷新首屏再吃秒级长任务）', file: 'js/chat.js', needle: "document.addEventListener('mochi-restore-done', function () { setTimeout(tryRestore, 4000); });" },
+  // ==== #282 荣耀90GT+Edge150 等多机型「[屏幕适配] 底部少填 277px」键盘停靠误报错误环 ====
+  // resizes-visual 下键盘只缩可视视口（vv 633→356）、inner 不动，.phone 按设计停靠
+  // 到 356；诊断 ④/⑤b 只对照 inner 期望底 → 输入框一失焦自动采集即误报「少填/悬空」。
+  // 修复：④/⑤b 加深收缩豁免——vv 缩幅 ≥ inner×22%（#236 已验证键盘下限，真键盘缩幅
+  // 均 >200px）判键盘停靠期不判底；#236 壳残留带（<22%）仍照常上报，真残留不掩盖。
+  { name: '#282 键盘停靠豁免（vv 缩幅≥inner×22% 时 ④/⑤b 不判底，防「底部少填」误报环；删则 resizes-visual 停靠期每失焦即刷错误环）', file: 'js/device.js', needle: '_kbShrink >= Math.round(inp.innerH * 0.22)' },
   { name: '#281 防盲写闸门扩口径（未应用过 IDB 权威值也禁盲写，防延迟窗口保存把空/小包顶掉 IDB 全量=我的表情包全丢复发）', file: 'js/chat.js', needle: 'window.__myeIdbApplied !== true' },
+  // ==== 2026-09-10 #275 媒体池×备份链路腐蚀（多机型反复「图片丢失/@@m:404」传播链收口）====
+  // 根因：「只备份文字」strip 导出只剥 data: 前缀载荷——消息里的 @@m: 令牌不匹配被原样保留，
+  // 媒体池键值却被剥成空串。导入后池里全是空串影子条目：渲染端 typeof 放行 → map 缓存 '' +
+  // img.src=''（解析成页面 URL）＝永久坏图+占位误报「网络不通」；且空串条目 ≤20KB 走小键段，
+  // 随今后每次完整备份继续传给对方设备＝跨机型反复。池真缺失时令牌 src 被当相对路径打网络
+  // 必 404，还把「资源加载失败」错误环刷满（OPPO Reno16 诊断 20 条错误全是它）。
+  // 修复四道：①文字模式导出整键跳过池条目（读值前 skip）②导出小键段同样认范围外键
+  // ③导入端把空串/非 data: 脏池条目丢弃（键保持缺席→准确占位；合法池值不动）
+  // ④渲染端池值体检（空串/脏值绝不入 map、绝不改写 src；不入负缓存＝日后导入完整备份自愈）
+  // ⑤device.js 错误记录器对未解析令牌 404 静默（getAttribute 原始值判令牌）。
+  { name: '#275 文字模式媒体池整键跳过（skip 在读值前生效，strip 绝不剥值留键=空池坏图传播）', file: 'js/data-backup.js', needle: 'MUSIC_KEY_RE.test(k) || MEDIA_POOL_KEY_RE.test(k)' },
+  { name: '#275 导出小键段同样认范围外键（≤20KB 池条目不进 ls 段防被 strip 成空串入库）', file: 'js/data-backup.js', needle: 'if (cfg.skip(k)) continue;' },
+  { name: '#275 导入端旧备份池腐蚀自愈（空串/非 data: 池条目直接丢弃=键保持缺席走准确占位，完整备份再导入即自愈）', file: 'js/data-backup.js', needle: 'function scrubMediaPool(obj) {' },
+  { name: '#275 渲染端池值体检（空串/脏值绝不入 map 缓存也不改写 img.src——原 typeof 放行空串=map 缓存\'\'+src=\'\'永久坏图；不入负缓存，缺数据可重试）', file: 'js/media-pool.js', needle: "v2.indexOf('data:image/') !== 0" },
+  { name: '#275 未解析媒体池令牌 404 不进错误日志（getAttribute 原始值判令牌；池缺失+渲染占位已是预期失败路径，逐次渲染刷屏掩盖真错误）', file: 'js/device.js', needle: 'window.mochiMediaIsToken(imTok)' },
+  // ==== 2026-09-10 #283 聊天语音令牌化（vivo S60/Chrome 25fps「经常卡、按不动」等多机型收口）====
+  // 根因：#142 池 v1 只收 data:image/——历史语音/语音字卡以「名称|||data:audio;base64…」整份
+  // 内联在消息 text（语音内容唯一，去重对总库无效，但令牌化后每次落盘只 clone 44 字符引用）。
+  // 本机诊断：IDB chat-msgs=79.2MB/2277 条、JS 堆 307MB、长任务 50~405ms（隐藏冲刷+空闲落盘
+  // 每次都 structured clone 整包）＝发消息/收键盘/离页回前台全在卡。音频纪律：不进 map 热缓存、
+  // 播放走 ExpandAsync 按需 idbGet、迁移期每 32 条分批冲池（writeBuf/单事务封顶+回滚账除名）。
+  { name: '#283 池收音频（tokenize 放行 data:audio/；回退只收图片=语音继续整份内联、低端机落盘长任务复发）', file: 'js/media-pool.js', needle: "dataUrl.indexOf('data:image/') !== 0 && dataUrl.indexOf('data:audio/') !== 0" },
+  { name: '#283 语音令牌化（normalize pass 处理「名称|||data:audio/」内联语音；删则 chat-msgs 几十 MB 每次落盘 clone 整包回归）', file: 'js/chat.js', needle: "m.text.indexOf('data:audio/', _bar + 3) === _bar + 3" },
+  { name: '#283 语音播放异步取回（令牌先 ExpandAsync 取池数据再播；删则令牌语音点按「播放失败」）', file: 'js/chat.js', needle: 'window.mochiMediaExpandAsync(v.src, function (data) {' },
+  { name: '#283 迁移期分批冲池（每 32 条 flush 封顶 writeBuf/单事务并清回滚账；删则几十 MB 单事务+回滚账常驻=迁移会话堆尖峰）', file: 'js/chat.js', needle: 'const _okMid = await window.mochiMediaFlush();' },
+  { name: '#283 冷启动收敛触发（读库成功后 12s 跑 pass；删则只依赖 restore 事件/切桌面——不切桌面的设备历史语音永不被收口）', file: 'js/chat.js', needle: 'scheduleMediaPass(12000)' },
+  { name: '#283 收藏语音识别加令牌形态（名称|||@@m:hash 不识别则收藏语音直出令牌串且不可播）', file: 'js/chat.js', needle: '@@m:[0-9a-f]{32}$/.test(f.text)' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

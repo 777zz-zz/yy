@@ -1,3 +1,20 @@
+### 2026-09-11（#275 用户报 OPPO Reno16「问题：不知」：错误环刷满 @@m: 令牌 404＝「只备份文字」备份把媒体池剥成空串的跨设备腐蚀链——本会话修复主体；src 已随并行 #279 会话 4fcb012 收口进产物，本批补登记资产）
+- [跨域改动（AI-B 域 src/js/data-backup.js、src/js/device.js，理由：腐蚀根因在备份导出/导入链路与错误记录器；media-pool.js 无归属默认共享；均为最小追加、未动既有逻辑块）+ 登记资产 build.mjs（#275 哨兵 ×5）FIX-REGRESSION.md（+275 行）tools/verify-media-pool.mjs（+T8/T9）WORKLOG.md]（**改动文件：src/js/data-backup.js、src/js/media-pool.js、src/js/device.js（三 src 已随 4fcb012 入库进产物）、build.mjs、FIX-REGRESSION.md、tools/verify-media-pool.mjs、WORKLOG.md**；构建状态：**src+产物已随 4fcb012 上线（sw mochi-mtvq8r8x），本批只补登记、未重建**）。
+- 需求/反馈：OPPO Reno16/PMM110 + Chrome138 诊断（v3.26.529）错误环 20 条里 19 条为「资源加载失败 <img> https://…/@@m:<md5>」（同批哈希 ×2~×6、当天多次启动持续失败）＝聊天里这批表情/图片永久空白气泡；用户「问题：不知」+明说其他设备型号也有、要求勿覆盖式修改。
+- 根因（#142/#186/#202/#280 家族都没堵住的传播链）：「只备份文字」strip 导出只剥 data: 前缀载荷——消息里的 @@m: 令牌不匹配被原样保留、媒体池键值（本身就是 dataURL）被逐条剥成空串。导入后：①渲染端 resolveImg 的 typeof 判定放行空串→map 永久缓存 ''+img.src=''（解析成页面 URL）＝永久坏图+#202 占位误报「网络不通」；②空串池条目 ≤20KB 走备份小键段，随今后每次【完整】备份继续传给对方设备＝跨设备跨机型复发；③池真缺失（历史损伤）时令牌 src 被当相对路径打网络必 404，每次渲染刷「资源加载失败」错误环掩盖真错误（#280 已在 SW 层快速 404，本批修数据根因+清日志噪音）。
+- 方案（零机型分支，五道各守一层）：①data-backup.js 文字模式 cfg.skip 加 MEDIA_POOL_KEY_RE（读值前生效＝整键跳过，strip 绝不剥值留键）；②导出 LS 小键段循环同认 cfg.skip（≤20KB 池条目不进 ls 段防被剥空）；③doImportGo 开头 scrubMediaPool 把空串/非 data: 脏池条目直接丢弃（键保持缺席→#186「图片丢失：媒体数据缺失」准确占位；合法池值一律不动；日后导入完整备份即自愈）；④media-pool.js resolveImg 池值体检（值非 data:image/ 开头与池缺失同路：不入 map、不改写 src、不入负缓存＝可重试可自愈）；⑤device.js 错误记录器对未解析令牌 404 静默（getAttribute 原始值判令牌，#280 SW 快速 404 与渲染占位链路不受影响）。
+- 验证：node --check 三 src 过；`node build.mjs --check-sentinels` **615 条全绿哑 0**；`node tools/verify-media-pool.mjs` **10/10**（新增 T8 池条目空串→令牌 src 原样保留不被改写成空/页面 URL、T9 池值补回→同令牌新渲染自愈＝完整备份导入恢复路径）；产物（HEAD 4fcb012）五 needle 逐一 grep 实证在位。【真机:待验证】（OPPO Reno16 及任意机型）：①「只备份文字」导出→导入后原图片消息显示「图片丢失：媒体数据缺失」占位、错误环不再新增 @@m: 404；②完整备份导出→他机导入，同批图片全部恢复显示；③表情/图片发送、显示、收藏、引用、群聊令牌化全不回归。
+- 编号说明：#275 沿用 #277 批 WORKLOG 让位预留（「原拟 #275 让位给媒体池批并留编号注」）；#282 批留言所述「@@m: 404 由 #275 device.js 静音覆盖」属实。待对方处理：无（#279 语音入池批在途的 media-pool.js 未动，构建者下次收口自然带上）。
+- 提交说明：本批提交仅含登记资产（build.mjs/FIX-REGRESSION/WORKLOG/verify-media-pool）；同文件里 #282 批已保存完整的登记块随本次一并入库（其 src 仍在途，由构建者下次收口构建），未夹带任何 src。
+
+### 2026-09-11（#282 用户报障「信息诊断显示有错误」（荣耀90GT+Edge150）：错误环「[屏幕适配] 底部少填 277px」＝键盘停靠期判定无豁免——本次构建者：非本会话（src 已落，待收口构建））
+- [AI-B 域 device.js（screenDiagJudge ④/⑤b 加 vv 深收缩键盘停靠豁免）+ tools/verify-viewport-form.mjs（E 组 5 断言）+ build.mjs（#282 哨兵 ×1）+ FIX-REGRESSION.md（+282 行）+ WORKLOG.md]（**改动文件：src/js/device.js、tools/verify-viewport-form.mjs、build.mjs、FIX-REGRESSION.md、WORKLOG.md**；构建状态：**未构建，需构建者收口**；⚠️ 树上多批在途（#275/#277/#278/#279/#281 等），本次只追加未触碰他批块；编号 276~281 均已被占，本批顺延 #282）。
+- 需求/反馈：荣耀90GT+Edge 错误环反复「[屏幕适配] 底部少填 277px｜env=0 diff=181 inner=633 phone底=356」；用户强调多机型出现、勿覆盖式修改。另 4 条「@@m: 图片 404」错误已由在途 #275（device.js 静音）/#280（media-pool 快速 404）覆盖，本批未重复处理。
+- 根因：resizes-visual 下键盘只缩 vv（633→356）、inner 不动，.phone 停靠 356＝布局正确；诊断 ④/⑤b 只对照 inner 期望底、无键盘停靠豁免，Edge 收键盘 vv 读数残留扩大失焦窗口 → 自动采集误报入环。
+- 方案（零机型分支）：vv 缩幅 ≥ inner×22%（#236 已验证键盘下限）判键盘停靠期，④/⑤b 不判底、记 ✓ 可对号；#236 残留带（<22%）照常上报，真残留自愈仍归看门狗。
+- 验证：node --check 过；verify-viewport-form.mjs **86/86**（E 组含「vv 回基准真残留照报」「残带照报」反向断言，豁免不扩权）；--check-sentinels 全绿哑 0。
+- 待对方处理：构建者收口 node build.mjs（树上多批在途一并构入）+ 复跑 verify-viewport-form / verify-suite。【真机:待验证】（荣耀90GT+Edge 优先）：打字失焦后错误环不再新增「底部少填」；键盘停靠期输入栏仍正常贴键盘上沿。
+
 ### 2026-09-11（#277 用户报障 iPhone 17/Safari「未知 bug」：iOS standalone 切后台回来底部白带+导航栏悬空＝env 探针缓存中毒永不自愈——本会话修复主体；上线随并行 #279 会话 4fcb012 收口）
 - [AI-B 域 mobile-adapt.js（syncVvFit env 缓存矛盾自愈：standalone 且 screen−inner≥20 而缓存=0 或与缺口差>8 → 节流 5s 重探，`_envTopCacheAt` 节流基准）+ build.mjs（#277 哨兵 ×1，矛盾判定表达式锚）+ FIX-REGRESSION.md（+277 行；原拟 #275 让位给媒体池批并留编号注）+ tools/verify-env-reprobe.mjs（新增，S/R/P 三组）]（**改动文件：src/js/mobile-adapt.js、build.mjs、FIX-REGRESSION.md、tools/verify-env-reprobe.mjs、WORKLOG.md**；构建状态：**已上线·随 4fcb012 收口构入·HEAD sw mochi-mtvqctt9**）。
 - 根因（证据链三支柱）：①诊断 env 探针独立缓存实测 env=62＝真实覆盖形态；②应用侧 1s 自愈循环坏态期间每秒都跑却没修正＝自愈入参与诊断实测不同源；③--mochi-ios-h 三个写点全经共享判定器，写 894 只能来自 envTop=0 入参 → env 缓存只在旋转失效、standalone 冷启动早帧探 0 被永久缓存（稳定后实为覆盖形态 env=62）；expBase 少算 env 段（min(956,0+894)=894），切后台 inner 短报 894 时 .phone 底部 62px 白带/tabbar 悬空，自愈按同值反复「确认」永不自愈（错误环 9/8~9/10 反复采集「底部少填」同一签名；WebKit26 standalone 同族机型通用）。
