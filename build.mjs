@@ -291,6 +291,8 @@ const FIX_SENTINELS = [
   { name: '错误记录双写 IndexedDB（readErrs 回退读取，防"最近错误：无"丢线索）', file: 'js/device.js', needle: 'idbSet(ERR_KEY' },
   { name: '更新条防重复（ver-update-ack-ts 按版本免打扰 + showVerBar 跨通道收口）', file: 'js/pwa.js', needle: 'ver-update-ack-ts' },
   { name: '#225 更新条一直重复提醒收口v2（showVerBar 弹条门加 verSeen 一版一弹：同版本只弹一次不按时间过期+弱网无 ts 不绕过；新版本立即弹无任何时间窗——站点主口径一天可部署十几次，v1 的 24h 时间窗已废）', file: 'js/pwa.js', needle: '!verShouldNotify(onlineTs) || verSeen(onlineTs)' },
+  { name: '#273 普通刷新自愈进新版（pageshow 冷加载对比云端版本，更新且本会话未尝试时 tryAutoUpgrade 走 PRECACHE_NOW+reload 自动进新版；session 守卫防死循环，失败退回更新条；字符串键压缩后仍在产物，比函数名锚稳）', file: 'js/pwa.js', needle: "'xy-home-v2:auto-upgrade-session'" },
+  { name: '#273 弱网刷新兜底（拉 version.json 连败弹「网络异常」更新条+重试刷新入口，防弱网下顶部刷新按钮消失）；字符串锚压缩后仍在产物', file: 'js/pwa.js', needle: "'网络异常，未能确认最新版本'" },
   { name: '公用拍一拍选中态去虚线统一（poke-tab-pub.sel 实心）', file: 'css/dark.css', needle: 'poke-tab-pub.sel { background:var(--ink)' },
   { name: '吃什么切菜单可直接选指定菜单（eatSwitchRenderChips 直选，不复用转盘）', file: 'js/p2-features.js', needle: 'function eatSwitchRenderChips' },
   { name: '导出聊天记录以 IDB 权威为准（lsBig 兜底，防取旧快照）', file: 'js/data-backup.js', needle: '留待 IndexedDB 权威读取' },
@@ -820,6 +822,13 @@ const FIX_SENTINELS = [
   // 根因：askQaSetup 答案屏的 onSubmit 只调 done(q,a)（save+toast）、不清遮罩，
   // 面板一直滞留在此屏，用户看不到已保存、以为点了完成没反应。
   { name: '#271 设安全问答完成即关闭面板（askQaSetup 答案屏 onSubmit 补「置空+隐藏遮罩」；删则完成后面板又滞留=「点完成无反应」回流）', file: 'js/applock.js', needle: 'if (done) done(q, a);' },
+  // ==== 应用锁·刷新后锁被误关「门户大开」====
+  // 根因：evalLock 里 `if (enabled() && !pinHash()) setEn(false)` 同步自愈——安卓「数据主要
+  // 在 IndexedDB、localStorage 仅快照」下刷新首帧 applock-pin 常还没回填（LS 只有 en='1'），
+  // 首帧就把锁置 0=锁被误关、门户大开（用户反馈「刷新后应用锁被关了，开关也变关」）。
+  // 修复：改为 selfHealChecked 先异步查 IDB——IDB 有密码就回填本机并继续锁屏，只有双端都确认
+  // 无密码才自愈关锁（防锁死初衷保留）。needle 用「IDB 有密码→回填→重评估锁屏」逻辑锚。
+  { name: '应用锁自愈加固（IDB 有密码先回填不放关锁，防「刷新后锁被误关」回流；删则改回同步置 0=又门户大开）', file: 'js/applock.js', needle: 'gSet(K_PIN, v); evalLock();' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

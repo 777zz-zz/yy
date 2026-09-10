@@ -159,13 +159,45 @@
           if (!baseGot) { baseTs = ts; baseGot = true; return; }
           if (ts > baseTs) showVerBar(ts);
         })
-        .catch(function () { failCount++; });
+        .catch(function () { failCount++; maybeNetHint(); });
+    }
+    // v3.29.x：#273 弱网兜底。拉 version.json 持续失败（连遭 2 次超时）时，顶部更新条
+    // 也给出「网络异常，未能确认最新版本」+「重试刷新」入口——否则弱网下页面常驻旧缓存、
+    // 又拉不到版本文件，用户永远收不到任何提示＝「顶部刷新按钮消失」。点击复用 refreshNow()
+    // （PRECACHE_NOW 预取最新 index 落盘 + reload），弱网也能尽量够到最新版；每页面加载只
+    // 提示一次（内存守卫），不随 5s 轮询反复闪。网络恢复且真有新版时，正常 then 分支的
+    // showVerBar 会覆盖本文案，不会与新版本提醒打架。
+    let netHealed = false;
+    function maybeNetHint() {
+      if (netHealed || failCount < 2) return;
+      netHealed = true;
+      const txt = bar.querySelector('.vub-txt');
+      if (txt) txt.textContent = '网络异常，未能确认最新版本';
+      const act = document.getElementById('ver-update-refresh');
+      const close = document.getElementById('ver-update-close');
+      if (act) act.textContent = '重试刷新';
+      bar.hidden = false;
+      if (act) act.onclick = function () { refreshNow(); };
+      if (close) close.onclick = function () { bar.hidden = true; };
     }
     checkVersion();
     setInterval(checkVersion, 5000); // 5s 触发一次，内部再按 15s/5s 节流
     // 切回前台时立即检查（用户在别的 tab 待了很久，回来立刻发现新版）
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible') checkVersion();
+    });
+    // v3.29.x：#273 冷加载自愈。普通刷新 / 从桌面（standalone）启动 / 重进都触发
+    // pageshow 且 persisted=false（b/f-cache 返回为 true，不升级）。做一次性版本对比：
+    // 云端更新且本会话未尝试过 → tryAutoUpgrade 走 PRECACHE_NOW + reload 自动进新版；
+    // 预取异常刷新后仍回旧版时由 session 守卫兜底退回更新条，不反复刷。
+    document.addEventListener('pageshow', function (e) {
+      if (e.persisted) return;
+      fetchJson('./version.json?v=' + Date.now(), 5000).then(function (d) {
+        const ts = Number(d && d.ts);
+        if (!ts || isNaN(ts)) return;
+        if (!baseGot) { baseTs = ts; baseGot = true; return; }
+        if (ts > baseTs && !tryAutoUpgrade()) showVerBar(ts);
+      }).catch(function () { /* 网络不可用：不动静，等周期轮询网络恢复后弹条 */ });
     });
   })();
 
@@ -252,6 +284,23 @@
         });
       }).catch(() => {});
     });
+  }
+
+  // ================= v3.29.x：#273 普通刷新也能自愈进新版 =================
+  // 缓存优先 + 后台静默刷新下，手动刷新先命中旧缓存、后台拉取弱网易超时 → 用户
+  // “反复刷新仍旧版”。这里：冷加载（普通刷新/重进/桌面启动）时发现云端有更新版本，
+  // 本会话首次直接走 refreshNow()（PRECACHE_NOW 预取最新 index 落盘再 reload），一跳
+  // 进新版；session 守卫保证只尝试一次，预取失败刷新后仍回旧版时自动退回常驻更新条，
+  // 绝不无限循环。周期轮询（15s/5s）与 SW updatefound 通道不动，只弹更新条不自动刷新，
+  // 避免打断用户会话中途的操作（发消息/编辑中）。
+  const AUTO_UPGRADE_KEY = 'xy-home-v2:auto-upgrade-session';
+  function tryAutoUpgrade() {
+    try {
+      if (sessionStorage.getItem(AUTO_UPGRADE_KEY)) return false;
+      sessionStorage.setItem(AUTO_UPGRADE_KEY, String(Date.now()));
+    } catch (e) { return false; }
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) { refreshNow(); return true; }
+    return false;
   }
 
   let deferredPrompt = null;

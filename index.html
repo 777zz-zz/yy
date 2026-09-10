@@ -8954,9 +8954,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789042251348">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789044254502">
         <span class="sv-app">Mochi 字卡传讯 <b>v3.26.539</b></span>
-        <span class="sv-deploy">部署于 2026-09-10 20:10<span id="splash-ver-live"></span></span>
+        <span class="sv-deploy">部署于 2026-09-10 20:44<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -18060,7 +18060,7 @@ onCancel: function () { qaAsk(items, i, afterAll); }
 }
 function evalLock() {
 if (MASK && !MASK.hidden) return;   // 已锁屏中
-if (enabled() && !pinHash()) setEn(false);  // 异常态自愈（原逻辑保留）
+if (enabled() && !pinHash()) { selfHealChecked(); return; }
 const needPin = enabled() && !!pinHash();
 const needQa = qaEnabled() && !qaSkipped();
 if (!needPin && !needQa) return;
@@ -18073,6 +18073,19 @@ return;
 }
 if (sessOk()) return;               // 数字密码锁：本会话已解过 → 同标签刷新不重锁
 showLock();
+}
+function selfHealChecked() {
+const key = G + ':' + K_PIN;
+try {
+if (window.idbGet) {
+window.idbGet(key).then(function (v) {
+if (v) { gSet(K_PIN, v); evalLock(); }   // IDB 有密码：回填本机后重新评估锁屏
+else { setEn(false); }                     // 双端都无密码：真异常态，关锁防卡死
+}).catch(function () { setEn(false); });
+return;
+}
+} catch (e) {}
+setEn(false);   // 无 idbGet 兜底，按原行为自愈关闭
 }
 function enEl() { return document.getElementById('applock-en'); }
 function subEl() { return document.getElementById('applock-sub'); }
@@ -79744,12 +79757,34 @@ if (!ts || isNaN(ts)) return;
 if (!baseGot) { baseTs = ts; baseGot = true; return; }
 if (ts > baseTs) showVerBar(ts);
 })
-.catch(function () { failCount++; });
+.catch(function () { failCount++; maybeNetHint(); });
+}
+let netHealed = false;
+function maybeNetHint() {
+if (netHealed || failCount < 2) return;
+netHealed = true;
+const txt = bar.querySelector('.vub-txt');
+if (txt) txt.textContent = '网络异常，未能确认最新版本';
+const act = document.getElementById('ver-update-refresh');
+const close = document.getElementById('ver-update-close');
+if (act) act.textContent = '重试刷新';
+bar.hidden = false;
+if (act) act.onclick = function () { refreshNow(); };
+if (close) close.onclick = function () { bar.hidden = true; };
 }
 checkVersion();
 setInterval(checkVersion, 5000); // 5s 触发一次，内部再按 15s/5s 节流
 document.addEventListener('visibilitychange', function () {
 if (document.visibilityState === 'visible') checkVersion();
+});
+document.addEventListener('pageshow', function (e) {
+if (e.persisted) return;
+fetchJson('./version.json?v=' + Date.now(), 5000).then(function (d) {
+const ts = Number(d && d.ts);
+if (!ts || isNaN(ts)) return;
+if (!baseGot) { baseTs = ts; baseGot = true; return; }
+if (ts > baseTs && !tryAutoUpgrade()) showVerBar(ts);
+}).catch(function () { /* 网络不可用：不动静，等周期轮询网络恢复后弹条 */ });
 });
 })();
 (function () {
@@ -79818,6 +79853,15 @@ if (!ts || isNaN(ts) || ts > localTs) showVerBar(ts);
 });
 }).catch(() => {});
 });
+}
+const AUTO_UPGRADE_KEY = 'xy-home-v2:auto-upgrade-session';
+function tryAutoUpgrade() {
+try {
+if (sessionStorage.getItem(AUTO_UPGRADE_KEY)) return false;
+sessionStorage.setItem(AUTO_UPGRADE_KEY, String(Date.now()));
+} catch (e) { return false; }
+if (navigator.serviceWorker && navigator.serviceWorker.controller) { refreshNow(); return true; }
+return false;
 }
 let deferredPrompt = null;
 const btn = document.getElementById('pwa-install');
@@ -82886,4 +82930,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtvhkbx0 -->
+<!-- __MOCHI_EOF__ mtvir9k6 -->

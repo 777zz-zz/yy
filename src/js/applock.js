@@ -475,7 +475,12 @@
   // 冷启动/数据回填后评估是否需要锁屏（问答门 与 数字密码锁 双重可选，同时开时先问答后密码）
   function evalLock() {
     if (MASK && !MASK.hidden) return;   // 已锁屏中
-    if (enabled() && !pinHash()) setEn(false);  // 异常态自愈（原逻辑保留）
+    // v3.32.x 异常态自愈加固：读到「已开启(en=1)但此同步读不到密码」时绝不立即关锁。
+    // 安卓「数据主要在 IndexedDB、localStorage 仅快照」场景下，刷新首帧 applock-pin 常
+    // 还没从 IDB 回填（LS 里只有 en='1'、pin 缺失）→ 若在此直接 setEn(false) 会把锁误关、
+    // 门户大开（用户反馈「刷新后应用锁被关了，开关也变关」）。改为先异步确认 IDB 里
+    // 也确实没有密码才自愈关锁：IDB 有密码就回填本机并正常评估锁屏，防锁死的初衷保留。
+    if (enabled() && !pinHash()) { selfHealChecked(); return; }
     const needPin = enabled() && !!pinHash();
     const needQa = qaEnabled() && !qaSkipped();
     if (!needPin && !needQa) return;
@@ -491,6 +496,21 @@
     }
     if (sessOk()) return;               // 数字密码锁：本会话已解过 → 同标签刷新不重锁
     showLock();
+  }
+
+  // 自愈前先确认 IDB（en=1 但同步读不到密码时调用，防「一时未回填」把锁误关）
+  function selfHealChecked() {
+    const key = G + ':' + K_PIN;
+    try {
+      if (window.idbGet) {
+        window.idbGet(key).then(function (v) {
+          if (v) { gSet(K_PIN, v); evalLock(); }   // IDB 有密码：回填本机后重新评估锁屏
+          else { setEn(false); }                     // 双端都无密码：真异常态，关锁防卡死
+        }).catch(function () { setEn(false); });
+        return;
+      }
+    } catch (e) {}
+    setEn(false);   // 无 idbGet 兜底，按原行为自愈关闭
   }
 
   // ---------- 设置页 ----------

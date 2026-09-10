@@ -1,3 +1,25 @@
+### 2026-09-10（#274 用户反馈「刷新/重新打开网站应用锁被关了」：自愈误关加固——本次构建者：本会话（AI-B 域）收口）
+- [AI-B 域 applock.js（evalLock 同步自愈 → selfHealChecked 先查 IDB，防「一时未回填/ LS 快照缺 pin」误关锁）+ build.mjs（#274 哨兵 ×1 `gSet(K_PIN, v); evalLock();`）+ FIX-REGRESSION.md（+274 行）+ tools/verify-applock.mjs（新增 R 组 2 断言 + H7 静态锚）+ WORKLOG.md]（**改动文件：src/js/applock.js、build.mjs、FIX-REGRESSION.md、tools/verify-applock.mjs、WORKLOG.md**；构建状态：**待收口构建**）。
+- 需求/反馈：用户「设置了应用锁，但刷新重新打开网站，应用锁被关了」（澄清：安卓同一标签页刷新，既不弹锁屏、设置页开关也显示关闭）。
+- 根因（applock.js）：`evalLock` 里 `if (enabled() && !pinHash()) setEn(false)` 同步自愈——只要本次同步读到「en=1 但读不到密码」就当异常态把锁置 0。安卓「数据主要在 IDB、LS 仅快照」下刷新首帧 pin 常未回填 / LS 配额静默写失败只剩 en → 首帧自愈误关锁＝门户大开（用户「开关也变关」正是指向 setEn(false) 只有自愈/手动两条路）。
+- 方案（最小改动、零机型分支）：新增 `selfHealChecked()`——读到 en=1 但同步读不到 pin 时，不立即关锁，改先异步 `window.idbGet('xy-home-v2:applock-pin')`：IDB 有密码就 `gSet(K_PIN, v)` 回填并重进 evalLock 正常锁屏；仅双端（LS+IDB）都确认无密码才 `setEn(false)`（防「忘密码锁死」初衷保留）。正常开启/双写一致零行为变化。
+- 验证：node --check applock.js 过；verify-applock.mjs 新增 R1/R2（IDB 有 pin、LS 删 pin → 刷新仍锁屏且开关不被误关、密码可解锁）+ H7（产物含 `gSet(K_PIN, v); evalLock();`）；既有 A（冷启动锁屏）/F（真异常自愈置 0）不变。【真机:待验证】（安卓）：设好密码锁后普通刷新仍要求输密码、设置页开关保持开启。
+- 待对方处理：构建者收口 `node build.mjs`（本批含 #273 未构建在途 pwa.js，一并构入）+ 复跑 `node tools/verify-applock.mjs`。
+
+### 2026-09-10（#273 用户反馈「手机刷新总是进不去网页最新版」：冷加载自愈进新版——本次构建者：待定（收口请构建））
+- [AI-B 域 pwa.js（新增 tryAutoUpgrade + pageshow 冷加载自动升级，会话守卫防死循环）+ build.mjs（#273 哨兵 ×1，needle 用字符串键锚防压缩改名）+ FIX-REGRESSION.md（+273 行）]（**改动文件：src/js/pwa.js、build.mjs、FIX-REGRESSION.md、WORKLOG.md**；构建状态：**未构建，需构建者收口**；src 已 `node --check` 过、`--check-sentinels` 哑 0）。
+- 需求/反馈：用户「手机刷新总是进不去网页最新版」。
+- 方案（零机型分支）：新增 `tryAutoUpgrade()`——冷加载（普通刷新/重进/standalone 启动）`pageshow(persisted=false)` 时对比 `./version.json`，云端 ts>页面 `data-build-ts` 且本会话未尝试过（sessionStorage `xy-home-v2:auto-upgrade-session` 守卫）则直接走 `refreshNow()`（PRECACHE_NOW 预取最新 index 落盘再 reload）一跳进新版；命中则刷新后不再重复（守卫置位）；预取异常刷新后仍回旧版时守卫已置位→退回收 `showVerBar()` 常驻更新条，绝不无限循环。周期轮询（15s/5s）与 SW `updatefound` 通道不动、只弹条不自动刷新，避免打断会话中途操作。
+- 验证：pwa.js `node --check` 过；`node build.mjs --check-sentinels` 哑 0（#273 needle `'xy-home-v2:auto-upgrade-session'` 在 pwa.js 唯一）。未构建未跑产物侧哨兵（等构建者收口）。【真机:待验证】（任意机型）：①云端部署新版后手机普通刷新一次即自动进新版；②弱网预取失败极端场景应出现常驻更新条、点「刷新使用新版」仍可到达最新；③同版本不会反复自动刷新。
+- 待对方处理：构建者收口 `node build.mjs`（构入 #273）+ `node build.mjs --check-sentinels` 复验。
+
+### 2026-09-10（#273b 用户反馈「网页顶部刷新按钮经常不出现」→ 弱网兜底——本次构建者：待定（并入 #273 收口））
+- [AI-B 域 pwa.js（checkVersion 的 catch 分支加 `maybeNetHint()` 弱网兜底）+ build.mjs（+1 哨兵，needle `'网络异常，未能确认最新版本'`）+ FIX-REGRESSION.md（+273b 行）]（**改动文件：src/js/pwa.js、build.mjs、FIX-REGRESSION.md、WORKLOG.md**；构建状态：**未构建，需构建者收口**；src 已 `node --check` 过、`--check-sentinels` 哑 0）。
+- 需求/反馈：用户「网页顶部没有出现刷新的按钮」「之前不是有刷新的设置吗，最近消失了」——弹条只在「线上 ts>页面 data-build-ts」才出，页面常驻最新版时正常无提示（非故障）；真正让「刷新入口消失」的是弱网拉 version.json 失败时 catch 静默跳过。
+- 方案（零机型分支，并入 #273）：`maybeNetHint()`——连续失败 ≥2 次（弱网持续、非单次抖动）复用更新条显示「网络异常，未能确认最新版本」+「重试刷新」，点击复用 `refreshNow()`（PRECACHE_NOW 预取最新 index 落盘 + reload）；内存守卫每页面加载只提示一次，不随 5s 轮询反复闪；网络恢复且真有新版时正常 then 分支 showVerBar 覆盖本文案。
+- 验证：pwa.js `node --check` 过；`node build.mjs --check-sentinels` 哑 0。【真机:待验证】弱网下顶部出现网络异常提示+重试刷新；每页只提示一次；联网正常且已最新时顶部无提示（正确）；联网且有新版时仍出「刷新使用新版」。
+- 待对方处理：构建者收口时连同 #273 一起 `node build.mjs` 收。
+
 ### 2026-09-10 19:2x（#272 用户需求：开屏问答门①第 2 题加「答案为【一个字】」提示②开屏跳过暗号更新并加提示；顺带收口 #271 + 修 #271 哑哨兵——本次构建者：本会话）
 - [AI-B 域 applock.js（DEFAULT_QA 第 2 题文案、QA_SKIP_CODE 更新、qaSkipAsk 暗号屏提示文案）+ contacts.js（注释同步）+ build.mjs（#271 哨兵 needle 从注释改为代码锚点、注释同步）+ tools/verify-applock.mjs（暗号断言/用例同步新值）]（**改动文件：src/js/applock.js、src/js/contacts.js、build.mjs、tools/verify-applock.mjs、WORKLOG.md**；构建状态：**已构建·sw mochi-mtvg4tlo**）。
 - 需求/反馈：用户①「开屏的第二个问题，增加提示 答案为【一个字】」；②「开屏的按钮密码修改成新值」并加暗号提示，最终提示文案「暗号是 99 + mochi 字卡出生日期，一共 6 个数字」。

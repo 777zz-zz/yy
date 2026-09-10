@@ -209,6 +209,21 @@ st = JSON.parse(await lockState() || '{}');
 check('F1 en=1 无密码：不显示锁屏', !(st.has && st.shown === true), JSON.stringify(st));
 check('F2 en=1 无密码：applock-en 被自愈置 0', st.lsEn === '0', st.lsEn);
 
+// ---- R. 刷新后锁不能被误关（IDB 有密码、LS 快照缺密码时）----
+// v3.32.x 自愈加固：读到 en=1 但同步读不到 pin，先异步确认 IDB 里也有密码——
+// 有则回填本机并正常锁屏，绝不能像旧逻辑那样直接 setEn(false)（安卓「数据主要在
+// IndexedDB、LS 仅快照」下刷新首帧 pin 未回填即被当异常态关锁=门户大开，用户反馈
+// 「刷新后应用锁被关了，开关也变关」）。真异常（双端都无密码）关闭逻辑仍由 F 保。
+await seedAndReload({ 'applock-en': '1', 'applock-pin': h53('1234') });
+await evalJs("try{localStorage.removeItem('" + P + "applock-pin');}catch(e){}"); // LS 删 pin、IDB 保留
+await cdp('Page.reload');
+await sleep(1400);
+st = JSON.parse(await lockState() || '{}');
+check('R1 IDB 有密码+LS 缺密码：刷新后仍锁屏且开关不被误关', st.shown === true && st.lsEn === '1', JSON.stringify(st));
+await clickKeys('1234'); await clickOk();
+st = JSON.parse(await lockState() || '{}');
+check('R2 该场景下密码仍可正常解锁', st.shown === false, JSON.stringify(st));
+
 // ---- G. 忘记密码→安全问答→重设密码全流程 ----
 await seedAndReload({ 'applock-en': '1', 'applock-pin': h53('5678'), 'applock-qa': JSON.stringify({ q: '第一次见面的城市？', h: h53('北京') }) });
 st = JSON.parse(await lockState() || '{}');
@@ -283,6 +298,7 @@ check('H3 产物含锁屏样式 .applock-mask', artifact.indexOf('.applock-mask'
 check('H4 产物含脚本就绪标志 __applockReady', artifact.indexOf('window.__applockReady') >= 0);
 check('H5 产物含 FLOAT 注册 #applock-mask', artifact.indexOf('#applock-mask') >= 0);
 check('H6 产物含密码摘要函数 cyrb53(不存明文)', /function h53\(str\)/.test(artifact) || artifact.indexOf('2654435761') >= 0);
+check('H7 产物含自愈加固 selfHealChecked（IDB 有密码先回填不放关锁，防「刷新后锁被关」回流）', artifact.indexOf('gSet(K_PIN, v); evalLock()') >= 0);
 
 // ---- I. 开屏问答门：开启后冷启动先问答，答对放行 ----
 // 只开问答门（无数字密码），题目用默认两道：mj→梦角 / 知晓→是
