@@ -51,6 +51,9 @@
     'ml-write-prob': 30, 'ml-write-min': 1, 'ml-write-max': 480,
     // v3.6.x：每天最多来信（封）——限制联系人主动写信频率，默认 3 封/天
     'ml-write-daily-max': 3,
+    // #296：联系人主动写信总开关（默认开）——关闭后 TA 不再主动来信；
+    // 写信概率走 mailCfg 的 prob() 兜底（0 会回退默认 30），所以「关闭」必须用独立开关
+    'ml-write-en': 1,
     'ml-reply-prob': 80, 'ml-reply-min': 1, 'ml-reply-max': 480,
     'ml-kaomoji-en': 1, 'ml-emoji-en': 1, 'ml-sticker-en': 1,
     // 动态（星言朋友圈设置）
@@ -60,6 +63,8 @@
     'fd-likeback-prob': 50,
     'fd-card-prob': 80, 'fd-max-cards': 5, 'fd-image-prob': 50,
     'fd-post-prob': 40, 'fd-post-daily-max': 5, 'fd-post-cool': 30,
+    // #296：联系人主动发朋友圈总开关（默认开）——关闭后 TA 不再自动发动态
+    'fd-post-en': 1,
     'fd-min-interval': 1, 'fd-max-interval': 720,
     'fd-min-cards-post': 4, 'fd-max-cards-post': 15,
     'fd-post-kaomoji': 10, 'fd-post-emoji': 10, 'fd-post-sticker': 30, 'fd-post-image': 30,
@@ -187,7 +192,7 @@
       }
     });
     // 开关
-    ['py-en', 'as-en', 'dnd-en', 'as-badge', 'ml-kaomoji-en', 'ml-emoji-en', 'ml-sticker-en', 'cs-normal', 'cs-trigger-name', 'cs-trigger-bar', 'gc-py-en', 'ai-rps-en', 'ai-game-en', 'ai-cuddle-en', 'ai-cc-en', 'ckq-en', 'call-resume', 'call-no-hangup'].forEach(k => {
+    ['py-en', 'as-en', 'dnd-en', 'as-badge', 'ml-kaomoji-en', 'ml-emoji-en', 'ml-sticker-en', 'cs-normal', 'cs-trigger-name', 'cs-trigger-bar', 'gc-py-en', 'ai-rps-en', 'ai-game-en', 'ai-cuddle-en', 'ai-cc-en', 'ckq-en', 'call-resume', 'call-no-hangup', 'ml-write-en', 'fd-post-en'].forEach(k => {
       const el = document.getElementById(k);
       if (el) el.checked = cfg[k] === 1;
     });
@@ -287,7 +292,7 @@
     });
   });
   // 开关交互
-  ['py-en', 'as-en', 'dnd-en', 'as-badge', 'ml-kaomoji-en', 'ml-emoji-en', 'ml-sticker-en', 'cs-normal', 'cs-trigger-name', 'cs-trigger-bar', 'gc-py-en', 'ai-rps-en', 'ai-game-en', 'ai-cuddle-en', 'ai-cc-en', 'ckq-en', 'call-resume', 'call-no-hangup'].forEach(k => {
+  ['py-en', 'as-en', 'dnd-en', 'as-badge', 'ml-kaomoji-en', 'ml-emoji-en', 'ml-sticker-en', 'cs-normal', 'cs-trigger-name', 'cs-trigger-bar', 'gc-py-en', 'ai-rps-en', 'ai-game-en', 'ai-cuddle-en', 'ai-cc-en', 'ckq-en', 'call-resume', 'call-no-hangup', 'ml-write-en', 'fd-post-en'].forEach(k => {
     const el = document.getElementById(k);
     if (el) {
       el.addEventListener('change', () => {
@@ -339,7 +344,7 @@
           window.saveReplyCfg(k, v);
         }
       });
-      ['py-en', 'as-en', 'dnd-en', 'as-badge', 'ml-kaomoji-en', 'ml-emoji-en', 'ml-sticker-en', 'cs-normal', 'cs-trigger-name', 'cs-trigger-bar', 'gc-py-en', 'ai-rps-en', 'ai-game-en', 'ai-cuddle-en', 'ai-cc-en', 'ckq-en', 'call-resume', 'call-no-hangup'].forEach(k => {
+      ['py-en', 'as-en', 'dnd-en', 'as-badge', 'ml-kaomoji-en', 'ml-emoji-en', 'ml-sticker-en', 'cs-normal', 'cs-trigger-name', 'cs-trigger-bar', 'gc-py-en', 'ai-rps-en', 'ai-game-en', 'ai-cuddle-en', 'ai-cc-en', 'ckq-en', 'call-resume', 'call-no-hangup', 'ml-write-en', 'fd-post-en'].forEach(k => {
         const el = document.getElementById(k);
         if (el) window.saveReplyCfg(k, el.checked ? 1 : 0);
       });

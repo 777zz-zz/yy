@@ -3461,23 +3461,35 @@ if (ckRefresh) {
   }
   if (piggyApp) piggyApp.addEventListener('click', () => { if (editingNow()) return; openPage(piggyPage); piggyMaybeTa(); piggyRender(); });
   document.getElementById('piggy-back').addEventListener('click', () => backHome(piggyPage));
-  // 右上角设置：三档概率（存钱=TA随机塞 / 取钱=TA余额快没取回 / 申请=联系人向Mochi申请），分步输入 0-100%
+  // 右上角设置：四步（存钱=TA随机塞 / 取钱=TA余额快没取回 / 申请=联系人向Mochi申请 / 申请每日上限次数）
   const piggyCoinSetBtn = document.getElementById('piggy-coin-set');
   if (piggyCoinSetBtn) piggyCoinSetBtn.addEventListener('click', function () {
     if (editingNow() || !window.openModal) return;
     const p = piggyCoinProbGet();
+    // v3.28.x：第四步「申请每日上限次数」——根键 piggy-coin-ask-limit（chat.js trySystemAskMochi 读），默认 0=不限
+    const askLimitGet = () => {
+      let v = null; try { v = parseInt(piggyStore().get('piggy-coin-ask-limit'), 10); } catch (e) {}
+      return (v !== null && isFinite(v) && v >= 0) ? v : 0;
+    };
+    const askLimit0 = askLimitGet();
     const ks = ['deposit', 'withdraw', 'ask'];
-    const def = [Math.round(p.deposit * 100), Math.round(p.withdraw * 100), Math.round(p.ask * 100)];
-    const titles = ['设置 · 存钱概率（TA 随机塞心意币）', '设置 · 取钱概率（TA 余额快没时取回）', '设置 · 申请概率（联系人向 Mochi 申请）'];
-    const hints = ['0-100 %，默认 ' + def[0], '0-100 %，默认 ' + def[1], '0-100 %，默认 ' + def[2]];
+    const def = [Math.round(p.deposit * 100), Math.round(p.withdraw * 100), Math.round(p.ask * 100), askLimit0];
+    const titles = ['设置 · 存钱概率（TA 随机塞心意币）', '设置 · 取钱概率（TA 余额快没时取回）', '设置 · 申请概率（联系人向 Mochi 申请）', '设置 · 申请每日上限（联系人每天最多申请次数）'];
+    const hints = ['0-100 %，默认 ' + def[0], '0-100 %，默认 ' + def[1], '0-100 %，默认 ' + def[2], '0-999 次，0=不限，默认 ' + (askLimit0 === 0 ? '不限' : askLimit0)];
     let phase = 0;
     function clampU(x) { const n = parseInt(String(x == null ? '' : x).trim(), 10); return isNaN(n) ? def[phase] : Math.max(0, Math.min(100, n)); }
     const ctl = window.openModal(titles[0], String(def[0]), function (v) {
-      const cur = clampU(v); const nv = { deposit: p.deposit, withdraw: p.withdraw, ask: p.ask };
-      nv[ks[phase]] = cur / 100; piggyCoinProbSave(nv); Object.assign(p, nv);
-      phase++;
-      if (phase < 3) { ctl.stay(); ctl.title(titles[phase]); ctl.ph(hints[phase]); ctl.text(String(def[phase])); ctl.maxLen(3); ctl.okText('下一步'); toast('已保存 ' + cur + '%'); return; }
-      toast('概率设置已更新');
+      if (phase < 3) {
+        const cur = clampU(v); const nv = { deposit: p.deposit, withdraw: p.withdraw, ask: p.ask };
+        nv[ks[phase]] = cur / 100; piggyCoinProbSave(nv); Object.assign(p, nv);
+        phase++;
+        ctl.stay(); ctl.title(titles[phase]); ctl.ph(hints[phase]); ctl.text(String(def[phase])); ctl.maxLen(3); ctl.okText('下一步'); toast('已保存 ' + cur + '%');
+        return;
+      }
+      const n = parseInt(String(v == null ? '' : v).trim(), 10);
+      const cur = isNaN(n) ? askLimit0 : Math.max(0, Math.min(999, n));
+      try { piggyStore().set('piggy-coin-ask-limit', String(cur)); } catch (e) {}
+      toast(cur === 0 ? '设置已更新：申请次数不限' : '设置已更新：每天最多申请 ' + cur + ' 次');
     }, { maxlength: 3, inputmode: 'decimal', placeholder: hints[0] });
     ctl.okText('下一步');
   });

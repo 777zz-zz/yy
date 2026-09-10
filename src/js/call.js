@@ -564,16 +564,28 @@
     if (window.idbSet) { try { window.idbSet(CALL_HOLD_KEY, { ts: 0 }); } catch (e) {} }
   }
   // 回前台/冷启动检查挂起：有效→重新响铃（incomingCall(true) 不重复发系统消息）；
-  // 过期/桌面不匹配/已在通话→补写未接（notifyCallEnd 跨桌面自动落到归属桌面）
+  // #291：归属桌面不是当前桌面时先切到归属联系人桌面再响铃（原直接判未接——用户点开
+  // 通知/回到应用落在别的桌面，条件 h.cid===__activeCid 永不成立＝永远接不到来电）；
+  // 过期/已在通话/归属联系人已不存在→补写未接（notifyCallEnd 跨桌面自动落到归属桌面）
   function resumeHeldCall() {
     const h = readCallHold();
     if (!h) return;
     clearCallHold();
-    if (Date.now() - h.ts <= CALL_HOLD_MS && !currentCall && h.cid === (window.__activeCid || 'default')) {
-      incomingCall(true);
-      return;
+    const cur = window.__activeCid || 'default';
+    if (Date.now() - h.ts <= CALL_HOLD_MS && !currentCall) {
+      if (h.cid === cur) { incomingCall(true); return; }
+      // 跨桌面：目标必须在联系人名册内才自动切（防切到已删除桌面造成空命名空间），
+      // 切换成功后立即在归属桌面重响
+      if (h.cid && window.setActiveContact) {
+        let known = (h.cid === 'default');
+        try { if (window.getContacts) known = window.getContacts().some(c => c && c.id === h.cid); } catch (e) {}
+        if (known) {
+          try { window.setActiveContact(h.cid); } catch (e) {}
+          if ((window.__activeCid || 'default') === h.cid) { incomingCall(true); return; }
+        }
+      }
     }
-    notifyCallEnd(h.cid || (window.__activeCid || 'default'), heldMissedHtml(h.name || partnerName()), 'in', '未接听');
+    notifyCallEnd(h.cid || cur, heldMissedHtml(h.name || partnerName()), 'in', '未接听');
   }
   // 监听联系人重命名事件，实时同步通话昵称
   document.addEventListener('contact-renamed', (e) => {

@@ -3702,11 +3702,38 @@ try { console.log('[mochi-reply] replyOnce #%s quote=%s silent=%s', (window.__re
 try { await ensureReplyCardsReady(); } catch (e) {}
 const myCid = window.__activeCid || 'default';
 const sameCid = () => (window.__activeCid || 'default') === myCid;
-const rep = genOneReply(c);
+let rep = genOneReply(c);
 if (rep && rep.type === 'text' && typeof rep.text === 'string' && window.periodWarmText) {
 try { const _w = window.periodWarmText(rep.text); if (_w) rep.text = _w; } catch (e) {}
 }
-const m = addIn(rep.text, { quote: quote, qside: 'out', qidx: quote ? quoteIdx : undefined, type: rep.type, parts: rep.parts, silent: silent });
+// #298 词典拼字：开关开启时按「拼字概率」把本条回复换成「语录/字卡池抽句→词典切词→逐词连发」；
+// 未命中或切不出 2~7 段时照常单条回复，下游（收藏/心情分享/情绪链/撤回/统计）全链路复用
+let spellSegs = null;
+try { spellSegs = (window.quoteSpellPick && window.quoteSpellPick(c)) || null; } catch (e) {}
+if (spellSegs && spellSegs.length > 1) {
+rep = { text: spellSegs.join(''), type: 'text', spell: spellSegs, parts: rep.parts || null };
+}
+let m = null;
+if (rep.spell) {
+for (let si = 0; si < rep.spell.length; si++) {
+if (si) {
+showTyping();
+await new Promise(r => setTimeout(r, randInt(900, 1800)));
+if (!sameCid()) { hideTyping(); return; }
+hideTyping();
+}
+m = addIn(rep.spell[si], {
+quote: si === 0 ? quote : null,
+qside: 'out',
+qidx: (si === 0 && quote) ? quoteIdx : undefined,
+type: 'text',
+parts: si === rep.spell.length - 1 ? rep.parts : null,
+silent: si > 0 ? true : silent
+});
+}
+} else {
+m = addIn(rep.text, { quote: quote, qside: 'out', qidx: quote ? quoteIdx : undefined, type: rep.type, parts: rep.parts, silent: silent });
+}
 const _favProbMsg = (window.favCfg ? window.favCfg().taMsg : 30);
 if (lastMineText && Math.random() * 100 < _favProbMsg) {
 const fav = getFav();
@@ -4959,8 +4986,14 @@ const st = card.querySelector('.msg-rp-status');
 if (st) st.textContent = rpStatusText(rec);
 return true;
 }
+// v3.28.x：TA 每日发红包上限次数可设——对话设置「TA 每日发红包上限」cs-rp-daily-max
+// （每联系人独立，默认 5，0=不限），chat-settings.js 写同一键
+function rpDailyMax() {
+try { const v = parseInt(store.get('cs-rp-daily-max'), 10); if (isFinite(v) && v >= 0) return v; } catch (e) {}
+return 5;
+}
 function trySystemAutoSend() {
-if (rpDailyCount() >= 5) return;
+if (rpDailyCount() >= rpDailyMax()) return;
 // v3.6.x：TA 自动红包概率可调——读对话设置「红包-自动发红包概率」cs-rp-auto-prob（每联系人独立，默认 4%）
 let baseRate = 0.04;
 try { const ap = window.activeStore ? window.activeStore().get('cs-rp-auto-prob') : null; const pv = parseFloat(ap); if (pv !== null && isFinite(pv)) baseRate = Math.max(0, Math.min(100, pv)) / 100; } catch (e) {}
@@ -5005,9 +5038,16 @@ const k = ASK_DAILY_PREFIX + new Date().toISOString().slice(0, 10);
 store.set(k, String((Number(store.get(k)) || 0) + 1));
 }
 // v3.15.x：TA 也会随机「向 Mochi 申请」心意币——金额与红包同款随机分布（genRpAmount），
-// 概率门读取存钱罐右上角设置的申请概率（默认 4%，不沿用红包七夕加成），无次数上限；
+// 概率门读取存钱罐右上角设置的申请概率（默认 4%，不沿用红包七夕加成）；
+// v3.28.x：每日申请次数上限可设——存钱罐设置第四步写根键 piggy-coin-ask-limit（默认 0=不限）；
 // 入 TA 的 systemBalance，聊天留 askcoin 卡片
+function askDailyMax() {
+try { const v = parseInt((window.xyStore('xy-home-v2')).get('piggy-coin-ask-limit'), 10); if (isFinite(v) && v >= 0) return v; } catch (e) {}
+return 0;
+}
 function trySystemAskMochi() {
+const askMax = askDailyMax();
+if (askMax > 0 && askDailyCount() >= askMax) return;
 let baseRate = 0.04;
 try { const p = JSON.parse((window.xyStore('xy-home-v2')).get('piggy-coin-prob') || 'null'); if (p && typeof p.ask === 'number') baseRate = p.ask; } catch (e) {}
 if (Math.random() >= baseRate) return;

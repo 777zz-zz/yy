@@ -482,11 +482,12 @@
   margin:0 0 14px; }
 .desk-period .dpd-inner {
   position:absolute; left:0; right:0; top:0; bottom:0;
+  padding-bottom:26px; /* v3.26.x #291 经期卡文字重叠：Gecko 系（雨见/Firefox）默认行高更高，居中列无底部预留时 dpd-sub 尾边越过绝对定位的进度条说明 dpd-bar-cap 顶边＝叠字（Chrome 默认行高恰好擦边幸免，故只在部分浏览器现形）；下方 label/sub 显式行高把布局跨浏览器确定化 */
   display:flex; flex-direction:column; align-items:center; justify-content:center;
 }
-.desk-period .dpd-label { font-size:13px; color:var(--ink,#1a1a1a); }
+.desk-period .dpd-label { font-size:13px; line-height:1.25; color:var(--ink,#1a1a1a); }
 .desk-period .dpd-days { font-size:50px; font-weight:700; color:var(--ink,#111); margin:10px 0; line-height:1.1; }
-.desk-period .dpd-sub { font-size:13px; color:var(--muted,#666); }
+.desk-period .dpd-sub { font-size:13px; line-height:1.25; color:var(--muted,#666); }
 /* v3.26.x：经期卡内容补充——左上角阶段标签 + 底部周期进度条。
    已在 160px 高度内（居中三行 + 顶部标签 + 底部进度条均不重叠），
    进度条轨道用 var(--card-border) 适配明暗主题。 */

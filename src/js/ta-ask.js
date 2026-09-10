@@ -455,6 +455,21 @@
     try { store.set(KEY, JSON.stringify(d)); } catch (e) {}
   }
 
+  // v3.26.x #291：问卷答题结束时间——settings.deadline 存毫秒时间戳（0=未设置）。
+  // 过点后：不再自动/手动发出新询问，已发出的询问卡（文字/单选）也不能再作答。
+  function askDeadlineMs(d) {
+    const v = (d && d.settings && d.settings.deadline) || 0;
+    return (typeof v === 'number' && v > 0) ? v : 0;
+  }
+  function askDeadlinePassed(d) {
+    const dl = askDeadlineMs(d);
+    return dl > 0 && Date.now() > dl;
+  }
+  function fmtDeadlineLocal(ts) {
+    const dt = new Date(ts), p = n => (n < 10 ? '0' : '') + n;
+    return dt.getFullYear() + '-' + p(dt.getMonth() + 1) + '-' + p(dt.getDate()) + 'T' + p(dt.getHours()) + ':' + p(dt.getMinutes());
+  }
+
   // 随机取一道已启用的题（优先用户自定义/启用的）
   // v3.6.x：settings.useDefault=false 时不抽取系统预设（isPreset）题——但题库里保留，重新开启即可恢复；
   // 返回完整问题对象（含 type/options，供 pushAsk 判断单选题）
@@ -547,6 +562,8 @@
       const d = taAskLoad();
       const s = d.settings || { enabled: true, prob: 5, popupProb: 70 };
       if (s.enabled === false) return;
+      // v3.26.x #291：过了问卷答题结束时间后不再自动发出新询问
+      if (askDeadlinePassed(d)) return;
       if (Date.now() - (d.lastAskAt || 0) < 45 * 60000) return;
       // v3.13.x：全局闸门——任一互动卡发出后 60 分钟内不再自动触发
       if (!interactGateOk()) return;
@@ -590,6 +607,8 @@
   // ---- 回答弹窗（点击聊天里的询问卡片触发） ----
   window.openAskReply = function (msgIdx) {
     if (!window.openModal) return;
+    // v3.26.x #291：过了问卷答题结束时间后询问卡不能再作答
+    if (askDeadlinePassed(taAskLoad())) { toast('已过问卷答题结束时间，不能再作答'); return; }
     msgIdx = locateCardIdx(msgIdx, 'ask-card', 'askStatus');
     if (msgIdx < 0) return;
     // 读聊天记录拿问题
@@ -629,6 +648,8 @@
       const rec = getCardAt(msgIdx);
       // deskCk 查岗卡也走 ask-card，但不属于"TA的询问"，不进提问记录
       if (rec && rec.deskCk) return _origChatAskReply.call(this, msgIdx, answer, reply);
+      // v3.26.x #291：过了问卷答题结束时间后询问卡不能再作答（文字/单选两条路径都经此统一拦截）
+      if (askDeadlinePassed(taAskLoad())) { toast('已过问卷答题结束时间，不能再作答'); return undefined; }
       const askTs = rec && rec.askTs ? rec.askTs : null;
       const question = rec ? (rec.askQuestion || rec.text || '') : '';
       const result = _origChatAskReply.call(this, msgIdx, answer, reply);
@@ -657,6 +678,8 @@
   // 触发一次询问（供管理页按钮 / 更多功能面板共用；遵循"自动弹窗概率"）
   window.triggerTaAskNow = function () {
     const d = taAskLoad();
+    // v3.26.x #291：过了问卷答题结束时间后不允许手动再问
+    if (askDeadlinePassed(d)) { toast('已过问卷答题结束时间，不再发出询问'); return; }
     const q = taAskPick(d);
     if (!q) { toast('题库没有启用的问题'); return; }
     const s = d.settings || { enabled: true, prob: 5, popupProb: 70 };
@@ -684,6 +707,10 @@
     const pp = askPopupProb(s);
     if (popEl) popEl.value = pp;
     if (popVal) popVal.textContent = pp + '%';
+    // v3.26.x #291：问卷答题结束时间回显（datetime-local 本地格式，0=空）
+    const dlEl = document.getElementById('ta-ask-deadline');
+    const dl = askDeadlineMs(d);
+    if (dlEl) dlEl.value = dl ? fmtDeadlineLocal(dl) : '';
   }
   const askEn = document.getElementById('ta-ask-enable');
   if (askEn) askEn.addEventListener('change', () => {
@@ -718,6 +745,24 @@
     if (v) v.textContent = askPopup.value + '%';
     toast('弹窗概率已设为 ' + askPopup.value + '%');
   });
+  // v3.26.x #291：问卷答题结束时间——设置/清除
+  const askDeadlineEl = document.getElementById('ta-ask-deadline');
+  if (askDeadlineEl) askDeadlineEl.addEventListener('change', () => {
+    const d = taAskLoad();
+    const t = askDeadlineEl.value ? new Date(askDeadlineEl.value).getTime() : 0;
+    d.settings.deadline = (t && !isNaN(t)) ? t : 0;
+    taAskSave(d);
+    toast(d.settings.deadline ? '答题结束时间已设置：' + askDeadlineEl.value.replace('T', ' ') : '答题结束时间已清除');
+  });
+  const askDeadlineClear = document.getElementById('ta-ask-deadline-clear');
+  if (askDeadlineClear) askDeadlineClear.addEventListener('click', () => {
+    const d = taAskLoad();
+    if (!askDeadlineMs(d)) { toast('尚未设置答题结束时间'); return; }
+    d.settings.deadline = 0;
+    taAskSave(d);
+    if (askDeadlineEl) askDeadlineEl.value = '';
+    toast('答题结束时间已清除');
+  });
   renderAskSettings();
 
   // ================= 批量导入问题（v3.6.x：一行一个问题，导入到所选分类） =================
@@ -733,17 +778,34 @@
   }
   if (batchCatEl && batchTextEl && batchAddBtn) {
     rebuildAskBatchCatSelect();
+    bindTaInpClears(batchTextEl.parentElement);
     batchAddBtn.addEventListener('click', () => {
       const parsed = window.cardGroups.parseCatVal(batchCatEl.value);
       if (!parsed) { toast('请先选择要导入的分类或分组'); return; }
       const lines = (batchTextEl.value || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-      if (!lines.length) { toast('请先输入问题，每行一个'); return; }
+      if (!lines.length) { toast('请先输入问题，每行一个；单选题第一行用【问题】，下面每行一个选项'); return; }
+      // v3.26.x #291：批量导入支持单选题——【问题】开头的行开一道单选题，其后到下一个【】之间每行一个选项；
+      // 普通行仍按「一行一个问题」导入（选项不足 2 个时按普通文字题导入）
       const d2 = taAskLoad();
-      lines.forEach(t => {
-        const q = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 9999), text: t, cat: parsed.cat || 'daily', enabled: true, isPreset: false };
+      let cur = null, imported = 0, singles = 0;
+      const flush = () => {
+        if (!cur) return;
+        const q = { id: 'q_' + Date.now() + '_' + Math.floor(Math.random() * 9999), text: cur.text, cat: parsed.cat || 'daily', enabled: true, isPreset: false };
         if (parsed.grp) q.grp = parsed.grp;
+        if (cur.opts.length >= 2) { q.type = 'single'; q.options = cur.opts.slice(); singles++; }
         d2.questions.push(q);
+        imported++;
+        cur = null;
+      };
+      lines.forEach(t => {
+        const m = t.match(/^【(.+?)】$/);
+        if (m) { flush(); if (m[1].trim()) cur = { text: m[1].trim(), opts: [] }; return; }
+        if (cur) { cur.opts.push(t); return; }
+        cur = { text: t, opts: [] };
+        flush();
       });
+      flush();
+      if (!imported) { toast('没有可导入的问题'); return; }
       taAskSave(d2);
       let label;
       if (parsed.grp) {
@@ -754,7 +816,7 @@
       }
       batchTextEl.value = '';
       renderAskMineWithForms();
-      toast('已导入 ' + lines.length + ' 个问题到' + label);
+      toast('已导入 ' + imported + ' 个问题' + (singles ? '（含 ' + singles + ' 道单选题）' : '') + '到' + label);
     });
   }
 
@@ -861,6 +923,22 @@
       '<button class="ta-del" data-idx="' + idx + '">✕</button>' +
       '</div>';
   }
+  // v3.26.x #292：输入栏一键清空 ✕（同「帮我决定」.dec-inp-clear 款式，样式/暗色为全局 CSS）——
+  // 手机端 contenteditable 转换的幽灵 input：value 已代理到 box，box 用 textContent 清空
+  function bindTaInpClears(root) {
+    if (!root) return;
+    root.querySelectorAll('.dec-inp-clear').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ta = document.getElementById(btn.dataset.clear);
+        if (!ta) return;
+        const box = ta.__ceBox;
+        if (box) box.textContent = '';
+        else ta.value = '';
+        ta.focus();
+        toast('已清空');
+      });
+    });
+  }
   // 内联添加表单（blockKey 唯一用于输入框 id；grp 可选=添加后归入该分组；cat 为条目的系统分类）
   function askAddFormHtml(blockKey, grp, cat) {
     return '<div class="ta-add">' +
@@ -868,9 +946,9 @@
       '<option value="text">文字回复</option>' +
       '<option value="single">单选题</option>' +
       '</select>' +
-      '<input id="ta-new-' + blockKey + '" type="text" placeholder="添加问题…">' +
+      '<div class="dec-inp-wrap ta-inp-flex"><input id="ta-new-' + blockKey + '" type="text" placeholder="添加问题…"><button type="button" class="dec-inp-clear" data-clear="ta-new-' + blockKey + '" aria-label="清空" title="清空">✕</button></div>' +
       '<button class="ta-add-btn" data-key="' + blockKey + '" data-cat="' + (cat || 'daily') + '" data-grp="' + (grp || '') + '">添加</button>' +
-      '<textarea id="ta-opts-' + blockKey + '" class="ta-opts tc-input" rows="3" placeholder="每行一个选项。可写 选项~TA回应；多条回应用 ; 分隔，如 听我说说话~好，我在听。;嗯，你慢慢说。" hidden></textarea>' +
+      '<div class="dec-inp-wrap ta-opts-flex"><textarea id="ta-opts-' + blockKey + '" class="ta-opts tc-input" rows="3" placeholder="每行一个选项。可写 选项~TA回应；多条回应用 ; 分隔，如 听我说说话~好，我在听。;嗯，你慢慢说。" hidden></textarea><button type="button" class="dec-inp-clear" data-clear="ta-opts-' + blockKey + '" aria-label="清空" title="清空">✕</button></div>' +
       '</div>';
   }
   function renderAskMineWithForms(search) {
@@ -910,6 +988,8 @@
     });
     html += '</div>';
     mineCatsEl.innerHTML = html;
+    // v3.26.x #292：添加表单重新渲染后重绑一键清空 ✕
+    bindTaInpClears(mineCatsEl);
     mineCatsEl.querySelectorAll('input[data-idx]').forEach(cb => {
       cb.addEventListener('change', () => {
         const d2 = taAskLoad();
@@ -934,7 +1014,8 @@
         if (!o) return;
         o.hidden = sel.value !== 'single';
         if (o.__ceBox) o.__ceBox.hidden = o.hidden;
-        else if (o.nextElementSibling && o.nextElementSibling.classList && o.nextElementSibling.classList.contains('ce-box')) o.nextElementSibling.hidden = o.hidden;
+        // #292：textarea 已包进 .dec-inp-wrap（旁边是清空按钮），ce-box 兜底改为按父容器扫
+        else if (o.parentElement) o.parentElement.querySelectorAll('.ce-box').forEach(b => { b.hidden = o.hidden; });
       };
       sel.addEventListener('change', toggleOpts);
       toggleOpts();

@@ -1904,6 +1904,11 @@
   padding:9px 12px; font-size:13px; font-family:inherit; outline:none; background:#fff; color:var(--ink);
   resize:vertical; line-height:1.5;
 }
+/* v3.26.x #292：问问ta 添加表单/批量导入复用「帮我决定」一键清空 ✕（.dec-inp-wrap/.dec-inp-clear 全局款）——包装层接管原输入框的 flex 位，框内右侧留白给按钮 */
+.ta-add .dec-inp-wrap.ta-inp-flex { flex:1; min-width:0; }
+.ta-add .dec-inp-wrap.ta-opts-flex { flex:1 0 100%; }
+.ta-add .dec-inp-wrap input,
+.ta-add .dec-inp-wrap .ta-opts { padding-right:38px; box-sizing:border-box; }
 .ta-add .ta-opts[hidden] { display:none; }
 /* v3.23.x：设置页添加表单的选项框（安卓转 .ce-box）同样限高 + 框内滚动，
    防止选项多时把「添加」按钮顶出屏外（对齐 #chat-ask-opts / dec-opts 修法） */
@@ -4033,5 +4038,70 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 .coin-bal-single { font-size:44px; font-weight:700; color:var(--ink,#222); line-height:1.1; font-variant-numeric:tabular-nums; text-align:center; }
 .coin-bal-single i { font-style:normal; font-size:22px; color:#c98a2b; margin-right:2px; }
 
-/* v3.26.x�����ʼ�¼���ش��ǩ��TA �����ʡ��û�δ�ش� */
+/* v3.26.x聊天记录待回标签（TA未回答、你没有未回答） */
 .tc-li-pending { display:inline-block; font-size:11px; font-weight:600; color:#fff; background:#e0a458; border-radius:5px; padding:1px 7px; margin-top:6px; line-height:1.6; }
+
+/* ===== 小游戏四连（#297）：五子棋 / 连连看 / 消消乐 / 心意币拍卖会 =====
+   全部复用 .poke-card 半框 + .pong-overlay 覆盖层 + .ms-diffs/.ms-diff 难度 pills +
+   .c4-dot 回合指示 + .pong-foot 脚注 + .snake-head-actions/.snake-icon-btn/.snake-diff 头部控件 */
+
+/* ---- 五子棋：11×11 木质迷你盘 ---- */
+.gk-wrap { display:flex; flex-direction:column; align-items:center; gap:10px; padding:6px 4px 4px; }
+.gk-stage { position:relative; width:100%; display:flex; justify-content:center; }
+.gk-board { display:grid; grid-template-columns:repeat(11,1fr); background:linear-gradient(160deg,#eed3a0,#e3bd7f); border:2px solid #b98a45; border-radius:8px; box-shadow:inset 0 1px 4px rgba(0,0,0,.12); user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+[data-theme="dark"] .gk-board { background:linear-gradient(160deg,#4d4335,#3d3529); border-color:#6b5a3e; }
+.gk-cell { position:relative; box-sizing:border-box; border-right:1px solid rgba(90,60,20,.18); border-bottom:1px solid rgba(90,60,20,.18); cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.gk-cell:nth-child(11n) { border-right:none; }
+.gk-cell:nth-last-child(-n+11) { border-bottom:none; }
+.gk-stone { position:absolute; inset:9%; border-radius:50%; z-index:1; box-shadow:0 1px 3px rgba(0,0,0,.28); }
+.gk-you { background:radial-gradient(circle at 34% 30%, #5a5f68 0 30%, #16181d 100%); }
+.gk-ta { background:radial-gradient(circle at 34% 30%, #ffffff 0 32%, #cfd4da 100%); }
+.gk-stone.gk-last::after { content:''; position:absolute; inset:38%; border-radius:50%; background:#e0524d; }
+.gk-stone.gk-win { outline:2px solid #ffb347; outline-offset:-2px; }
+.gk-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
+
+/* ---- 连连看：图案牌两折连线 ---- */
+.lk-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
+.lk-info { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:12px; color:var(--muted); }
+.lk-stage { position:relative; width:100%; display:flex; justify-content:center; }
+.lk-board { display:grid; gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+.lk-tile { display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg,#ffffff,#eef1f6); border:1px solid rgba(0,0,0,.1); border-radius:9px; box-shadow:0 1px 2px rgba(0,0,0,.08); cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:opacity .18s, transform .18s; }
+[data-theme="dark"] .lk-tile { background:linear-gradient(180deg,#3a4048,#2c3138); border-color:rgba(255,255,255,.12); }
+.lk-tile.lk-gone { opacity:0; transform:scale(.6); pointer-events:none; }
+.lk-tile.lk-sel { outline:2px solid #5b8ff9; transform:translateY(-2px); }
+.lk-tile.lk-hint { outline:2px solid #ffb347; animation:pairgame-blink .6s ease-in-out 3; }
+.lk-tile.lk-shake { animation:pairgame-shake .3s; }
+.lk-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
+
+/* ---- 消消乐：8×8 三消 ---- */
+.m3-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
+.m3-info { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:12px; color:var(--muted); }
+.m3-stage { position:relative; width:100%; display:flex; justify-content:center; }
+.m3-board { display:grid; grid-template-columns:repeat(8,1fr); gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+.m3-tile { display:flex; align-items:center; justify-content:center; background:rgba(127,127,127,.09); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:transform .12s; }
+[data-theme="dark"] .m3-tile { background:rgba(255,255,255,.08); }
+.m3-tile.m3-sel { outline:2px solid #5b8ff9; transform:scale(1.1); }
+.m3-tile.m3-hint { outline:2px solid #ffb347; animation:pairgame-blink .6s ease-in-out 3; }
+.m3-tile.m3-shake { animation:pairgame-shake .3s; }
+.m3-tile.m3-pop { transform:scale(1.28); opacity:.3; }
+.m3-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
+
+@keyframes pairgame-blink { 50% { outline-color:transparent; } }
+@keyframes pairgame-shake { 25% { transform:translateX(-3px); } 75% { transform:translateX(3px); } }
+
+/* ---- 心意币拍卖会：拍品卡 + 举牌按钮排 ---- */
+.au-wrap { display:flex; flex-direction:column; align-items:center; gap:10px; padding:6px 4px 4px; }
+.au-topbar { display:flex; justify-content:space-between; align-items:center; width:100%; font-size:12px; color:var(--muted); }
+.au-balance { font-variant-numeric:tabular-nums; }
+.au-stage { position:relative; width:100%; }
+.au-item { display:flex; flex-direction:column; align-items:center; gap:5px; padding:14px 8px 12px; border:1px solid rgba(127,127,127,.22); border-radius:12px; background:rgba(127,127,127,.06); }
+.au-ico { font-size:50px; line-height:1.15; }
+.au-name { font-size:16px; font-weight:600; }
+.au-desc { font-size:12px; color:var(--muted); }
+.au-bid { margin-top:3px; font-size:15px; font-weight:700; color:#c2571f; font-variant-numeric:tabular-nums; }
+[data-theme="dark"] .au-bid { color:#ffb37a; }
+.au-bids { display:flex; gap:7px; width:100%; }
+.au-bids .pong-overlay-btn { flex:1; padding-left:2px; padding-right:2px; }
+.au-bids button:disabled { opacity:.45; }
+.au-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
+.au-ov-ico { font-size:44px; margin-bottom:4px; line-height:1.2; }

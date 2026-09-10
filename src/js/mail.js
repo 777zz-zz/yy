@@ -598,6 +598,8 @@
       // v3.6.x：最少/最多字卡条数（回复设置-信箱可调；默认 20~50）
       minCards: c['ml-min-cards'] !== undefined ? Number(c['ml-min-cards']) : 20,
       maxCards: c['ml-max-cards'] !== undefined ? c['ml-max-cards'] : 50,
+      // #296：写信总开关裸读（不走 prob()——prob 把 0 兜底回默认值，开关关闭=0 必须原样保留）
+      writeEn: c['ml-write-en'] !== undefined ? Number(c['ml-write-en']) : 1,
       writeProb: prob('ml-write-prob', 30),
       writeMin: c['ml-write-min'] !== undefined ? c['ml-write-min'] : 1,
       writeMax: c['ml-write-max'] !== undefined ? c['ml-write-max'] : 120,
@@ -624,6 +626,7 @@
     try {
       const s = window.storeFor(cid);
       [['ml-min-cards', 'minCards'], ['ml-max-cards', 'maxCards'],
+       ['ml-write-en', 'writeEn'],
        ['ml-write-prob', 'writeProb'], ['ml-write-min', 'writeMin'], ['ml-write-max', 'writeMax'],
        ['ml-write-daily-max', 'dailyMax'], ['ml-reply-prob', 'replyProb'],
        ['ml-reply-min', 'replyMin'], ['ml-reply-max', 'replyMax'],
@@ -824,6 +827,8 @@
       const now = Date.now();
       // v3.12.x：按该联系人桌面读设置（每天最多写信/概率/间隔各自独立生效）
       const cfg = mailCfgFor(cid);
+      // #296：联系人主动写信总开关——关闭后本桌面 TA 不再主动来信（回信/摸鱼小结不受影响）
+      if (!cfg.writeEn) return;
       let last = letterLast(cid), next = letterNext(cid);
       if (last > now || last < 0 || isNaN(last)) { last = 0; next = 0; }
       if ((now - last) / 60000 < next) return;

@@ -664,19 +664,14 @@ body.cs-time-divider .msg-time-divider { display:flex; }
 #chat-decision-panel { height:auto; max-height:68%; }
 #chat-decision-panel .poke-card-scroll { min-height:0; max-height:none; }
 /* 甯垜鍐冲畾銆岃嚜瀹氫箟閫夐」銆嶏細閫夐」杈撳叆妗嗗湪瀹夊崜琚浆鎴?contenteditable .ce-box锛?   榛樿浼氶殢琛屾暟鏃犱笂闄愬楂橈紝鎶婁笅鏂规帶浠堕《鍑哄睆骞曚笖鏁存鏃犳硶涓婂垝銆?   璁鹃珮搴︿笂闄?+ 妗嗗唴婊氬姩锛岃閫夐」澶氱殑鍦烘櫙涔熻兘姝ｅ父婊氬姩鏌ョ湅銆?*/
-#chat-decision-body .dec-inp-wrap .ce-box[data-for="dec-opts"] {
-  max-height:176px;
-  overflow-y:auto;
-  overscroll-behavior:contain;
-}
+/* FIX 2026-09-11：输入法（键盘）弹出期选项框聚焦、手指在其上起滑时，contain 会连
+   「框内无内容可滚」的滚动链也一并拦断 → 外层 .poke-card-scroll 整卡无法上滑（两处
+   决定面板同款反馈）。改 auto：框内溢出仍先在框内滚，到边界/无溢出时放行给面板 */
+#chat-decision-body .dec-inp-wrap .ce-box[data-for="dec-opts"] { max-height:176px; overflow-y:auto; overscroll-behavior:auto; }
 /* 多人决定「自定义选项」同款：安卓被转成 contenteditable ce-box 后，gd-opts 原漏了
    高度上限，选项输入框随内容无限增高，把下方控件顶出屏幕且整列无法上划（同 dec-opts
    修法）——补上 高度上限 + 框内滚动 */
-#chat-gdecision-body .dec-inp-wrap .ce-box[data-for="gd-opts"] {
-  max-height:176px;
-  overflow-y:auto;
-  overscroll-behavior:contain;
-}
+#chat-gdecision-body .dec-inp-wrap .ce-box[data-for="gd-opts"] { max-height:176px; overflow-y:auto; overscroll-behavior:auto; }
 .poke-big {
   flex-shrink:0; display:flex; align-items:center; justify-content:center; gap:6px;
   margin-top:12px; padding:12px; border:none; border-radius:14px;

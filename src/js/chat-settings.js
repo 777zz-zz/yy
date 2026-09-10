@@ -1503,6 +1503,31 @@
     if (typeof csAddSync === 'function') csAddSync(rpProbSync);
   }
 
+  // v3.28.x：TA 每日发红包上限次数（每联系人独立，默认 5，0=不限）。存 cs-rp-daily-max，
+  // chat.js trySystemAutoSend 读同一键做当日自动发红包次数闸门。
+  const csRpDailyMax = row('cs-rp-daily-max');
+  if (csRpDailyMax) {
+    const rpMaxGet = () => {
+      let v = null; try { v = parseInt(store.get('cs-rp-daily-max'), 10); } catch (e) {}
+      return (v !== null && isFinite(v) && v >= 0) ? v : 5;
+    };
+    const rpMaxSync = () => { const el = document.getElementById('cs-rp-daily-max-val'); if (el) el.textContent = rpMaxGet() === 0 ? '不限' : rpMaxGet() + ' 次'; };
+    rpMaxSync();
+    csRpDailyMax.addEventListener('click', () => {
+      if (!window.openModal) return;
+      window.openModal('TA 每日发红包上限（0-99 次·0=不限）', String(rpMaxGet()), (v) => {
+        let n = parseInt(String(v || '').trim(), 10);
+        if (!isFinite(n)) n = 5;
+        n = Math.max(0, Math.min(99, n));
+        store.set('cs-rp-daily-max', String(n));
+        rpMaxSync();
+        toast(n === 0 ? '已设置：TA 每日发红包不限次数' : '已设置：TA 每天最多发 ' + n + ' 个红包');
+      }, { maxlength: 2 });
+    });
+    document.addEventListener('contact-switched', rpMaxSync);
+    if (typeof csAddSync === 'function') csAddSync(rpMaxSync);
+  }
+
   // v3.12.x：「隐藏联系人的表情包」开关——默认关闭，全局生效（存根命名空间，与
   // my-emoji-groups 全局化同口径：聊天/朋友圈表情包面板是跨桌面共用 UI，不随桌面切换）。
   // 开启后聊天与朋友圈的表情包面板只显示「我的表情包」，不再显示 TA 的/公用表情包。

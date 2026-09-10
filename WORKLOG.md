@@ -1,3 +1,38 @@
+### 2026-09-11（#291 用户报障 OPPO Reno6 5G + 雨见浏览器(Firefox152)：①「聊天界面滚动特别卡、回答不了卡片问题、退不出去要大退」②「经期组件文字有重叠」——本次构建者：本会话（AI-B），收口 #291 本批 + 树上 #289~#300 全部已声明完整在途批）
+- [跨域改动（AI-A 名下 src/css/home.css，理由：经期桌面卡文字重叠为纯 CSS 几何修复，dpd-inner 底部预留+两行显式行高，period.js 无需动）+ AI-B 域 build.mjs/FIX-REGRESSION.md/WORKLOG.md]（**改动文件：src/css/home.css、build.mjs（#291 哨兵 +1、v3.32.x 老 gd-opts needle 随 #295 单行化同步校正）、FIX-REGRESSION.md（+291 行）、tools/verify-period-desk-card.mjs（新增 6 断言）、WORKLOG.md + 产物 index.html/sw.js/version.json**；构建状态：**已构建·整树收口**）。
+- ①聊天滚动卡顿：诊断实证 IDB cmtqatpcu6de:chat-msgs=48.1MB/2529 条＝#283 同族根因（历史语音整份内联、每次落盘 clone 整包＝长任务+GC 风暴＝滚动卡/点不动/退不出），修复已随并行批 74e5a00 入库、本批产物带上；更新后首次打开聊天页约 12s 后台跑一次性语音令牌化迁移，chat-msgs 应降至 MB 级。另诊断错误环 `redeclaration of let JSInterface`/`JSInterface.sysonSelectTextChange is not a function` 在 src 全库 grep 零命中＝雨见浏览器自身注入脚本报的错，与本应用无关、无需处理。
+- ②经期桌面卡文字重叠根因（详见 FIX-REGRESSION #291）：160px 卡内 .dpd-inner 绝对居中无底部预留，Gecko 默认行高更高，dpd-sub 尾边越过绝对定位进度条说明 dpd-bar-cap 顶边＝叠字（Chrome 擦边幸免故仅部分浏览器现形）。修复：dpd-inner `padding-bottom:26px` + dpd-label/dpd-sub `line-height:1.25`。
+- 验证：构建哨兵 636/636 全绿哑 0、sw 15/15；verify-period-desk-card **6/6**（360×800 无头实测间距 11.6px/Gecko 加压 7px，修复前算术叠字 -1.4px＝脚本有牙）；verify-voice-pool 9/9、verify-desk-beauty 17/17、verify-desk-layout-guard 10/10、verify-applock 61/61；verify:all 汇总 173 过/77 断言失败/2 环境/7 超时（失败为在册存量红项口径，本批触碰区域脚本全绿）。收口备注：#295 把 gd-opts 限高行并成单行致 v3.32.x 老 needle 失配，已随代码形态同步校正（构建拦截生效一次＝防线有牙）。
+- 【真机:待验证】（OPPO Reno6/雨见 优先）：①更新后打开聊天页→滚动恢复、能答字卡、能退出，诊断 chat-msgs 降到 MB 级；②桌面经期卡 经期中/排卵期/未记录 三态文字不再叠字；③打卡后刷新重进按钮直接「✓ 已打卡」（#289）。
+- 编号说明：顺延 #291（#287~#290 已被并行批占用；#292~#300 各批 src 本批一并收口入库，各自真机验证项见各条目）。观察项（不在本批动）：cc-groups-public 公用字卡库已达 33.73MB，chatcard 侧已有解析缓存，若后续仍有点开卡顿再立项收口。
+
+### 2026-09-11（#300 两项每日次数上限可设：TA 申请心意币上限 + TA 发红包上限——本次构建者：非本会话，src 已改待收口）
+- [AI-A 域 src/js/chat.js + src/js/chat-settings.js + src/js/p2-features.js + WORKLOG.md]（**构建状态：未构建**；node --check 三文件过，--check-sentinels 636 全绿哑 0）。
+- 需求：①联系人申请心意币新增「每日申请上限次数」可自由设置；②红包新增「联系人每日发红包上限次数」可自由设置。现状：发红包原为写死 5 次/日（chat.js trySystemAutoSend `rpDailyCount() >= 5`），且 template.html 已预置设置行 #cs-rp-daily-max 但两端均未接线；申请则计数器（ml2_ask_daily_*）已有但完全无上限。
+- 方案：①红包——chat-settings.js 新增 #cs-rp-daily-max 行点击弹窗（存对话键 cs-rp-daily-max，每联系人独立，默认 5，0=不限，显示「N 次/不限」），chat.js 新增 rpDailyMax() 读同键替换写死 5；②申请——存钱罐右上角设置弹窗由三步扩为四步，第四步「申请每日上限（0-999，0=不限）」存根键 piggy-coin-ask-limit（默认 0=不限，向后兼容），chat.js trySystemAskMochi 开头读 askDailyMax() 闸门（>0 时 askDailyCount 达限即早退，不再 incr/入账/发卡）。上限计数复用既有当日计数器，跨天自动清零逻辑不变。
+- 验证：node --check ×3 过；node build.mjs --check-sentinels 全绿。待构建者收口构建 + 复跑 verify:all。
+- 待对方处理：template.html 里 #cs-rp-daily-max 行注释标「v3.27.x #297」与现行编号批次冲突（#297 已被小游戏四连批占用），本次功能按 **#300** 登记，template 注释未改（template.html 属 AI-B 域，请对方顺手改号或忽略）。
+
+### 2026-09-11（#299 开屏问答「输暗号跳过」弹窗补提示文案——用户要求新增提示【时间就在开屏里可以找到…】——本次构建者：非本会话，src 已改待收口）
+- [src/js/applock.js（仅 qaSkipAsk 弹窗 sub 文案一行追加，逻辑零改动）+ WORKLOG.md]（**构建状态：未构建**）。
+- 需求：跳过开屏问答的暗号弹窗新增提示「时间就在开屏里可以找到，非常简单，解出请勿二传，这么简单真没必要二传。不输入暗号也不影响正常使用。」方案：追加到 qaSkipAsk 的 sub 说明文字末尾（applock.js，管理操作前置验证弹窗文案未动）。**追加（同日）**：按用户要求把「mochi 字卡出生日期」改写为「mochi 字卡生日的 4 位数字」，跳过弹窗与 596 行管理验证弹窗两处同改。验证：node --check 过；纯文案不涉哨兵。
+
+### 2026-09-11（#298 通话设置说明文案重写：用户报「总有人看不懂触发概率/为什么高概率」——本次构建者：非本会话，src 已改待收口）
+- [AI-B 域 src/template.html（仅 page-call-settings 的「通话概率」提示块一行重写，未动任何结构/锚点）+ WORKLOG.md]（**构建状态：未构建**——本会话磁盘临时区满、shell 不可用，无法执行 build.mjs/--check-sentinels，请收口者照常构建；本改动纯文案不涉及哨兵 needle）。
+- 需求：通话设置里用户看不懂来电概率怎么触发、为什么设得不高却来电很勤。方案：提示块重写为分块问答式——①触发机制列全 3 类「机会」（TA 每次回复掷一次 / TA 每次主动发消息掷一次 / 应用开着后台每 1~2 分钟兜底掷一次）+ 5 分钟冷却 + 设 0 永不来电；②新增「为什么设得不高却感觉来得挺勤」块：每次机会单独掷骰、非每日总概率，聊天越勤机会越多，举 15%×聊 20 句≈20 次掷骰的例子，调小 10 倍≈来电少 10 倍；③明确标注来电概率与通话中挂断概率均支持 0.01 粒度、最低可设 0.01（0.0几 都行），0.01≈每 100 次机会才响 1 次；接听/忙线/拒接/改数值两块保留原文。逻辑零改动（call.js / reply-settings.js 未动），无行为风险。
+
+### 2026-09-11（#297 小游戏四连上新：五子棋 / 连连看 / 消消乐 / 心意币拍卖会——用户点名四款加入【聊天更多功能→小游戏】——本次构建者：非本会话，src 已改待收口）
+- [AI-A 域 src/js/gomoku.js、src/js/linkup.js、src/js/match3.js、src/js/auction.js（四款全部新建）+ src/template.html + src/css/chat-pages.css + 跨域 src/js/mobile-adapt.js（FLOAT_SELECTORS / FLOAT_PANEL_SELECTORS 各 +4 个面板 id，跨域一词登记请知悉）+ 跨域 build.mjs（**仅 jsFiles 数组 +4**，未动 FIX_SENTINELS，理由：新文件必须登记才会被打包）/WORKLOG.md]（**构建状态：未构建**；发现 07:11 有并行产物 mtw55k0b 在途未台账、树上 #289~#296 多批未收口，本批按「禁止并行构建/提交」停手，收口时随树统一走）。顺带修复：chat-pages.css 文件尾一行 GBK 乱码注释按原文修复回「聊天记录待回标签」，无样式改动。
+- 四款玩法（骨架全复用现有游戏：.poke-card 半框 + TA 行为状态机 + activePrefix 战绩 + chatAddSystem/getInteractPool 字卡回应 + giftWalletChange 双方同额日封顶 ¥104 + Web Audio 音效 + 各文件自绑定入口不改 chat.js）：
+  - **五子棋 gomoku.js**：11×11 迷你盘 vs TA（手机半框放得下、节奏更快），三档难度同四子棋权重；TA = 候选打分（成五/活四/冲四/活三棋型分级，防守权重 0.9）+ 每回合重抽 认真/正常/放水/失误，玩家成五点连续无视超底线必堵；先手/战绩规则同四子棋，special:'gomoku'。
+  - **连连看 linkup.js**：合作轮流消除（经典 ≤2 拐角连线，棋盘外算空），难度 6×5/8×6/10×6；TA 每回合抽 smart 全盘扫对 / memory 只用「记得」的牌 / wild 随缘乱点（点错抖一下再认真找）；提示×3、洗牌×2、死锁自动洗牌，默契分结算，special:'linkup'。
+  - **消消乐 match3.js**：8×8 轮流交换相邻格凑三连、重力补落 + 连锁连消，共冲目标分（300/600/1000，头部下拉）；TA = 枚举全部可消步打分后按状态走 最优/前五随机/放水/手滑（无效交换先抖一下）；死锁自动洗牌，默契分结算，special:'match3'。
+  - **心意币拍卖会 auction.js**：每场 3 件拍品轮番举牌（＋¥1 / ＋¥5 / ＋¥13.14 / 不拍了）；TA 每件暗抽心理价位（底价 × 状态系数：eager 志在必得 / normal 常规 / stingy 抠门 / bluff 虚张声势，bluff 价位一到 35% 概率戳破）；我赢 = **真实扣款**（giftWalletGet/Set 直改，同心意集市购买路径，不进赚钱流水）+ 收进 🎒 拍品收藏（prefix:auction-items，头部 🎒 可查）；TA 拍走 / 流拍不动账本；余额不足自动禁用加价键；special:'auction'。
+- 接线清单（收口者请核对）：build.mjs jsFiles 已含四新文件（memory-game.js 之后、sfx.js 之前）；template.html 新增 more-gomoku / more-linkup / more-match3 / more-auction 四按钮（data-mcat="game"）+ chat-gomoku / chat-linkup / chat-match3 / chat-auction 四面板 + 功能介绍页 05 章（lg-count 9→13、入口行改 12 款、新增四行玩法说明、更多功能总览行同步）；mobile-adapt 两清单已登记（背景滚动锁 + 键盘停靠）；各游戏文件自带完整 hideIds + MutationObserver 兄弟互斥清单（含全部新旧半框 23 项）。
+- 验证：node --check 四新文件 + mobile-adapt.js / build.mjs 全过；`node build.mjs --check-sentinels` **636 全绿哑 0**（四新文件未删任何既有锚点，与 #296 批口径一致）。
+- 待对方处理：①收口构建（07:11 产物 mtw55k0b 无台账来源，请以本树 src 全量重建为准）；②notice.json 公告未补（同 #292/#296 口径，收口可顺带）；③真机验证：四游戏出现在 小游戏 分类、与既有半框互斥无叠开；五子棋 TA 会堵玩家的成五点；连连看无可连对时自动洗牌；消消乐无效交换回弹 + 连锁计分；拍卖会 余额不足禁用加价、落槌后心意柜余额同步减少、TA 拍走不扣款；四款结束均写聊天系统消息 + TA 回应。
+- 编号说明：原拟 #291~#294 已被并行批占用（#291 经期卡 / #292 问问ta / #293+#294 来电与通知头像 / #295 决定卡滚动 / #296 回复设置开关），本批改用 **#297** 一号覆盖四款（mobile-adapt.js / chat-pages.css 注释已同步改号）。
+
 ### 2026-09-11（#296 回复设置补「联系人主动写信/联系人主动发朋友圈」两个总开关——用户需求「【回复设置】里缺少关闭联系人写信/关闭联系人发布朋友圈的设置按钮」——本次构建者：非本会话，src 已改待收口）
 - [AI-A 域 src/js/reply-settings.js + src/js/mail.js + src/js/feed.js + src/template.html + 跨域 build.mjs（哨兵+2=636，仅 FIX_SENTINELS 数组尾部追加，理由：新功能防并行覆盖登记）/FIX-REGRESSION.md（+296 一行）/WORKLOG.md]（**构建状态：未构建**；树上 #289/#290/#292/#293/#294/#295 等多批在途，收口前请先核对 git status）。
 - 现状/根因：写信概率 ml-write-prob 走 mailCfg 的 prob() 兜底——存 0 会被回退默认 30（防旧坏数据的保护反而堵死「概率=0 关闭」的路）；朋友圈概率虽支持 0 但无一键总开关。

@@ -727,6 +727,7 @@
       <div class="gs-row"><span>使用系统预设问题</span><label class="toggle"><input type="checkbox" id="ta-ask-default" checked><span class="tk"></span></label></div>
       <div class="gs-row"><span>触发概率</span><input type="range" id="ta-ask-prob" min="1" max="100" step="1" class="tc-range"><span class="tc-prob-val" id="ta-ask-prob-val">5%</span></div>
       <div class="gs-row"><span>自动弹窗概率</span><input type="range" id="ta-ask-popup" min="0" max="100" step="1" class="tc-range"><span class="tc-prob-val" id="ta-ask-popup-val">70%</span></div>
+      <div class="gs-row"><span>问卷答题结束时间</span><input type="datetime-local" id="ta-ask-deadline" class="tc-input" style="flex:1;min-width:0;max-width:170px;padding:5px 8px;font-size:12px"><button id="ta-ask-deadline-clear" style="flex:none;margin-left:6px;padding:4px 10px;font-size:12px;border:1px solid var(--line,#e5e5e5);border-radius:8px;background:transparent;color:var(--muted,#999)">清除</button></div>
     </div>
     <div class="card-tabs" id="ta-ask-tabs" style="padding:6px 12px 8px">
       <button class="cc-tab sel" data-tab="sys">系统预设</button>
@@ -748,7 +749,7 @@
             <option value="interact">互动询问</option>
             <option value="world">两个世界</option>
           </select>
-          <textarea id="ta-ask-batch" class="tc-input" rows="6" placeholder="每行一个问题，如：&#10;你吃饭了吗？&#10;现在在做什么？&#10;今天过得怎么样？"></textarea>
+          <div class="dec-inp-wrap" style="flex:1 0 100%"><textarea id="ta-ask-batch" class="tc-input" rows="6" placeholder="每行一个问题，如：&#10;你吃饭了吗？&#10;现在在做什么？&#10;&#10;单选题格式：第一行【问题】，下面每行一个选项，如：&#10;【今晚想吃什么？】&#10;火锅&#10;烧烤&#10;寿司"></textarea><button type="button" class="dec-inp-clear" data-clear="ta-ask-batch" aria-label="清空" title="清空">✕</button></div>
           <button class="ta-add-btn" style="width:100%" id="ta-ask-batch-add">批量导入到所选分类</button>
         </div>
       </div>
@@ -1772,7 +1773,7 @@
           <div class="lic-li">可搜索聊天记录并跳转到对应位置</div>
           <div class="lic-li">聊天 + 按钮展开更多功能面板（互动 / 小游戏 / 工具 / TA的提问 四分类）：互动类——邀请TA、通话、拍一拍、红包、心意集市、心意柜、头像互动、漂流瓶</div>
           <div class="lic-li">「邀请TA」半框内置【我的邀请】字卡库：预设 + 自定义分组，可存入 / 修改 / 删除邀请字卡，点字卡即可重复发送</div>
-          <div class="lic-li">小游戏类——猜拳、Pong、贪吃蛇、打砖块、钓鱼、四子棋、扫雷、记忆翻牌；工具类——帮我决定、多人决定、问问TA、搜索记录、占卜、寻踪、此间、房间</div>
+          <div class="lic-li">小游戏类——猜拳、Pong、贪吃蛇、打砖块、钓鱼、四子棋、扫雷、记忆翻牌、五子棋、连连看、消消乐、拍卖会；工具类——帮我决定、多人决定、问问TA、搜索记录、占卜、寻踪、此间、房间</div>
           <div class="lic-li">「TA 的提问」面板：让 TA 现在问一次（询问 / 小问题 / 好奇 / 吐槽 / 邀请）</div>
           <div class="lic-li">贴贴邀请：TA 会主动发来贴贴 / 抱抱 / 牵手 / 靠着的邀请，同意有轻震回应，婉拒也有专属台阶文案</div>
           <div class="lic-li">TA 的查岗：温柔关心式查岗问题卡（单选 / 文字作答 / 互动动作），作答后 TA 会回应</div>
@@ -1833,9 +1834,13 @@
           </details>
 
           <details class="lic-grp">
-            <summary><span class="lg-num">05</span><span class="lg-name">小游戏</span><span class="lg-count">9</span></summary>
+            <summary><span class="lg-num">05</span><span class="lg-name">小游戏</span><span class="lg-count">13</span></summary>
             <div class="lg-body">
-          <div class="lic-li">入口：聊天更多功能 → 小游戏，共 8 款——猜拳 / Pong / 贪吃蛇 / 打砖块 / 钓鱼 / 四子棋 / 扫雷 / 记忆翻牌</div>
+          <div class="lic-li">入口：聊天更多功能 → 小游戏，共 12 款——猜拳 / Pong / 贪吃蛇 / 打砖块 / 钓鱼 / 四子棋 / 扫雷 / 记忆翻牌 / 五子棋 / 连连看 / 消消乐 / 心意币拍卖会</div>
+          <div class="lic-li">五子棋（11×11 迷你盘）：三档难度，TA 每回合状态随机（认真 / 正常 / 放水 / 失误）但保证会堵你的成五点；连胜负战绩与先手规则同四子棋</div>
+          <div class="lic-li">连连看（合作）：和 TA 轮流消除同款图案，连线不超过两个弯；TA 会快速找对、凭记忆翻牌，也会随缘点错；提示 ×3 / 洗牌 ×2，死锁自动洗牌</div>
+          <div class="lic-li">消消乐（合作）：轮流交换相邻两格凑三连，连锁连消共同冲目标分；TA 走最优步也会放水、手滑，达成目标结算默契与心意币</div>
+          <div class="lic-li">心意币拍卖会：每场 3 件拍品与 TA 轮番举牌，落槌价从心意币真实扣款（拍不到不花钱），TA 心理价位是暗的；拍品收进 🎒 小收藏</div>
           <div class="lic-li">对战三款：猜拳、Pong（四档难度）、四子棋（TA 每局状态随机：认真 / 放水 / 失误），累计战绩记录</div>
           <div class="lic-li">双人贪吃蛇同场抢食：三档速度分段提速 + 穿墙 / 安全模式开关，手机端打开自动全屏放大地图</div>
           <div class="lic-li">双人打砖块合作：各守半场共同清砖，球数可设 1~3，COMBO 连击与危险预警，结算按 ❤ 给出合作评级</div>
@@ -2279,6 +2284,7 @@
           </div>
           <div class="gs-title">联系人主动写信</div>
           <div class="set-group glass">
+            <div class="gs-row"><span>联系人主动写信</span><label class="toggle"><input type="checkbox" id="ml-write-en"><span class="tk"></span></label></div>
             <div class="gs-row"><span>每天最多写信（封）</span><div class="stepper" data-k="ml-write-daily-max" data-min="1" data-max="50" data-step="1"><button class="stp-min">−</button><input class="stp-val" id="ml-write-daily-max-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-row"><span>主动写信概率</span><div class="stepper" data-k="ml-write-prob" data-min="1" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="ml-write-prob-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-row"><span>最短写信时间（分钟）</span><div class="stepper" data-k="ml-write-min" data-min="1" data-max="1440" data-step="1"><button class="stp-min">−</button><input class="stp-val" id="ml-write-min-val" readonly><button class="stp-max">+</button></div></div>
@@ -2319,6 +2325,7 @@
           </div>
           <div class="gs-title">TA 发朋友圈设置</div>
           <div class="set-group glass">
+            <div class="gs-row"><span>联系人主动发朋友圈</span><label class="toggle"><input type="checkbox" id="fd-post-en"><span class="tk"></span></label></div>
             <div class="gs-row"><span>主动发朋友圈概率</span><div class="stepper" data-k="fd-post-prob" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="fd-post-prob-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-row"><span>每天最多发布（条）</span><div class="stepper" data-k="fd-post-daily-max" data-min="1" data-max="20" data-step="1"><button class="stp-min">−</button><input class="stp-val" id="fd-post-daily-max-val" readonly><button class="stp-max">+</button></div></div>
             <div class="gs-row"><span>发布后冷却（分钟）</span><div class="stepper" data-k="fd-post-cool" data-min="1" data-max="240" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="fd-post-cool-val" readonly><button class="stp-max">+</button></div></div>
@@ -2409,7 +2416,7 @@
           <div class="gs-row"><span>拒接概率</span><div class="stepper" data-k="call-reject" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="call-reject-val" readonly><button class="stp-max">+</button></div></div>
           <div class="gs-row"><span>通话中挂断概率</span><div class="stepper" data-k="call-hangup" data-min="0" data-max="100" data-step="0.01"><button class="stp-min">−</button><input class="stp-val" id="call-hangup-val" readonly><button class="stp-max">+</button></div></div>
         </div>
-        <div class="sm-set-hint" style="padding:0 16px 8px">来电概率：TA 主动来电的命中概率。TA 回复或主动发消息后、以及后台每 1-2 分钟定时检查时各掷一次，两次来电至少间隔 5 分钟（冷却）；设为 0 则从不主动来电。接听/忙线/拒接概率：我方呼出时按三者比例互斥分配对方结果（忙线先判，其次拒接，最后接听）。挂断概率：通话接通满 3 分钟后每 60 秒检查一次，命中则对方主动挂断。</div>
+        <div class="sm-set-hint" style="padding:0 16px 8px">【来电概率是怎么触发的】有 3 类「机会」，每来一次机会就单独掷一次骰子，命中就打来电话：① TA 每回复你一条消息，掷一次；② TA 每次主动给你发消息，掷一次；③ 应用开着时，后台每 1~2 分钟也会掷一次兜底。两次来电之间至少间隔 5 分钟，设 0 则从不主动来电。<br>【为什么设得不高却感觉来得挺勤】概率是「每次机会」单独算的，不是「每天总共」的概率——你聊天越勤，机会就越多，累积起来自然来电频繁。例如设 15%：和 TA 聊 20 句就有约 20 次掷骰机会，来电概率本身没坏，是机会次数多。想让来电变少，直接把数值调小即可，效果大约成比例：调小 10 倍，来电也约少 10 倍。<br>【嫌多又不想设 0】点数值框直接输入小数（如 0.05），不用狂按 +/−。来电概率支持 0.01 粒度，最低可设 0.01（0.05、0.1 等 0.0几 的数值都可以）——设 0.01 时平均每 100 次机会才来电 1 次，基本只是偶尔响一次。<br>【接听 / 忙线 / 拒接概率】你打给 TA 时用：按「忙线 → 拒接 → 接听」顺序判定，先命中哪个就是哪种结果；三项都没命中就是「未接通」。默认 15 / 15 / 70 恰好占满 100，不会有未接通；想偶尔出现未接通，把三项合计调到 100 以下。<br>【通话中挂断概率】接通满 3 分钟保护期后，每 60 秒掷一次，命中对方就主动挂断，通话越久累计越容易被挂。支持 0.01 粒度，最低可设 0.01；设 0（或开下方「禁止联系人挂断电话」）＝对方永不主动挂断。<br>【改数值】点数值框直接输入（手机会弹数字键盘），或按 +/− 微调；改完立即保存生效。以上概率均按联系人各自保存，互不影响。</div>
         <div class="gs-title">对方挂断</div>
         <div class="set-group glass">
           <div class="gs-row"><span>禁止联系人挂断电话</span><label class="toggle"><input type="checkbox" id="call-no-hangup"><span class="tk"></span></label></div>
@@ -4163,6 +4170,142 @@
           </div>
         </div>
       </div>
+      <!-- 五子棋：聊天页底部半框（11×11 迷你盘落子对战，梦角由代码控制、每回合行为状态随机） -->
+      <div class="poke-card" id="chat-gomoku-panel" hidden>
+        <div class="poke-card-head">
+          <span>五子棋 · <b id="gk-partner-name">TA</b></span>
+          <div class="snake-head-actions">
+            <button class="snake-icon-btn" id="gk-sound" title="音效开关">🔊</button>
+            <button class="poke-card-close" id="gk-close">✕</button>
+          </div>
+        </div>
+        <div class="poke-card-scroll">
+          <div class="gk-wrap">
+            <div class="c4-players">
+              <span class="c4-side">🔵 你</span>
+              <span class="c4-vs">VS</span>
+              <span class="c4-side">⚪ <span id="gk-side-name">TA</span></span>
+            </div>
+            <div class="gk-stage" id="gk-stage">
+              <div class="gk-board" id="gk-board"></div>
+              <div class="pong-overlay c4-overlay" id="gk-overlay" hidden>
+                <div class="pong-overlay-title" id="gk-ov-title">五子棋</div>
+                <div class="pong-overlay-body" id="gk-ov-body"></div>
+                <div class="pong-overlay-btns">
+                  <button class="pong-overlay-btn" id="gk-btn-start" type="button">开始对局</button>
+                  <button class="pong-overlay-btn pong-overlay-btn2" id="gk-btn-end" type="button" hidden>结束游戏</button>
+                </div>
+              </div>
+            </div>
+            <div class="gk-status" id="gk-status">点击「开始对局」</div>
+            <div class="pong-foot">轮流落子 · 先连成五子的一方获胜 · TA今天的状态是随机的</div>
+          </div>
+        </div>
+      </div>
+      <!-- 连连看：聊天页底部半框（和 TA 轮流消除同款图案，两折连线规则，合作清完棋盘） -->
+      <div class="poke-card" id="chat-linkup-panel" hidden>
+        <div class="poke-card-head">
+          <span>连连看 · <b id="lk-partner-name">TA</b></span>
+          <div class="snake-head-actions">
+            <select class="snake-diff" id="lk-diff" title="难度">
+              <option value="casual">🌱 休闲 6×5</option>
+              <option value="normal" selected>🌙 普通 8×6</option>
+              <option value="hard">⭐ 挑战 10×6</option>
+            </select>
+            <button class="snake-icon-btn" id="lk-hint" title="提示（×3）">💡</button>
+            <button class="snake-icon-btn" id="lk-shuffle" title="洗牌（×2）">🔀</button>
+            <button class="snake-icon-btn" id="lk-sound" title="音效开关">🔊</button>
+            <button class="poke-card-close" id="lk-close">✕</button>
+          </div>
+        </div>
+        <div class="poke-card-scroll">
+          <div class="lk-wrap">
+            <div class="lk-info" id="lk-info"></div>
+            <div class="lk-stage" id="lk-stage">
+              <div class="lk-board" id="lk-board"></div>
+              <div class="pong-overlay c4-overlay lk-overlay" id="lk-overlay" hidden>
+                <div class="pong-overlay-title" id="lk-ov-title">连连看</div>
+                <div class="pong-overlay-body" id="lk-ov-body"></div>
+                <div class="pong-overlay-btns">
+                  <button class="pong-overlay-btn" id="lk-btn-start" type="button">开始对局</button>
+                  <button class="pong-overlay-btn pong-overlay-btn2" id="lk-btn-end" type="button" hidden>结束游戏</button>
+                </div>
+              </div>
+            </div>
+            <div class="lk-status" id="lk-status">点击「开始对局」</div>
+            <div class="pong-foot">轮流点两张相同图案 · 连线不超过两个弯 · 一起清完整张棋盘</div>
+          </div>
+        </div>
+      </div>
+      <!-- 消消乐：聊天页底部半框（和 TA 轮流交换相邻格凑三连，共同冲目标分） -->
+      <div class="poke-card" id="chat-match3-panel" hidden>
+        <div class="poke-card-head">
+          <span>消消乐 · <b id="m3-partner-name">TA</b></span>
+          <div class="snake-head-actions">
+            <select class="snake-diff" id="m3-diff" title="难度">
+              <option value="casual">🌱 休闲 300分</option>
+              <option value="normal" selected>🌙 普通 600分</option>
+              <option value="hard">⭐ 挑战 1000分</option>
+            </select>
+            <button class="snake-icon-btn" id="m3-hint" title="提示">💡</button>
+            <button class="snake-icon-btn" id="m3-sound" title="音效开关">🔊</button>
+            <button class="poke-card-close" id="m3-close">✕</button>
+          </div>
+        </div>
+        <div class="poke-card-scroll">
+          <div class="m3-wrap">
+            <div class="m3-info" id="m3-info"></div>
+            <div class="m3-stage" id="m3-stage">
+              <div class="m3-board" id="m3-board"></div>
+              <div class="pong-overlay c4-overlay m3-overlay" id="m3-overlay" hidden>
+                <div class="pong-overlay-title" id="m3-ov-title">消消乐</div>
+                <div class="pong-overlay-body" id="m3-ov-body"></div>
+                <div class="pong-overlay-btns">
+                  <button class="pong-overlay-btn" id="m3-btn-start" type="button">开始对局</button>
+                  <button class="pong-overlay-btn pong-overlay-btn2" id="m3-btn-end" type="button" hidden>结束游戏</button>
+                </div>
+              </div>
+            </div>
+            <div class="m3-status" id="m3-status">点击「开始对局」</div>
+            <div class="pong-foot">轮流交换相邻两格 · 凑成同款三连就消除 · 一起冲目标分</div>
+          </div>
+        </div>
+      </div>
+      <!-- 心意币拍卖会：聊天页底部半框（和 TA 轮番举牌竞拍，落槌价真扣心意币，拍品收进🎒） -->
+      <div class="poke-card" id="chat-auction-panel" hidden>
+        <div class="poke-card-head">
+          <span>心意币拍卖会 · <b id="au-partner-name">TA</b></span>
+          <div class="snake-head-actions">
+            <button class="snake-icon-btn" id="au-bag" title="拍品收藏">🎒</button>
+            <button class="snake-icon-btn" id="au-sound" title="音效开关">🔊</button>
+            <button class="poke-card-close" id="au-close">✕</button>
+          </div>
+        </div>
+        <div class="poke-card-scroll">
+          <div class="au-wrap">
+            <div class="au-topbar"><span id="au-lot">每场 3 件拍品</span><span class="au-balance" id="au-balance">心意币 —</span></div>
+            <div class="au-stage" id="au-stage">
+              <div class="au-item" id="au-item"></div>
+              <div class="pong-overlay au-overlay" id="au-overlay" hidden>
+                <div class="pong-overlay-title" id="au-ov-title">心意币拍卖会</div>
+                <div class="pong-overlay-body" id="au-ov-body"></div>
+                <div class="pong-overlay-btns">
+                  <button class="pong-overlay-btn" id="au-btn-start" type="button">开场拍卖</button>
+                  <button class="pong-overlay-btn pong-overlay-btn2" id="au-btn-end" type="button" hidden>收摊</button>
+                </div>
+              </div>
+            </div>
+            <div class="au-bids">
+              <button class="pong-overlay-btn" id="au-bid1" type="button">＋¥1</button>
+              <button class="pong-overlay-btn" id="au-bid5" type="button">＋¥5</button>
+              <button class="pong-overlay-btn" id="au-bid13" type="button">＋¥13.14</button>
+              <button class="pong-overlay-btn pong-overlay-btn2" id="au-pass" type="button">不拍了</button>
+            </div>
+            <div class="au-status" id="au-status">点击「开场拍卖」</div>
+            <div class="pong-foot">落槌价从心意币里真扣 · TA 的心理价位是暗的 · 拍到的收进 🎒</div>
+          </div>
+        </div>
+      </div>
       <!-- 红包：聊天页底部半框（我和 TA 互发红包，情侣特殊金额 / 随机 / 七夕特别） -->
       <div class="poke-card" id="chat-rp-panel" hidden>
         <div class="poke-card-head">
@@ -4739,6 +4882,22 @@
             <span class="mi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.6 3.4l8.8-2 3.4 3.2-8.8 2z"/><rect x="3.4" y="7" width="15.6" height="13.4" rx="1.8"/><path d="M11.2 11.8l.9 1.9 1.9.9-1.9.9-.9 1.9-.9-1.9-1.9-.9 1.9-.9z"/></svg></span>
             <span>记忆翻牌</span>
           </button>
+          <button class="more-item" id="more-gomoku" data-mcat="game" title="五子棋">
+            <span class="mi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 9.2h17M3.5 14.8h17M9.2 3.5v17M14.8 3.5v17"/><circle cx="9.2" cy="9.2" r="1.5" fill="currentColor" stroke="none"/><circle cx="14.8" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="9.2" cy="14.8" r="1.5" fill="currentColor" stroke="none"/></svg></span>
+            <span>五子棋</span>
+          </button>
+          <button class="more-item" id="more-linkup" data-mcat="game" title="连连看（和TA合作）">
+            <span class="mi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="8" rx="1.8"/><rect x="13" y="10.5" width="8" height="8" rx="1.8"/><path d="M11 12.5h2" stroke-dasharray="1.4 1.8"/></svg></span>
+            <span>连连看</span>
+          </button>
+          <button class="more-item" id="more-match3" data-mcat="game" title="消消乐（和TA轮流消除）">
+            <span class="mi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.2" cy="15" r="2.7"/><circle cx="12" cy="8.2" r="2.7"/><circle cx="16.8" cy="15" r="2.7"/></svg></span>
+            <span>消消乐</span>
+          </button>
+          <button class="more-item" id="more-auction" data-mcat="game" title="心意币拍卖会（和TA竞拍）">
+            <span class="mi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.4 5.4l6.2 6.2M14.6 3.2l6.2 6.2-2.2 2.2-6.2-6.2z"/><path d="M13.6 9.8l-8.4 8.4"/><path d="M4.2 21h7"/></svg></span>
+            <span>拍卖会</span>
+          </button>
           <button class="more-item" id="more-ck" data-mcat="tool" title="寻踪（打开 TA 的日常）">
             <span class="mi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="M12 3a9 9 0 000 18"/></svg></span>
             <span>寻踪</span>
@@ -4996,6 +5155,13 @@
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M3 11.5h18"/><path d="M12 11.5V21"/><path d="M12 11.5Q9 8 7 5.5A2.5 2.5 0 0112 6.5A2.5 2.5 0 0117 5.5Q15 8 12 11.5z"/></svg></div>
           <div class="txt">TA 自动发红包概率<span class="sub">联系人有概率主动发个红包给你，每个联系人可单独设置</span></div>
           <div class="val" id="cs-rp-auto-prob-val">4%</div>
+        </div>
+        <!-- v3.27.x #297：TA 每日发红包上限次数（每联系人独立，默认 5，0=不限）。
+             chat.js trySystemAutoSend 读 cs-rp-daily-max -->
+        <div class="set-row" id="cs-rp-daily-max">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <div class="txt">TA 每日发红包上限<span class="sub">联系人每天最多主动发红包的次数，填 0 表示不限制</span></div>
+          <div class="val" id="cs-rp-daily-max-val">5 次</div>
         </div>
       </div>
       <!-- v3.12.x：隐藏联系人的表情包开关（默认关闭，全局生效）。开启后聊天与朋友圈的

@@ -1353,13 +1353,20 @@
       if (/^https?:\/\//i.test(dataUrl)) { img.crossOrigin = 'anonymous'; }
       img.onload = function () {
         try {
+          // #292：零尺寸图（无固有宽高的 SVG 等）直接回退原图，避免缩成 1×1 白点
+          if (!img.width || !img.height) { cb(''); return; }
           const maxSide = 96;
           const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
           const w = Math.max(1, Math.round(img.width * scale));
           const h = Math.max(1, Math.round(img.height * scale));
           const c = document.createElement('canvas');
           c.width = w; c.height = h;
-          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          const ctx = c.getContext('2d');
+          // #292：先铺白底再绘制——JPEG 无透明通道，带透明区域的头像（PNG/默认图）
+          // 直接导出会让透明像素落成黑色＝通知右侧大图标显示全黑方块
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
           cb(c.toDataURL('image/jpeg', 0.85));
         } catch (e) { cb(''); }
       };

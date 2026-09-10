@@ -86,7 +86,7 @@ function minifyCss(code) {
 
 // ===== 按顺序拼接样式 / 脚本（顺序即生效顺序） =====
 const cssFiles = ['base.css', 'home.css', 'chat-main.css', 'chat-pages.css', 'market.css', 'group-chat.css', 'setting.css', 'tabbar.css', 'dark.css', 'garden.css', 'memo.css', 'memo-arc.css', 'room.css', 'drift-bottle.css', 'applock.css'];
-const jsFiles = ['device.js', 'idb.js', 'contacts.js', 'applock.js', 'media-pool.js', 'storage-slim.js', 'clock.js', 'tabs.js', 'desktop-slider.js', 'quote-cards.js', 'personalize.js', 'chat.js', 'group-chat.js', 'chatcard.js', 'chat-settings.js', 'reply-settings.js', 'fav-settings.js', 'default-cards-data.js', 'default-cards.js', 'mood-followup-data.js', 'mood-reply-cards.js', 'ta-mood-data.js', 'ta-mood.js', 'music-player.js', 'calendar.js', 'divination.js', 'avatar-lib.js', 'ta-ask.js', 'ck-question.js', 'incoming-requests.js', 'ta-invite.js', 'bg-keep.js', 'records.js', 'call.js', 'mail.js', 'feed.js', 'loc-lib.js', 'p2-features.js', 'gift-shop.js', 'memo-app.js', 'memo-arc.js', 'my-arc.js', 'period.js', 'accounting.js', 'garden.js', 'room.js', 'drift-bottle.js', 'decision.js', 'group-decision.js', 'pong.js', 'snake-game.js', 'breakout.js', 'connect-four.js', 'coop-mine.js', 'fishing.js', 'memory-game.js', 'sfx.js', 'fullscreen.js', 'data-backup.js', 'pwa.js', 'cjian.js', 'mobile-adapt.js'];
+const jsFiles = ['device.js', 'idb.js', 'contacts.js', 'applock.js', 'media-pool.js', 'storage-slim.js', 'clock.js', 'tabs.js', 'desktop-slider.js', 'quote-cards.js', 'personalize.js', 'chat.js', 'group-chat.js', 'chatcard.js', 'chat-settings.js', 'reply-settings.js', 'fav-settings.js', 'default-cards-data.js', 'default-cards.js', 'mood-followup-data.js', 'mood-reply-cards.js', 'ta-mood-data.js', 'ta-mood.js', 'music-player.js', 'calendar.js', 'divination.js', 'avatar-lib.js', 'ta-ask.js', 'ck-question.js', 'incoming-requests.js', 'ta-invite.js', 'bg-keep.js', 'records.js', 'call.js', 'mail.js', 'feed.js', 'loc-lib.js', 'p2-features.js', 'gift-shop.js', 'memo-app.js', 'memo-arc.js', 'my-arc.js', 'period.js', 'accounting.js', 'garden.js', 'room.js', 'drift-bottle.js', 'decision.js', 'group-decision.js', 'pong.js', 'snake-game.js', 'breakout.js', 'connect-four.js', 'coop-mine.js', 'fishing.js', 'memory-game.js', 'gomoku.js', 'linkup.js', 'match3.js', 'auction.js', 'sfx.js', 'fullscreen.js', 'data-backup.js', 'pwa.js', 'cjian.js', 'mobile-adapt.js'];
 
 let html = read('template.html');
 const styles = cssFiles.map(f => minifyCss(read(join('css', f)))).join('\n');
@@ -813,7 +813,7 @@ const FIX_SENTINELS = [
   // ==== v3.32.x 多人决定「自定义选项」选项输入框高度上限（安卓转 ce-box 后 gd-opts 随内容无限增高）====
   // 根因：#chat-gdecision-body 的 gd-opts 漏了 #chat-decision-body dec-opts 同款「max-height + 框内滚动」，
   // 安卓 contenteditable .ce-box 随输入行数无限增高，把下方控件顶出屏且整列无法上划=「一直跳且拉不上去」。
-  { name: '多人决定「自定义选项」gd-opts ce-box 限高+框内滚动（同帮我决定 dec-opts 修法；删掉=安卓选项框无限增高顶出控件）', file: 'css/chat-main.css', needle: '#chat-gdecision-body .dec-inp-wrap .ce-box[data-for="gd-opts"] {\nmax-height:176px;' },
+  { name: '多人决定「自定义选项」gd-opts ce-box 限高+框内滚动（同帮我决定 dec-opts 修法；删掉=安卓选项框无限增高顶出控件；#295 收口时该行并成单行，needle 随代码形态同步）', file: 'css/chat-main.css', needle: '#chat-gdecision-body .dec-inp-wrap .ce-box[data-for="gd-opts"] { max-height:176px;' },
   // ==== v3.26.x #270 开屏问答门改为「固定 2 道题、不可被别人编辑」（原 v3.31.x 提供增删改题目入口）====
   // 根因：题目可被编辑=设密码/暗号的管理验证由「防顺手」退化为「可被持暗号者改动」，违背
   // 「开屏问答门是固定 2 个问题」的定案。移除增删改 UI/逻辑（qalist 面板、onQal、qaEditItem、
@@ -892,6 +892,24 @@ const FIX_SENTINELS = [
   { name: '#287 成员消息头像点击开拍一拍面板（renderMsg 头像绑定；删/改绑定则点头像无反应回退功能缺口）', file: 'js/group-chat.js', needle: 'gcOpenPokeCard(rec.cid)' },
   // ==== 2026-09-11 #288 群聊美化视图卡片化重设计（用户报「美化设置不完整、和聊天里的不一样」＝纯文字行 vs 聊天设置图标卡片页）====
   { name: '#288 美化视图 set-row 图标行构建（set-row+gc-set-row 双类；回退纯文字 beautyRow 行则该锚点消失）', file: 'js/group-chat.js', needle: "'set-row gc-set-row'" },
+  // ==== 2026-09-11 #289 摸鱼打卡刷新后要求重打（按钮状态只在回填完成前读一次，LS 写失败/IDB 为主机型每次刷新都显示未打卡）====
+  { name: '#289 打卡按钮状态随回填完成/写日志自愈事件重同步（删监听则 LS 缺失机型刷新后永远显示未打卡、需重打）', file: 'js/personalize.js', needle: "document.addEventListener('mochi-restore-done', function () { try { syncCheckinBtn(); updateFishDays(); } catch (e) {} });" },
+  { name: '#290 摸鱼天数回填后再合并+规范化自愈（删监听则各桌面旧副本迟到永远漏算、重复/脏值虚高不修）', file: 'js/personalize.js', needle: "document.addEventListener('mochi-restore-done', fishLogHeal);" },
+  // ==== 2026-09-11 #291 经期桌面卡文字重叠（OPPO Reno6+雨见/Firefox152：160px 卡内 dpd-inner 绝对居中无底部预留，Gecko 默认行高更高，dpd-sub 与绝对定位 dpd-bar-cap 几何重叠；Chrome 擦边幸免故仅部分浏览器现形）====
+  { name: '#291 经期卡防重叠·dpd-inner 底部预留 26px（删则 Gecko 行高下副标题与进度条说明叠字复发）', file: 'css/home.css', needle: 'padding-bottom:26px' },
+  // ==== 2026-09-11 #292 问问ta批量导入单选题（【】为问题、其后每行一个选项）+ 问卷答题结束时间（过点不发新问、不能再作答）====
+  { name: '#292 批量导入单选题解析·【问题】+选项行（删则退回一行一题、单选格式整行丢失）', file: 'js/ta-ask.js', needle: "if (cur.opts.length >= 2) { q.type = 'single'; q.options = cur.opts.slice(); singles++; }" },
+  { name: '#292 问卷答题结束时间·作答统一闸门（chatAskReply 包装层删拦截则过点后仍可作答）', file: 'js/ta-ask.js', needle: "if (askDeadlinePassed(taAskLoad())) { toast('已过问卷答题结束时间，不能再作答'); return undefined; }" },
+  // ==== 2026-09-11 #293 后台来电挂起回前台不响铃（resumeHeldCall 原要求 h.cid===当前桌面——跨桌面来电/冷启动 cid 未校正时判不成立，静默补未接＝点开通知永远接不到）====
+  { name: '#293 跨桌面挂起重响·先切归属联系人桌面再响铃（删切换分支则回到非归属桌面永远直接判未接）', file: 'js/call.js', needle: "known = window.getContacts().some(c => c && c.id === h.cid);" },
+  // ==== 2026-09-11 #294 后台通知右侧头像全黑（makeAvatarThumb canvas 直接导出 JPEG——JPEG 无透明通道，带透明区域头像的透明像素落成黑块）====
+  { name: '#294 头像缩略 canvas 先铺白底再绘制（删 fillRect 则透明头像缩略图透明区变黑＝通知全黑方块复发）', file: 'js/bg-keep.js', needle: "ctx.fillStyle = '#ffffff';" },
+  // ==== 2026-09-11 #295 帮我决定/群聊决定自定义选项·键盘弹出期整卡无法上滑（ce-box 的 overscroll-behavior:contain 连「框内无内容可滚」的滚动链也拦断，手指在聚焦的选项框上起滑时外层 .poke-card-scroll 收不到手势；contain→auto：框内溢出仍框内滚，边界放行给面板）====
+  { name: '#295 决定面板 dec-opts 选项框滚动链放行·contain→auto（改回 contain 则键盘期手指在选项框上滑动整卡无法上滑复发）', file: 'css/chat-main.css', needle: 'data-for="dec-opts"] { max-height:176px; overflow-y:auto; overscroll-behavior:auto; }' },
+  { name: '#295 决定面板 gd-opts 选项框滚动链放行·contain→auto（改回 contain 则键盘期手指在选项框上滑动整卡无法上滑复发）', file: 'css/chat-main.css', needle: 'data-for="gd-opts"] { max-height:176px; overflow-y:auto; overscroll-behavior:auto; }' },
+  // ==== 2026-09-11 #296 回复设置补「联系人主动写信/主动发朋友圈」总开关（写信概率 prob() 把 0 兜底回默认 30＝无法用概率关闭；开关裸读 + 触发链首行闸门）====
+  { name: '#296 联系人主动写信总开关闸门·mailCfg 裸读 writeEn + maybeIncomingLetterFor 拦截（删则关开关后 TA 仍按概率来信）', file: 'js/mail.js', needle: 'if (!cfg.writeEn) return;' },
+  { name: '#296 联系人主动发朋友圈总开关闸门·feedCfgFor postEn + maybeAutoPostFor 拦截（删则关开关后 TA 仍按概率发动态）', file: 'js/feed.js', needle: 'if (!cfg.postEn) return;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

@@ -1777,7 +1777,7 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
     const c = {};
     ['fd-like-prob', 'fd-like-speed-min', 'fd-like-speed-max', 'fd-comment-prob', 'fd-comment-speed-min', 'fd-comment-speed-max',
      'fd-reply-prob', 'fd-reply-speed-min', 'fd-reply-speed-max', 'fd-likeback-prob', 'fd-card-prob', 'fd-max-cards', 'fd-image-prob',
-     'fd-post-prob', 'fd-post-daily-max', 'fd-post-cool', 'fd-min-interval', 'fd-max-interval',
+     'fd-post-prob', 'fd-post-daily-max', 'fd-post-cool', 'fd-min-interval', 'fd-max-interval', 'fd-post-en',
      'fd-min-cards-post', 'fd-max-cards-post', 'fd-post-kaomoji', 'fd-post-emoji', 'fd-post-sticker', 'fd-post-image'].forEach(k => {
       try {
         const v = s.get('reply-' + k);
@@ -1792,6 +1792,8 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
       likeback: num('fd-likeback-prob', 50),
       cardProb: num('fd-card-prob', 80), maxCards: num('fd-max-cards', 5),
       imageProb: num('fd-image-prob', 50),
+      // #296：联系人主动发朋友圈总开关（默认开，关闭后 TA 不再自动发动态）
+      postEn: num('fd-post-en', 1),
       postProb: num('fd-post-prob', 40), dailyMax: num('fd-post-daily-max', 5),
       postCool: num('fd-post-cool', 30),
       minInterval: num('fd-min-interval', 1), maxInterval: num('fd-max-interval', 720),
@@ -1840,6 +1842,8 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
       const now = Date.now();
       // v3.7.x：各桌面的 TA 用各自桌面的朋友圈设置（原实现用当前桌面 cfg，串设置）
       const cfg = feedCfgFor(cid);
+      // #296：联系人主动发朋友圈总开关——关闭后该桌面 TA 不再自动发动态（点赞/评论互动不受影响）
+      if (!cfg.postEn) return;
       let last = parseInt(cs.get('feed-last'), 10); if (isNaN(last)) last = 0;
       let next = parseFloat(cs.get('feed-next')); if (isNaN(next)) next = 0;
       if (last > now || last < 0) { last = 0; next = 0; }

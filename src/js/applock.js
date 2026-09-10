@@ -456,7 +456,7 @@
   }
   function qaSkipAsk(items, i, afterAll) {
     textAsk({
-      title: '跳过开屏问答', sub: '暗号是 99 + mochi 字卡出生日期，一共 6 个数字。输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。',
+      title: '跳过开屏问答', sub: '暗号是 99 + mochi 字卡生日的 4 位数字，一共 6 个数字。输入暗号后，这台设备以后每次打开都不再问答（不再显示问答层）。提示：时间就在开屏里可以找到，非常简单，解出请勿二传，这么简单真没必要二传。不输入暗号也不影响正常使用。',
       placeholder: '输暗号', maxlen: 12, okLabel: '确定', cancelLabel: '返回',
       onSubmit: function (v) {
         if (String(v || '').trim() === QA_SKIP_CODE) {
@@ -593,7 +593,7 @@
       return;
     }
     textAsk({
-      title: '验证身份', sub: '本机未设数字密码，请输入开屏问答的暗号继续（暗号是 99 + mochi 字卡出生日期，一共 6 个数字）：',
+      title: '验证身份', sub: '本机未设数字密码，请输入开屏问答的暗号继续（暗号是 99 + mochi 字卡生日的 4 位数字，一共 6 个数字）：',
       placeholder: '暗号', maxlen: 12, okLabel: '确定', cancelLabel: '取消',
       onSubmit: function (v) {
         if (String(v || '').trim() === QA_SKIP_CODE) { next(); }

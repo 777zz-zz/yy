@@ -84,7 +84,10 @@
   // sync/reach/cjian/room/piggy/drift/interact）。
   // deskcheck（联系人跨桌面查岗）独立成系统预设字卡里的单独入口，见 page-deskcheck。
   const FUNC_KEYS = ['fish', 'eat', 'period', 'water', 'garden', 'sync', 'reach', 'cjian', 'room', 'piggy', 'drift', 'interact', 'music'];
-  const BASE_KEYS = ['main', 'kaomoji', 'emoji', 'touch'];
+  // v3.28.x #298：BASE_KEYS 并入「词典」分类（dict，语录+切词词库，见 default-cards-data.js）——
+  // 进系统预设字卡页 tab/跨库搜索/角标统计；普通回复混入仍走 drawCards 硬编码四分类，
+  // 词典不会混进普通回复，只有词典拼字（quote-spell.js）按需消费语录分组。
+  const BASE_KEYS = ['main', 'kaomoji', 'emoji', 'touch', 'dict'];
   // v3.26.x：搜索跨全库（聊天默认字卡页 + 其他互动功能字卡页全部 tab），
   // 不再局限于当前 tab——用户搜「轻轻抵着」在任意页面都能找到经期温柔动作字卡。
   const ALL_KEYS = BASE_KEYS.concat(FUNC_KEYS);
@@ -155,7 +158,8 @@
     grp.parentNode.insertBefore(note, grp.nextSibling);
   })();
   // v3.8.x：分类开关绑定——主字卡 / 颜文字 / emoji / 拍一拍 分别控制默认字卡分类使用
-  [['main', '主字卡'], ['kaomoji', '颜文字'], ['emoji', 'emoji'], ['touch', '拍一拍']].forEach(([k, label]) => {
+  // v3.28.x #298：+ 词典（关闭后语录不参与词典拼字抽句；词库切分不受影响）
+  [['main', '主字卡'], ['kaomoji', '颜文字'], ['emoji', 'emoji'], ['touch', '拍一拍'], ['dict', '词典']].forEach(([k, label]) => {
     const el = document.getElementById('dc-cat-' + k);
     if (!el) return;
     el.checked = getCat(k);
@@ -266,7 +270,7 @@
         const el = document.getElementById('dc-use-' + k);
         if (el) el.checked = getUse(k);
       });
-      ['main', 'kaomoji', 'emoji', 'touch'].forEach(function (k) {
+      ['main', 'kaomoji', 'emoji', 'touch', 'dict'].forEach(function (k) {
         const el = document.getElementById('dc-cat-' + k);
         if (el) el.checked = getCat(k);
       });

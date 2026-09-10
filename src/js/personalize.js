@@ -5255,8 +5255,24 @@ try {
   function getFishLog() {
     try { return JSON.parse(gStore.get('fish-log') || '[]'); } catch (e) { return []; }
   }
+  // FIX 2026-09-11 #290：摸鱼天数自动修正——天数=fish-log 长度，三种错源里两种可就地修：
+  // ① 虚高（重复日期/脏值混入：读-改-写竞态、旧格式）→ 规范化（只留 YYYY-MM-DD 合法
+  //    日期 + Set 去重），有变化才写回（防无谓写放大）；② 偏低（各联系人命名空间旧
+  //    fish-log 副本迟到：migrateFishLogGlobal 原来只在模块加载跑一次，早于 IDB 回填，
+  //    副本后到就永远漏算）→ 见下方 restore-done/wrj-heal 再合并。③ IDB 旧快照遮蔽
+  //    已由 idb.js retainValue（LS 优先）+ wrj 时间戳守卫兜住，不在此重复设防。
+  function normalizeFishLog() {
+    const seen = new Set();
+    const clean = getFishLog().filter(d =>
+      typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && !seen.has(d) && seen.add(d));
+    const old = getFishLog();
+    if (old.length !== clean.length || old.some((d, i) => d !== clean[i])) {
+      gStore.set('fish-log', JSON.stringify(clean));
+    }
+    return clean;
+  }
   function logFish() {
-    const list = getFishLog();
+    const list = normalizeFishLog();
     const t = fishToday();
     if (list.indexOf(t) === -1) {
       list.push(t);
@@ -5266,7 +5282,7 @@ try {
   }
   function updateFishDays() {
     const el = document.getElementById('fish-days');
-    if (el) el.textContent = getFishLog().length || 0;
+    if (el) el.textContent = normalizeFishLog().length || 0;
   }
   window.logFish = logFish; // 供聊天页调用
   // v3.9.x：一次性迁移——把各联系人命名空间下的旧 fish-log 合并到全局 fish-log（按自然日去重）
@@ -5287,6 +5303,15 @@ try {
   }
   migrateFishLogGlobal(false); // 模块加载时先合并 LS 已有的
   updateFishDays();
+  // #290：回填完成/写日志自愈后再合并一次——此时尚未合并进全局键的各联系人旧副本
+  //（只存 IDB、模块加载时还没回填进来）这时才可见；合并后规范化+刷新天数显示。
+  try {
+    function fishLogHeal() {
+      try { migrateFishLogGlobal(false); normalizeFishLog(); updateFishDays(); } catch (e) {}
+    }
+    document.addEventListener('mochi-restore-done', fishLogHeal);
+    document.addEventListener('mochi-wrj-heal', fishLogHeal);
+  } catch (e) {}
 
   // 兼容旧数据：以前打过卡但未计入摸鱼天数的，自动补记（旧标记视为今天打卡）
   (function () {
@@ -5684,11 +5709,28 @@ try {
   const checkin = document.querySelector('.checkin');
   if (checkin) {
     const btn = checkin.querySelector('.ck-btn');
-    // v3.5.131：按日期判断——键存在但跨天时恢复可打卡（原逻辑首次打卡后永久锁定）
-    if (store.get('checkin') === fishToday()) {
-      btn.textContent = '✓ 已打卡';
-      btn.classList.add('done');
+    // FIX 2026-09-11 #289：刷新后要求重新打卡——按钮状态原来只在模块初始化时读一次
+    // store.get('checkin')，而该读取发生在启动回填（idbRestore）完成之前；localStorage
+    // 写失败/配额满/IDB 为主的机型此刻 checkin 键还没进内存缓存，按钮渲染成「打卡」，
+    // 之后数据补齐也没有代码回头刷新（同类已知坑见 AGENTS.md「回填完成前读到的键可能
+    // 为空」）。抽成 syncCheckinBtn：初始化调一次 + 回填完成（mochi-restore-done）/
+    // 写日志合并自愈（mochi-wrj-heal）时再同步；点击逻辑不变，logFish 按自然日去重，
+    // 重复点击不会虚增天数。
+    function syncCheckinBtn() {
+      if (store.get('checkin') === fishToday()) {
+        btn.textContent = '✓ 已打卡';
+        btn.classList.add('done');
+      } else {
+        btn.textContent = '打卡';
+        btn.classList.remove('done');
+      }
     }
+    // v3.5.131：按日期判断——键存在但跨天时恢复可打卡（原逻辑首次打卡后永久锁定）
+    syncCheckinBtn();
+    try {
+      document.addEventListener('mochi-restore-done', function () { try { syncCheckinBtn(); updateFishDays(); } catch (e) {} });
+      document.addEventListener('mochi-wrj-heal', function () { try { syncCheckinBtn(); updateFishDays(); } catch (e) {} });
+    } catch (e) {}
     // 打卡反馈弹窗（IAB 用页面内弹窗）
     function toast(msg) {
       let t = document.getElementById('cc-toast');
