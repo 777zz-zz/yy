@@ -8954,9 +8954,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789056827889">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.540</b></span>
-        <span class="sv-deploy">部署于 2026-09-11 00:13<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789057017837">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.541</b></span>
+        <span class="sv-deploy">部署于 2026-09-11 00:16<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10130,7 +10130,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.540</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.541</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10421,7 +10421,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.540</span>
+              <span class="lic-ver">v3.26.541</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -18303,6 +18303,7 @@ const TOK = '@@m:';
 const TOKEN_RE = /^@@m:([0-9a-f]{32})$/;
 const OK = typeof crypto !== 'undefined' && crypto.subtle && window.idbGet && window.idbGetMany && window.idbSetAll;
 window.mochiMediaExpand = function (s) { return null; };
+window.mochiMediaExpandAsync = function (s, cb) { try { cb(null); } catch (e) {} };
 window.mochiMediaIsToken = function (s) { return typeof s === 'string' && TOKEN_RE.test(s); };
 if (!OK) return;
 const map = new Map();            // hash -> dataURL（已解析/已落池内容，渲染热缓存）
@@ -18312,6 +18313,16 @@ let flushT = null;
 window.mochiMediaExpand = function (s) {
 const m = TOKEN_RE.exec(s || '');
 return m ? (map.get(m[1]) || null) : null;
+};
+window.mochiMediaExpandAsync = function (s, cb) {
+const done = function (v) { try { cb(v); } catch (e) {} };
+const m = TOKEN_RE.exec(String(s || ''));
+if (!m) { done(null); return; }
+const c = map.get(m[1]);
+if (typeof c === 'string' && c.indexOf('data:audio/') === 0) { done(c); return; }
+window.idbGet(FULL + m[1]).then(function (v) {
+done(typeof v === 'string' && v.indexOf('data:audio/') === 0 ? v : null);
+}).catch(function () { done(null); });
 };
 async function sha256Hex(str) {
 const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
@@ -83031,4 +83042,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtvq8r8x -->
+<!-- __MOCHI_EOF__ mtvqctt9 -->

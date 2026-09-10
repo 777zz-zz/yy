@@ -11,7 +11,12 @@
 //   · 写池前先查池（idbGetMany 批量）——已有同哈希条目不重复写，跨会话零重写；
 //   · crypto.subtle 不可用（非安全上下文）时整模块禁用，一切保持旧路径，绝无半启用态；
 //   · v1 池只增不删（无 GC），孤儿条目体积=去重后的唯一内容量，可控。
-// 消费方：chat.js（消息令牌化 normalize + 编辑入口展开）、chat.js 收藏压缩管道（CAS）。
+// FIX 2026-09-10 #283 池收音频：tokenize 放行 data:audio/（语音）——历史语音/语音字卡以
+// 「名称|||data:audio/…」整份内联在消息 text，chat-msgs 常年几十 MB，每次落盘 structured
+// clone 整包＝低端机长任务/「经常卡按不动」。音频内容唯一（录音无法去重缩总库），但令牌化后
+// 每次落盘只 clone 44 字符引用。音频纪律：①不进 map 热缓存（迁移批量会把省下的内存吃回去），
+// ②播放走 mochiMediaExpandAsync 按需 idbGet；图片路径（map/观察器）行为不变。
+// 消费方：chat.js（消息令牌化 normalize + 编辑入口展开 + 语音播放取回）、chat.js 收藏压缩管道（CAS）。
 // 注意：本文件须在 chat.js 之前加载（渲染解析要先于首屏渲染就位），jsFiles 已登记。
 (function () {
   const FULL = 'xy-home-v2:media:';
@@ -20,6 +25,8 @@
   // 非安全上下文/无 IDB → 整模块禁用（提供恒空展开，业务侧按 null 回退原值）
   const OK = typeof crypto !== 'undefined' && crypto.subtle && window.idbGet && window.idbGetMany && window.idbSetAll;
   window.mochiMediaExpand = function (s) { return null; };
+  // #283 音频令牌异步取回（禁用态恒 null，调用方按缺失占位）
+  window.mochiMediaExpandAsync = function (s, cb) { try { cb(null); } catch (e) {} };
   window.mochiMediaIsToken = function (s) { return typeof s === 'string' && TOKEN_RE.test(s); };
   if (!OK) return;
 
@@ -31,6 +38,19 @@
   window.mochiMediaExpand = function (s) {
     const m = TOKEN_RE.exec(s || '');
     return m ? (map.get(m[1]) || null) : null;
+  };
+  // FIX 2026-09-10 #283 音频令牌异步取回：map 命中（本会话刚写池未冲刷的窗口）或按需
+  // idbGet；校验 data:audio/ 前缀（图片走观察器不经过这里）；音频绝不回填 map（内存纪律，
+  // 见文件头）；取不到（池缺失/被剥空/脏值）→ null，调用方按「语音数据缺失」占位。
+  window.mochiMediaExpandAsync = function (s, cb) {
+    const done = function (v) { try { cb(v); } catch (e) {} };
+    const m = TOKEN_RE.exec(String(s || ''));
+    if (!m) { done(null); return; }
+    const c = map.get(m[1]);
+    if (typeof c === 'string' && c.indexOf('data:audio/') === 0) { done(c); return; }
+    window.idbGet(FULL + m[1]).then(function (v) {
+      done(typeof v === 'string' && v.indexOf('data:audio/') === 0 ? v : null);
+    }).catch(function () { done(null); });
   };
 
   async function sha256Hex(str) {
@@ -61,7 +81,9 @@
   let lookupT = null;
   window.mochiMediaTokenize = function (dataUrl) {
     return new Promise(function (resolve) {
-      if (typeof dataUrl !== 'string' || dataUrl.indexOf('data:image/') !== 0 || dataUrl.length < 1024) { resolve(null); return; }
+      // FIX 2026-09-10 #283 放行 data:audio/（语音令牌化）；<1024 小载荷不进池
+      if (typeof dataUrl !== 'string' || dataUrl.length < 1024 ||
+          (dataUrl.indexOf('data:image/') !== 0 && dataUrl.indexOf('data:audio/') !== 0)) { resolve(null); return; }
       sha256Hex(dataUrl).then(function (h) {
         if (map.has(h)) { resolve(TOK + h); return; }
         let q = lookupQueue.get(h);
@@ -83,8 +105,11 @@
       try { vals = (await window.idbGetMany(slice.map(function (e) { return FULL + e[0]; }))) || {}; } catch (e) { vals = {}; }
       slice.forEach(function (e) {
         const v = vals[FULL + e[0]];
-        if (typeof v === 'string') { map.set(e[0], v); }          // 池里已有（跨会话/桌面重复）→ 不重写
-        else { map.set(e[0], e[1].data); writeBuf.push({ k: FULL + e[0], v: e[1].data }); dirty = true; }
+        // FIX 2026-09-10 #283 只有图片进 map 热缓存；音频内容唯一且体积大（一次语音迁移
+        // 可达几十 MB），缓存=把令牌化省下的内存原样吃回，只写池/查池不缓存
+        const isImg = e[1].data.indexOf('data:image/') === 0;
+        if (typeof v === 'string') { if (isImg) map.set(e[0], v); }          // 池里已有（跨会话/桌面重复）→ 不重写
+        else { if (isImg) map.set(e[0], e[1].data); writeBuf.push({ k: FULL + e[0], v: e[1].data }); dirty = true; }
         e[1].cbs.forEach(function (cb) { try { cb(TOK + e[0]); } catch (e2) {} });
       });
       await new Promise(function (r) { setTimeout(r, 0); }); // 分批让出主线程
