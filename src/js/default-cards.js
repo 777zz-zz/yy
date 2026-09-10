@@ -35,7 +35,7 @@
     // v3.28.x：场景概率——dc-overall-<k>（聊天/信箱/朋友圈）未设置时回退整体概率 dc-overall；
     //   朋友圈历史行为是「始终混入」（100），由消费方（feed.js）在键缺失时按 100 兜底
     const gOS = function (k) { const v = st.get('dc-overall-' + k); return v === null ? gO() : Number(v); };
-    const gP = function (k) { const v = st.get('dc-prob-' + k); return v === null ? 30 : Number(v); };
+    const gP = function (k) { const v = st.get('dc-prob-' + k); return v === null ? 25 : Number(v); };
     const gU = function (k) { const v = st.get('dc-use-' + k); return v === null ? true : v === '1'; };
     const gC = function (k) { const v = st.get('dc-cat-' + k); return v === null ? true : v === '1'; };
     const gOff = function (cat, c) { return st.get('dc-off-' + cat + ':' + c) === '1'; };
@@ -185,17 +185,56 @@
       toast('默认字卡' + label + '使用概率：' + nv + '%');
     });
   });
+  // v3.33.x：分类占比绑定——默认字卡命中后四大分类按占比分配（四类合计 100%）。
+  //   存键 dc-prob-<k>（未设置=等权 25，行为与旧权重等价）；改动即生效，
+  //   抽取按相对权重归一（drawCards 用权重滚动），单独调一档不强制影响其它档。
+  function dcProbSet(k, nv) { ls.set('dc-prob-' + k, String(nv)); }
+  [['main', '主字卡'], ['kaomoji', '颜文字'], ['emoji', 'emoji'], ['touch', '拍一拍']].forEach(([k, label]) => {
+    const box = document.getElementById('dc-prob-' + k);
+    const valEl = document.getElementById('dc-prob-' + k + '-val');
+    if (!box || !valEl) return;
+    valEl.value = String(getProb(k));
+    box.querySelector('.stp-min').addEventListener('click', () => {
+      const nv = Math.max(0, (parseInt(valEl.value, 10) || 0) - 5);
+      valEl.value = String(nv); dcProbSet(k, nv);
+      toast('默认字卡' + label + '占比：' + nv + '%');
+    });
+    box.querySelector('.stp-max').addEventListener('click', () => {
+      const nv = Math.min(100, (parseInt(valEl.value, 10) || 0) + 5);
+      valEl.value = String(nv); dcProbSet(k, nv);
+      toast('默认字卡' + label + '占比：' + nv + '%');
+    });
+  });
   // v3.32.x：功能字卡使用概率绑定——其他互动功能字卡页（含查岗页）每个分类一个
   //   stepper，存键 dcf-<分类>（per-cid，随桌面命名空间）。未设置时回退该分类的
   //   历史默认值（= 改版前代码里写死的触发概率），行为不变；设 0 即该分类字卡
   //   触发后不再随机出现。消费方统一走 window.dcfGet(分类) 读。
   const DCF_DEF = { fish: 35, eat: 35, period: 25, water: 35, garden: 40, sync: 60, reach: 55, cjian: 100, room: 100, piggy: 100, drift: 100, interact: 100, music: 100, deskcheck: 50 };
+  // v3.33.x：功能字卡总开关——【其他互动功能字卡】可整体开启/关闭（dcf-enabled 键，默认开启）。
+  //   开启/关闭分别存 '1'/'0'；关闭后 FUNC_KEYS 各功能触发字卡都不再随机出现（dcfVal 返回 0），
+  //   各分类概率（dcf-prob-*）仍保留。独立入口「联系人跨桌面查岗」(deskcheck) 不受此开关约束。
+  function dcfEnabled() {
+    try { const v = window.activeStore().get('dcf-enabled'); return v === null ? true : v === '1'; } catch (e) { return true; }
+  }
+  function dcfEnableSet(on) { try { window.activeStore().set('dcf-enabled', on ? '1' : '0'); } catch (e) {} }
+  window.dcfEnabled = dcfEnabled;
   function dcfVal(k) {
+    if (FUNC_KEYS.indexOf(k) >= 0 && !dcfEnabled()) return 0;
     if (!(k in DCF_DEF)) return 100;
     try { const v = window.activeStore().get('dcf-' + k); if (v !== null && v !== undefined) { const n = Number(v); if (!isNaN(n)) return Math.max(0, Math.min(100, n)); } } catch (e) {}
     return DCF_DEF[k];
   }
   window.dcfGet = dcfVal;
+  // 总开关 UI 绑定：存在则同步勾选状态、监听变更写键并轻提示
+  (function () {
+    const el = document.getElementById('dcf-enabled');
+    if (!el) return;
+    el.checked = dcfEnabled();
+    el.addEventListener('change', () => {
+      dcfEnableSet(el.checked);
+      toast((el.checked ? '已开启' : '已关闭') + '：使用其他互动功能字卡');
+    });
+  })();
   function bindDcfProb() {
     Object.keys(DCF_DEF).forEach((k) => {
       const box = document.getElementById('dcf-prob-' + k);
@@ -236,11 +275,19 @@
         const valEl = document.getElementById('dc-overall-' + k + '-val');
         if (valEl) valEl.value = String(dcOverallVal(k));
       });
+      // v3.33.x：分类占比 stepper 同样随 heal 重同步
+      ['main', 'kaomoji', 'emoji', 'touch'].forEach(function (k) {
+        const valEl = document.getElementById('dc-prob-' + k + '-val');
+        if (valEl) valEl.value = String(getProb(k));
+      });
       // v3.32.x：功能字卡概率 stepper 同样随 heal 重同步
       Object.keys(DCF_DEF).forEach(function (k) {
         const valEl = document.getElementById('dcf-prob-' + k + '-val');
         if (valEl) valEl.value = String(dcfVal(k));
       });
+      // v3.33.x：功能字卡总开关同样随 heal 重同步
+      const deEl = document.getElementById('dcf-enabled');
+      if (deEl) deEl.checked = dcfEnabled();
     } catch (e) {}
   });
 

@@ -42,7 +42,7 @@
         <div class="splash-brand">小红书@言序（1842523578） · 抖音@言序（58334080131）</div>
         <!-- v3.26.x：置顶澄清——很多人误会本站是 milk 二改/名字有关，特此置顶说明 -->
         <div class="splash-source">
-          <div class="splash-source-line splash-clarify"><strong>「Mochi」这个名字与 milk 字卡没有关系，就是想取个简单的名字取的。</strong>本站不是 milk字卡代码的二改版本，是从零开始独立编写的字卡传讯二创作品。</div>
+          <div class="splash-source-line splash-clarify"><strong>「Mochi」这个名字与 milk 字卡没有关系，就是想取个简单的名字取的。</strong>本文因为有人公开二传本站链接，将其理解为新的 milk 二改字卡，故特此解释：本站不是 milk 字卡代码的二改版本，是从零开始独立编写的字卡传讯二创作品。</div>
         </div>
         <!-- v3.8.y：原作/部署信息——本人原作本人部署，使用网站 + GitHub 库（每条单行完整显示） -->
         <div class="splash-source">
@@ -2503,12 +2503,23 @@
         <div class="gs-row"><span>写信使用概率</span><div class="stepper" id="dc-overall-mail" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-overall-mail-val" readonly><button class="stp-max">+</button></div></div>
         <div class="gs-row"><span>朋友圈使用概率</span><div class="stepper" id="dc-overall-feed" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-overall-feed-val" readonly><button class="stp-max">+</button></div></div>
       </div>
+      <!-- v3.33.x：预设与自定义联动说明——整体使用概率 X% 即默认字卡占比，自定义字卡自动占 (100-X)%，
+           两者相加为 100%；若无自定义字卡，自定义份额自然是空跑，不影响明面解释。 -->
+      <div style="margin:8px 14px 2px;font-size:11px;color:#999;line-height:1.6">提示：使用概率与你自己设置的字卡是相对的，两者加起来为 100%——系统预设字卡设为 X% 时，自定义字卡即占 (100-X)% 的回复机会。</div>
       <div style="margin:14px 14px 4px;font-size:12px;color:#999;font-weight:600">分类使用（可单独开启/关闭）</div>
       <div class="set-group glass" style="margin:0 12px">
         <div class="gs-row"><span>主字卡</span><label class="toggle"><input type="checkbox" id="dc-cat-main" checked><span class="tk"></span></label></div>
         <div class="gs-row"><span>颜文字</span><label class="toggle"><input type="checkbox" id="dc-cat-kaomoji" checked><span class="tk"></span></label></div>
         <div class="gs-row"><span>emoji</span><label class="toggle"><input type="checkbox" id="dc-cat-emoji" checked><span class="tk"></span></label></div>
         <div class="gs-row"><span>拍一拍</span><label class="toggle"><input type="checkbox" id="dc-cat-touch" checked><span class="tk"></span></label></div>
+      </div>
+      <!-- v3.33.x：分类占比——默认字卡命中后，四大分类按此占比分配，四类合计 100%（权重按相对比例归一） -->
+      <div style="margin:14px 14px 4px;font-size:12px;color:#999;font-weight:600">分类占比（默认字卡内部按此比例分配，四类合计 100%）</div>
+      <div class="set-group glass" style="margin:0 12px">
+        <div class="gs-row"><span>主字卡占比</span><div class="stepper" id="dc-prob-main" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-prob-main-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>颜文字占比</span><div class="stepper" id="dc-prob-kaomoji" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-prob-kaomoji-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>emoji 占比</span><div class="stepper" id="dc-prob-emoji" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-prob-emoji-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>拍一拍占比</span><div class="stepper" id="dc-prob-touch" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-prob-touch-val" readonly><button class="stp-max">+</button></div></div>
       </div>
       <div class="card-tabs" id="dc-tabs">
         <button class="cc-tab sel" data-type="main">主字卡</button>
@@ -2535,6 +2546,12 @@
         <span class="ch-name">其他互动功能字卡</span>
       </div>
       <div class="sm-set-hint" style="padding:8px 16px 0">说明：以下为各功能（摸鱼 / 吃饭 / 经期 / 喝水 / 花园 / 同频 / 伸手 / 此间 / 房间 / 存钱罐 / 漂流瓶 / 互动回应）触发时联系人会使用的自搓字卡，非聊天通用字卡，可逐张开启或关闭。页面底部的「使用概率」为各类字卡触发的概率，可自由调整。</div>
+      <!-- v3.33.x：总开关——其他互动功能字卡可整体开启/关闭（dcf-enabled 键，默认开启）；
+           关闭后各功能触发字卡都不再随机出现，各分类概率（底部 dcf-prob-*）仍可独立调整；
+           不影响独立入口「联系人跨桌面查岗」。 -->
+      <div class="set-group glass" style="margin:10px 12px 0">
+        <div class="gs-row"><span>使用其他互动功能字卡</span><label class="toggle"><input type="checkbox" id="dcf-enabled" checked><span class="tk"></span></label></div>
+      </div>
       <!-- v3.32.x：分类使用概率——每个功能分类的触发概率可显示可调（dcf-<分类> 键，默认=历史值）。
            FIX 2026-09-07 #239：概率框整块从列表上方移到列表下方——13 行 stepper（~794px）插在
            头部时，.card-list{flex:1;overflow-y:auto} 的 flex 最小尺寸因 overflow 非 visible 归 0，
@@ -4957,6 +4974,16 @@
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div>
           <div class="txt">我可发送语音<span class="sub">聊天输入栏左侧出现「麦克风」按钮：点击打开录音窗口，最长录 60 秒，可先试听再发送为语音消息</span></div>
           <label class="toggle"><input type="checkbox" id="cs-voice-send"><span class="tk"></span></label>
+        </div>
+      </div>
+      <!-- 红包：TA 自动主动发红包概率（每联系人独立，默认 4%，0-100%）。
+            chat.js trySystemAutoSend 读 cs-rp-auto-prob */}
+      <div class="gs-title">红包</div>
+      <div class="set-group glass">
+        <div class="set-row" id="cs-rp-auto-prob">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M3 11.5h18"/><path d="M12 11.5V21"/><path d="M12 11.5Q9 8 7 5.5A2.5 2.5 0 0112 6.5A2.5 2.5 0 0117 5.5Q15 8 12 11.5z"/></svg></div>
+          <div class="txt">TA 自动发红包概率<span class="sub">联系人有概率主动发个红包给你，每个联系人可单独设置</span></div>
+          <div class="val" id="cs-rp-auto-prob-val">4%</div>
         </div>
       </div>
       <!-- v3.12.x：隐藏联系人的表情包开关（默认关闭，全局生效）。开启后聊天与朋友圈的

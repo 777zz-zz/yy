@@ -669,6 +669,14 @@ body.cs-time-divider .msg-time-divider { display:flex; }
   overflow-y:auto;
   overscroll-behavior:contain;
 }
+/* 多人决定「自定义选项」同款：安卓被转成 contenteditable ce-box 后，gd-opts 原漏了
+   高度上限，选项输入框随内容无限增高，把下方控件顶出屏幕且整列无法上划（同 dec-opts
+   修法）——补上 高度上限 + 框内滚动 */
+#chat-gdecision-body .dec-inp-wrap .ce-box[data-for="gd-opts"] {
+  max-height:176px;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
 .poke-big {
   flex-shrink:0; display:flex; align-items:center; justify-content:center; gap:6px;
   margin-top:12px; padding:12px; border:none; border-radius:14px;

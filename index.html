@@ -1829,6 +1829,11 @@ max-height:176px;
 overflow-y:auto;
 overscroll-behavior:contain;
 }
+#chat-gdecision-body .dec-inp-wrap .ce-box[data-for="gd-opts"] {
+max-height:176px;
+overflow-y:auto;
+overscroll-behavior:contain;
+}
 .poke-big {
 flex-shrink:0; display:flex; align-items:center; justify-content:center; gap:6px;
 margin-top:12px; padding:12px; border:none; border-radius:14px;
@@ -8720,11 +8725,10 @@ transition-duration: .01ms !important;
 .applock-err { margin: 0 0 8px; font-size: 12px; color: var(--danger-ink, #a32d2d); min-height: 17px; line-height: 1.4; white-space: normal; }
 .applock-links { margin-top: 14px; font-size: 12px; display: flex; justify-content: center; gap: 20px; }
 .applock-links button { background: none; border: none; color: var(--soft-ink, #555); font-size: 12px; padding: 4px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.applock-empty { padding: 10px 0 4px; }
+.applock-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .applock-ok { margin-top: 12px; width: 100%; padding: 10px; border: none; border-radius: 12px; background: var(--btn-bg, #111); color: var(--btn-ink, #fff); font-size: 15px; font-weight: 600; cursor: pointer; }
 .applock-ok:disabled { opacity: .35; }
 .applock-ok:active { transform: scale(.98); }
-.applock-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .applock-acts button { flex: 1; min-width: 88px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--card-border, rgba(0, 0, 0, .1)); background: var(--card-bg-97, #fff); color: var(--soft-ink, #555); font-size: 12px; cursor: pointer; }
 .applock-acts button:active { background: var(--static-bg, rgba(0, 0, 0, .06)); }
 .applock-mask[hidden] { display: none; }
@@ -8735,14 +8739,6 @@ transition-duration: .01ms !important;
 .applock-btns .al-primary { border: none; background: var(--btn-bg, #111); color: var(--btn-ink, #fff); font-weight: 600; }
 .applock-btns .al-primary:active { transform: scale(.98); }
 .applock-btns .al-ghost { border: 1px solid var(--card-border, rgba(0, 0, 0, .1)); background: var(--card-bg-97, #fff); color: var(--soft-ink, #555); }
-.al-qa-list { text-align: left; max-height: 40vh; overflow-y: auto; margin: 4px 0 2px; }
-.al-qa-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 4px; border-bottom: 1px solid var(--line, rgba(0,0,0,.06)); font-size: 13px; }
-.al-qa-row:last-child { border-bottom: none; }
-.al-qa-idx { flex: 0 0 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 7px; background: var(--static-bg, rgba(0,0,0,.05)); color: var(--muted, #8a8a8a); font-size: 12px; }
-.al-qa-q { flex: 1; color: var(--ink, #111); line-height: 1.5; word-break: break-word; }
-.al-qa-ops { flex: 0 0 auto; display: flex; gap: 6px; }
-.al-qa-ops button { border: 1px solid var(--card-border, rgba(0,0,0,.1)); background: var(--card-bg-97, #fff); color: var(--soft-ink, #555); border-radius: 8px; padding: 3px 9px; font-size: 12px; cursor: pointer; }
-.al-qa-ops button:active { background: var(--static-bg, rgba(0,0,0,.06)); }
 </style>
 </head>
 <body>
@@ -8759,7 +8755,7 @@ transition-duration: .01ms !important;
         <div class="splash-brand">小红书@言序（1842523578） · 抖音@言序（58334080131）</div>
         <!-- v3.26.x：置顶澄清——很多人误会本站是 milk 二改/名字有关，特此置顶说明 -->
         <div class="splash-source">
-          <div class="splash-source-line splash-clarify"><strong>「Mochi」这个名字与 milk 字卡没有关系，就是想取个简单的名字取的。</strong>本站不是 milk字卡代码的二改版本，是从零开始独立编写的字卡传讯二创作品。</div>
+          <div class="splash-source-line splash-clarify"><strong>「Mochi」这个名字与 milk 字卡没有关系，就是想取个简单的名字取的。</strong>本文因为有人公开二传本站链接，将其理解为新的 milk 二改字卡，故特此解释：本站不是 milk 字卡代码的二改版本，是从零开始独立编写的字卡传讯二创作品。</div>
         </div>
         <!-- v3.8.y：原作/部署信息——本人原作本人部署，使用网站 + GitHub 库（每条单行完整显示） -->
         <div class="splash-source">
@@ -8958,9 +8954,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789037994889">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.536</b></span>
-        <span class="sv-deploy">部署于 2026-09-10 18:59<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789039171523">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.537</b></span>
+        <span class="sv-deploy">部署于 2026-09-10 19:19<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10134,7 +10130,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.536</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.537</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10425,7 +10421,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.536</span>
+              <span class="lic-ver">v3.26.537</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -11220,12 +11216,23 @@ transition-duration: .01ms !important;
         <div class="gs-row"><span>写信使用概率</span><div class="stepper" id="dc-overall-mail" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-overall-mail-val" readonly><button class="stp-max">+</button></div></div>
         <div class="gs-row"><span>朋友圈使用概率</span><div class="stepper" id="dc-overall-feed" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-overall-feed-val" readonly><button class="stp-max">+</button></div></div>
       </div>
+      <!-- v3.33.x：预设与自定义联动说明——整体使用概率 X% 即默认字卡占比，自定义字卡自动占 (100-X)%，
+           两者相加为 100%；若无自定义字卡，自定义份额自然是空跑，不影响明面解释。 -->
+      <div style="margin:8px 14px 2px;font-size:11px;color:#999;line-height:1.6">提示：使用概率与你自己设置的字卡是相对的，两者加起来为 100%——系统预设字卡设为 X% 时，自定义字卡即占 (100-X)% 的回复机会。</div>
       <div style="margin:14px 14px 4px;font-size:12px;color:#999;font-weight:600">分类使用（可单独开启/关闭）</div>
       <div class="set-group glass" style="margin:0 12px">
         <div class="gs-row"><span>主字卡</span><label class="toggle"><input type="checkbox" id="dc-cat-main" checked><span class="tk"></span></label></div>
         <div class="gs-row"><span>颜文字</span><label class="toggle"><input type="checkbox" id="dc-cat-kaomoji" checked><span class="tk"></span></label></div>
         <div class="gs-row"><span>emoji</span><label class="toggle"><input type="checkbox" id="dc-cat-emoji" checked><span class="tk"></span></label></div>
         <div class="gs-row"><span>拍一拍</span><label class="toggle"><input type="checkbox" id="dc-cat-touch" checked><span class="tk"></span></label></div>
+      </div>
+      <!-- v3.33.x：分类占比——默认字卡命中后，四大分类按此占比分配，四类合计 100%（权重按相对比例归一） -->
+      <div style="margin:14px 14px 4px;font-size:12px;color:#999;font-weight:600">分类占比（默认字卡内部按此比例分配，四类合计 100%）</div>
+      <div class="set-group glass" style="margin:0 12px">
+        <div class="gs-row"><span>主字卡占比</span><div class="stepper" id="dc-prob-main" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-prob-main-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>颜文字占比</span><div class="stepper" id="dc-prob-kaomoji" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-prob-kaomoji-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>emoji 占比</span><div class="stepper" id="dc-prob-emoji" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-prob-emoji-val" readonly><button class="stp-max">+</button></div></div>
+        <div class="gs-row"><span>拍一拍占比</span><div class="stepper" id="dc-prob-touch" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="dc-prob-touch-val" readonly><button class="stp-max">+</button></div></div>
       </div>
       <div class="card-tabs" id="dc-tabs">
         <button class="cc-tab sel" data-type="main">主字卡</button>
@@ -11252,6 +11259,12 @@ transition-duration: .01ms !important;
         <span class="ch-name">其他互动功能字卡</span>
       </div>
       <div class="sm-set-hint" style="padding:8px 16px 0">说明：以下为各功能（摸鱼 / 吃饭 / 经期 / 喝水 / 花园 / 同频 / 伸手 / 此间 / 房间 / 存钱罐 / 漂流瓶 / 互动回应）触发时联系人会使用的自搓字卡，非聊天通用字卡，可逐张开启或关闭。页面底部的「使用概率」为各类字卡触发的概率，可自由调整。</div>
+      <!-- v3.33.x：总开关——其他互动功能字卡可整体开启/关闭（dcf-enabled 键，默认开启）；
+           关闭后各功能触发字卡都不再随机出现，各分类概率（底部 dcf-prob-*）仍可独立调整；
+           不影响独立入口「联系人跨桌面查岗」。 -->
+      <div class="set-group glass" style="margin:10px 12px 0">
+        <div class="gs-row"><span>使用其他互动功能字卡</span><label class="toggle"><input type="checkbox" id="dcf-enabled" checked><span class="tk"></span></label></div>
+      </div>
       <!-- v3.32.x：分类使用概率——每个功能分类的触发概率可显示可调（dcf-<分类> 键，默认=历史值）。
            FIX 2026-09-07 #239：概率框整块从列表上方移到列表下方——13 行 stepper（~794px）插在
            头部时，.card-list{flex:1;overflow-y:auto} 的 flex 最小尺寸因 overflow 非 visible 归 0，
@@ -17630,7 +17643,6 @@ const K_PIN = 'applock-pin';
 const K_QA = 'applock-qa';
 const SESS = 'mochi-applock-ok';
 const K_QA_EN = 'applock-qa-en';
-const K_QA_LIST = 'applock-qalist';
 const K_QA_SKIP = 'applock-qaskip';
 function gGet(k) {
 try { const v = window.xyStore ? window.xyStore(G).get(k) : null; if (v !== null && v !== undefined) return v; } catch (e) {}
@@ -17672,29 +17684,9 @@ const DEFAULT_QA = [
 { q: 'mj 是什么意思？', a: '梦角' },
 { q: '是否已知晓：全站为随机代码运行，不含任何 AI，请不要添加负面字卡吓唬自己？', a: '是' }
 ];
-function qaRaw() {
-try {
-const v = gGet(K_QA_LIST);
-if (v && typeof v === 'string') {
-const arr = JSON.parse(v);
-if (Array.isArray(arr) && arr.length && arr.every(function (it) { return it && it.q && it.h; })) {
-return arr.map(function (it) { return { q: String(it.q), h: String(it.h) }; });
-}
-}
-} catch (e) {}
-return null;
-}
 function qaList() {
-const r = qaRaw();
-if (r) return r;
 return DEFAULT_QA.map(function (it) { return { q: it.q, h: h53(String(it.a).trim()) }; });
 }
-function qaSave(items) {
-gSet(K_QA_LIST, JSON.stringify(items.map(function (it) {
-return { q: String(it.q), h: h53(String(it.a).trim()) };
-})));
-}
-function qaSeedDefault() { if (!qaRaw()) qaSave(DEFAULT_QA); }
 const IS_AUTOMATION = (typeof navigator !== 'undefined') &&
 (navigator.webdriver === true || /Headless/i.test(String(navigator.userAgent)));
 function qaEnabled() {
@@ -17757,26 +17749,6 @@ inner += '<div class="applock-btns" style="margin-top:6px">' +
 (o.secondary ? '<button type="button" class="al-ghost" data-link="' + o.secondary.act + '">' + o.secondary.label + '</button>' : '') +
 '<button type="button" class="al-primary" data-ok="1">' + (o.okLabel || '知道了') + '</button>' +
 '</div>';
-} else if (o.kind === 'qalist') {
-const items = o.items || [];
-inner += '<div class="applock-err" id="applock-err"></div>' +
-'<div class="al-qa-list" id="al-qa-list">' +
-(items.length ? items.map(function (it, i) {
-return '<div class="al-qa-row">' +
-'<span class="al-qa-idx">' + (i + 1) + '</span>' +
-'<span class="al-qa-q">' + it.q + '</span>' +
-'<span class="al-qa-ops">' +
-'<button type="button" data-qal="edit:' + i + '">改</button>' +
-(items.length > 1 ? '<button type="button" data-qal="del:' + i + '">删</button>' : '') +
-'</span>' +
-'</div>';
-}).join('') : '<div class="applock-empty">还没有题目，点下方「添加题目」新建。</div>') +
-'</div>' +
-'<div class="applock-btns" style="margin-top:4px">' +
-'<button type="button" class="al-ghost" data-qal="add">＋ 添加题目</button>' +
-'<button type="button" class="al-primary" data-qal="done">完成</button>' +
-'</div>' +
-(o.extra ? '<div class="applock-sub" style="margin-top:8px">' + o.extra + '</div>' : '');
 } else { // pad
 let dots = '';
 for (let i = 0; i < o.max; i++) dots += '<i></i>';
@@ -17852,7 +17824,7 @@ if (cb) cb(); else if (oc) oc();
 }
 function padOpen(o) {
 cur = Object.assign({}, o);
-if (o.kind !== 'text' && o.kind !== 'info' && o.kind !== 'qalist') { cur.kind = 'pad'; if (!cur.max) cur.max = 6; if (cur.min == null) cur.min = 1; }
+if (o.kind !== 'text' && o.kind !== 'info') { cur.kind = 'pad'; if (!cur.max) cur.max = 6; if (cur.min == null) cur.min = 1; }
 buf = '';
 render();
 maskEl().hidden = false;
@@ -17869,12 +17841,6 @@ if (/^\d$/.test(k)) { padAdd(k); return; }
 return;
 }
 if (t.closest('#applock-ok')) { padTry(); return; }
-if (t.closest('[data-qal]')) {
-if (!cur || cur.kind !== 'qalist') return;
-const act = t.closest('[data-qal]').getAttribute('data-qal');
-onQal(act);
-return;
-}
 if (t.closest('[data-ok]')) {
 if (!cur || cur.kind !== 'info') return;
 const oc = cur.onPrimary;
@@ -17951,8 +17917,10 @@ placeholder: '安全问题的答案', maxlen: 60, okLabel: '完成',
 onSubmit: function (a) {
 if (!a) { showErr('答案不能为空'); return; }
 if (done) done(q, a);
+cur = null; buf = '';
+maskEl().hidden = true;
 },
-onCancel: function () { /* 中止整个设置 */ if (cur) close(); }
+onCancel: function () { if (cur) close(); }
 });
 },
 onCancel: function () { if (cur) close(); }
@@ -18159,67 +18127,6 @@ onForgetDone: function () { toast('密码已重设（如需再改安全问题请
 onCancel: function () { syncUi(); }
 });
 }
-let qaBuf = null;
-function qaOpenEdit() {
-qaBuf = (qaRaw() || qaList()).map(function (it) { return { q: String(it.q), h: String(it.h) }; });
-qaPanel();
-}
-function qaPanel() {
-padOpen({ kind: 'qalist', title: '开屏问答题', sub: '答案加密存储不显示；改题时答案留空＝不变。至少保留 1 道。', ico: ICON_SHIELD, items: qaBuf });
-}
-function qaRerender() {
-if (!cur || cur.kind !== 'qalist' || !qaBuf) return;
-cur.items = qaBuf;
-render();
-}
-function onQal(act) {
-if (act === 'done') {
-const arr = (qaBuf || []).filter(function (it) { return it && it.q; });
-if (!arr.length) { showErr('至少要保留一道题'); return; }
-gSet(K_QA_LIST, JSON.stringify(arr.map(function (it) { return { q: it.q, h: it.h }; })));
-qaBuf = null;
-maskEl().hidden = true; cur = null; buf = '';
-toast('问答题已保存');
-syncQaUi(); syncUi();
-return;
-}
-if (act === 'add') { qaEditItem(null); return; }
-if (act.indexOf('edit:') === 0) { qaEditItem(parseInt(act.slice(5), 10)); return; }
-if (act.indexOf('del:') === 0) {
-const i = parseInt(act.slice(4), 10);
-if (!qaBuf || i < 0 || i >= qaBuf.length) return;
-if (qaBuf.length <= 1) { showErr('至少保留一道题'); return; }
-qaBuf.splice(i, 1);
-qaRerender();
-}
-}
-function qaEditItem(idx) {
-const isNew = idx === null || idx === undefined;
-const editing = !isNew ? qaBuf[idx] : null;
-textAsk({
-title: isNew ? '添加题目' : '修改题目', sub: isNew ? '输入问题内容：' : '输入新的问题内容（或直接下一步不改）：',
-placeholder: '问题', maxlen: 80, okLabel: '下一步', cancel: false,
-value: editing ? editing.q : '',
-onSubmit: function (q) {
-if (!q) { showErr('问题不能为空'); return; }
-textAsk({
-title: isNew ? '设置答案' : '设置答案（留空＝不变）',
-sub: isNew ? '输入该题的正确答案（原样输入，区分大小写）：' : '输入新答案；留空则沿用原答案：',
-placeholder: '答案', maxlen: 60, okLabel: isNew ? '添加' : '保存', cancel: false,
-onSubmit: function (a) {
-if (isNew) {
-if (!a) { showErr('答案不能为空'); return; }
-qaBuf.push({ q: q, h: h53(String(a).trim()) });
-} else {
-editing.q = q;
-if (a) editing.h = h53(String(a).trim());
-}
-qaPanel();
-}
-});
-}
-});
-}
 function qaGuard(next, cancel) {
 const onCancel = function () { if (cancel) cancel(); else { syncQaUi(); syncUi(); } };
 if (pinHash()) {
@@ -18250,26 +18157,22 @@ const s = qaSubEl();
 if (!c || !s) return;
 const on = qaEnabled();
 c.checked = on;
-const raw = qaRaw();
-const n = raw ? raw.length : (qaList().length);
+const n = qaList().length;
 let html;
 if (on) {
-const acts = [{ act: 'qa-manage', label: '编辑问答题' }];
-if (qaSkipped()) acts.push({ act: 'qa-unskip', label: '恢复本机问答' });
-html = '<span>已开启：每次打开本站需先答对 <b>' + n + '</b> 道问答题' +
+const acts = qaSkipped() ? [{ act: 'qa-unskip', label: '恢复本机问答' }] : [];
+html = '<span>已开启：每次打开本站需先答对 <b>' + n + '</b> 道固定问答题' +
 (enabled() && !!pinHash() ? '，再输入数字密码' : '') + '。' +
 (qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号」可让本机永久跳过问答层。') +
 '</span>' + actsHtml(acts);
 } else {
-html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时可输暗号让本机永久跳过问答层。</span>' +
-(raw ? actsHtml([{ act: 'qa-manage', label: '编辑问答题' }]) : '');
+html = '<span>未开启。开启后每次打开本站需先答对固定问答题才放行；可不设上方数字密码锁单独使用。锁屏时可输暗号让本机永久跳过问答层。</span>';
 }
 s.innerHTML = html;
 Array.prototype.forEach.call(s.querySelectorAll('[data-aa]'), function (b) {
 b.addEventListener('click', function () {
 const act = b.getAttribute('data-aa');
-if (act === 'qa-manage') qaGuard(qaOpenEdit);
-else if (act === 'qa-unskip') { qaSkipSet(false); toast('已恢复：本机再次打开会询问问答'); syncQaUi(); }
+if (act === 'qa-unskip') { qaSkipSet(false); toast('已恢复：本机再次打开会询问问答'); syncQaUi(); }
 });
 });
 }
@@ -18283,7 +18186,6 @@ const wantOn = c.checked;
 c.disabled = true;
 const done = function () { c.disabled = false; syncQaUi(); syncUi(); };
 if (wantOn) {
-if (!qaRaw()) { gSet(K_QA_LIST, JSON.stringify(qaList().map(function (it) { return { q: it.q, h: it.h }; }))); }
 qaSetEn(true);
 done();
 toast('开屏问答已开启');
@@ -18360,8 +18262,7 @@ if (document.body) init();
 else document.addEventListener('DOMContentLoaded', init);
 window.__applockReady = true;
 window.__applockQaTest = {
-openEdit: function () { qaOpenEdit(); },
-getList: function () { return qaRaw() || qaList(); }
+getList: function () { return qaList(); }
 };
 })();
 } catch (__e) { try { console.error("[JS] applock.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
@@ -41696,7 +41597,7 @@ function apiFor(st) {
 const gE = function () { const v = st.get('dc-enabled'); return v === null ? true : v === '1'; };
 const gO = function () { const v = st.get('dc-overall'); return v === null ? 30 : Number(v); };
 const gOS = function (k) { const v = st.get('dc-overall-' + k); return v === null ? gO() : Number(v); };
-const gP = function (k) { const v = st.get('dc-prob-' + k); return v === null ? 30 : Number(v); };
+const gP = function (k) { const v = st.get('dc-prob-' + k); return v === null ? 25 : Number(v); };
 const gU = function (k) { const v = st.get('dc-use-' + k); return v === null ? true : v === '1'; };
 const gC = function (k) { const v = st.get('dc-cat-' + k); return v === null ? true : v === '1'; };
 const gOff = function (cat, c) { return st.get('dc-off-' + cat + ':' + c) === '1'; };
@@ -41811,13 +41712,45 @@ valEl.value = String(nv); dcOverallSet(k, nv);
 toast('默认字卡' + label + '使用概率：' + nv + '%');
 });
 });
+function dcProbSet(k, nv) { ls.set('dc-prob-' + k, String(nv)); }
+[['main', '主字卡'], ['kaomoji', '颜文字'], ['emoji', 'emoji'], ['touch', '拍一拍']].forEach(([k, label]) => {
+const box = document.getElementById('dc-prob-' + k);
+const valEl = document.getElementById('dc-prob-' + k + '-val');
+if (!box || !valEl) return;
+valEl.value = String(getProb(k));
+box.querySelector('.stp-min').addEventListener('click', () => {
+const nv = Math.max(0, (parseInt(valEl.value, 10) || 0) - 5);
+valEl.value = String(nv); dcProbSet(k, nv);
+toast('默认字卡' + label + '占比：' + nv + '%');
+});
+box.querySelector('.stp-max').addEventListener('click', () => {
+const nv = Math.min(100, (parseInt(valEl.value, 10) || 0) + 5);
+valEl.value = String(nv); dcProbSet(k, nv);
+toast('默认字卡' + label + '占比：' + nv + '%');
+});
+});
 const DCF_DEF = { fish: 35, eat: 35, period: 25, water: 35, garden: 40, sync: 60, reach: 55, cjian: 100, room: 100, piggy: 100, drift: 100, interact: 100, music: 100, deskcheck: 50 };
+function dcfEnabled() {
+try { const v = window.activeStore().get('dcf-enabled'); return v === null ? true : v === '1'; } catch (e) { return true; }
+}
+function dcfEnableSet(on) { try { window.activeStore().set('dcf-enabled', on ? '1' : '0'); } catch (e) {} }
+window.dcfEnabled = dcfEnabled;
 function dcfVal(k) {
+if (FUNC_KEYS.indexOf(k) >= 0 && !dcfEnabled()) return 0;
 if (!(k in DCF_DEF)) return 100;
 try { const v = window.activeStore().get('dcf-' + k); if (v !== null && v !== undefined) { const n = Number(v); if (!isNaN(n)) return Math.max(0, Math.min(100, n)); } } catch (e) {}
 return DCF_DEF[k];
 }
 window.dcfGet = dcfVal;
+(function () {
+const el = document.getElementById('dcf-enabled');
+if (!el) return;
+el.checked = dcfEnabled();
+el.addEventListener('change', () => {
+dcfEnableSet(el.checked);
+toast((el.checked ? '已开启' : '已关闭') + '：使用其他互动功能字卡');
+});
+})();
 function bindDcfProb() {
 Object.keys(DCF_DEF).forEach((k) => {
 const box = document.getElementById('dcf-prob-' + k);
@@ -41854,10 +41787,16 @@ if (el) el.checked = getCat(k);
 const valEl = document.getElementById('dc-overall-' + k + '-val');
 if (valEl) valEl.value = String(dcOverallVal(k));
 });
+['main', 'kaomoji', 'emoji', 'touch'].forEach(function (k) {
+const valEl = document.getElementById('dc-prob-' + k + '-val');
+if (valEl) valEl.value = String(getProb(k));
+});
 Object.keys(DCF_DEF).forEach(function (k) {
 const valEl = document.getElementById('dcf-prob-' + k + '-val');
 if (valEl) valEl.value = String(dcfVal(k));
 });
+const deEl = document.getElementById('dcf-enabled');
+if (deEl) deEl.checked = dcfEnabled();
 } catch (e) {}
 });
 const V_PAD = 0.8;    // 视口上下各多渲染 0.8 屏（重建频率 ≈ 每滚 0.8 屏一次）
@@ -82912,4 +82851,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtvf13m1 -->
+<!-- __MOCHI_EOF__ mtvfqbib -->

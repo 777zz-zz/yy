@@ -1,3 +1,17 @@
+### 2026-09-10 深夜（#270 用户纠正定案：开屏问答门「无法被别人编辑，是固定的 2 个问题」——移除全部编辑机制——本次构建者：本会话（AI-B 域））
+- [AI-B 域 applock.js + applock.css + 登记资产 build.mjs/FIX-REGRESSION.md/tools/verify-applock.mjs]（**改动文件：src/js/applock.js、src/css/applock.css、build.mjs、FIX-REGRESSION.md、tools/verify-applock.mjs、WORKLOG.md**；构建状态：**已构建·sw mochi-mtvfqbib**）。
+- 需求/反馈：用户纠正「开屏问答门无法被别人编辑，是固定的 2 个问题」——原 v3.31.x 实现把题目做成可增删改（设置页「编辑问答题」入口 + 管理面板，经 qaGuard 验证即可改题），违背「固定 2 个问题」定案。
+- 方案（零机型分支）：① 删除全部编辑机制——kind:'qalist' 面板渲染、onQal/qaEditItem/qaRerender/qaOpenEdit/qaPanel 整套逻辑、data-qal 按钮及点击分发、K_QA_LIST(applock-qalist) 常量与读写、设置页「编辑问答题」入口、.al-qa-* 样式；② qaList() 不再读任何已存储的自定义列表，恒返回 DEFAULT_QA 固定 2 题（mj→梦角 / 知晓→是），答案仍只存 cyrb53 摘要；旧版本遗留 applock-qalist 数据不迁移不删除、留在原键位对行为零影响（contacts EXCLUDE 保留防迁移）；③ 设置页文案改「2 道固定问答题」；④ __applockQaTest 只留 getList()。
+- 验证：node --check applock.js 过；--check-sentinels **600 全绿哑 0**；verify-applock.mjs 删 L 组（题目管理 12 断言）、K5/K6 反转为「产物不含 data-qal/.al-qa-row」、新增 K7「产物含固定 2 题梦角」；构建产物哨兵 #270 两条（固定列表逻辑锚 + data-qal absent）全绿。
+- 需要对方处理：无。本批构建顺带收编树上在途的 #269（chat-main.css gd-opts）、default-cards.js、template.html 等改动（已在产物中），各 owner 自行确认。
+- 【真机:待验证】（任意机型）：设置→应用锁→开屏问答门 无「编辑问答题」入口；每次打开仍固定先答 mj/知晓 两道题；曾编辑过题目的设备刷新后仍回到固定 2 题。
+
+### 2026-09-10（#269 修复：手机端【帮我决定】/【多人决定】「自定义选项」选项输入框一直跳且拉不上去——本次构建者：本会话（改动域：AI-A 的 css/chat-main.css，bug 修复）
+- [AI-A 域 chat-main.css 补 gd-opts 限高]（**改动文件：src/css/chat-main.css、build.mjs、FIX-REGRESSION.md、WORKLOG.md**；构建状态：**未构建，需构建者收口**）。
+- 需求/反馈：手机端【帮我决定】【多人决定】的「自定义选项」窗口一直跳且拉不上去。根因：#chat-decision-body 的 dec-opts 早已限高框内滚动，但 #chat-gdecision-body 的 gd-opts 漏了同款——安卓被转成 contenteditable .ce-box 后随输入行数无限增高，把下方控件顶出屏、整列无法上划（与 dec-opts 修法同）。
+- 方案：给 #chat-gdecision-body .dec-inp-wrap .ce-box[data-for="gd-opts"] 补 max-height:176px + overflow-y:auto + overscroll-behavior:contain，与 dec-opts 完全对齐。已登记 build.mjs 哨兵（598 条全绿哑 0）。
+- 验证：node build.mjs --check-sentinels 598 全绿哑 0；build.mjs/FIX-REGRESSION.md/WORKLOG.md 均已按回归防线登记。【真机:待验证】（任意安卓）：多人决定→自定义选项→选项框输多行→框内滚动查看、控件不顶出屏、可正常上划。
+- 待对方处理：下次构建收口（含本批改动一起 build 进产物）。
 ### 2026-09-10 18:5x（#265 收口：构建者补完——把已落 src 的桌面图标顺序修复打进产物并全量复核；本次构建者：本会话）
 - [AI-B 域补完登记]（改动：无新增 src——#265 修复已在 src/js/personalize.js 由原会话落好，本会话只执行 **node build.mjs 收口构建**；产物已含 5 条 #265 needle、含 6 批在途 #260~#267 改动，sw mochi-mtveqate）
 - 前置校验：node --check 九处在途改动 JS 全过；`node build.mjs --check-sentinels` 595 全绿哑 0（src 锚点全在位）后才构建。

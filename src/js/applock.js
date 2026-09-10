@@ -23,7 +23,6 @@
   const SESS = 'mochi-applock-ok';
   // v3.31.x 开屏问答门（可不设数字密码单独用；本机输暗号 QA_SKIP_CODE 永久跳过问答层）
   const K_QA_EN = 'applock-qa-en';
-  const K_QA_LIST = 'applock-qalist';
   const K_QA_SKIP = 'applock-qaskip';
 
   // ---------- 存储（根命名空间，localStorage 直读兜底） ----------
@@ -66,38 +65,18 @@
   function saveQa(q, h) { gSet(K_QA, JSON.stringify({ q: String(q), h: String(h) })); }
 
   // ---------- 开屏问答门数据 ----------
-  // 存储为 JSON：[{ q:'题目', h:'答案摘要(cyrb53)' }]，答案不落明文（同数字密码）。
+  // 固定 2 道题，不可被别人编辑（无增删改入口，也不读任何已存储的自定义题目列表）。
   // 可独立于数字密码锁开关（应用锁可不设）；本机输暗号 QA_SKIP_CODE 后 qaskip=1 永久跳过问答层。
   const QA_SKIP_CODE = '990915';
+  // 开屏问答门固定 2 道题，不可被别人编辑（无增删改入口，也不读任何已存储的自定义题目列表）
   const DEFAULT_QA = [
     { q: 'mj 是什么意思？', a: '梦角' },
-    { q: '是否已知晓：全站为随机代码运行，不含任何 AI，请不要添加负面字卡吓唬自己？', a: '是' }
+    { q: '是否已知晓：全站为随机代码运行，不含任何 AI，请不要添加负面字卡吓唬自己？（提示：答案为【一个字】）', a: '是' }
   ];
-  function qaRaw() {
-    try {
-      const v = gGet(K_QA_LIST);
-      if (v && typeof v === 'string') {
-        const arr = JSON.parse(v);
-        if (Array.isArray(arr) && arr.length && arr.every(function (it) { return it && it.q && it.h; })) {
-          return arr.map(function (it) { return { q: String(it.q), h: String(it.h) }; });
-        }
-      }
-    } catch (e) {}
-    return null;
-  }
-  // 展示用：返回 [{q,h}]，无存储时给默认题（不落盘）
+  // 展示用：永远是这固定 2 道题（答案不落明文）
   function qaList() {
-    const r = qaRaw();
-    if (r) return r;
     return DEFAULT_QA.map(function (it) { return { q: it.q, h: h53(String(it.a).trim()) }; });
   }
-  // 保存：入参 [{q,a}]，内部转成摘要
-  function qaSave(items) {
-    gSet(K_QA_LIST, JSON.stringify(items.map(function (it) {
-      return { q: String(it.q), h: h53(String(it.a).trim()) };
-    })));
-  }
-  function qaSeedDefault() { if (!qaRaw()) qaSave(DEFAULT_QA); }
   // v3.32.x 默认开启：键未显式设置(=null) → 视为开启（防偷看），存 '0' 才显式关闭；
   // '1'/'0' 显式值优先。自动化无头环境（本仓库 278 个回归脚本空库首启）且键未设置时
   // 按「关」处理，避免全部被问答层挡住；显式设键的脚本不受影响。
@@ -171,27 +150,6 @@
         (o.secondary ? '<button type="button" class="al-ghost" data-link="' + o.secondary.act + '">' + o.secondary.label + '</button>' : '') +
         '<button type="button" class="al-primary" data-ok="1">' + (o.okLabel || '知道了') + '</button>' +
         '</div>';
-    } else if (o.kind === 'qalist') {
-      // 开屏问答 · 题目管理（增删改问答题，答案只存摘要）
-      const items = o.items || [];
-      inner += '<div class="applock-err" id="applock-err"></div>' +
-        '<div class="al-qa-list" id="al-qa-list">' +
-        (items.length ? items.map(function (it, i) {
-          return '<div class="al-qa-row">' +
-            '<span class="al-qa-idx">' + (i + 1) + '</span>' +
-            '<span class="al-qa-q">' + it.q + '</span>' +
-            '<span class="al-qa-ops">' +
-            '<button type="button" data-qal="edit:' + i + '">改</button>' +
-            (items.length > 1 ? '<button type="button" data-qal="del:' + i + '">删</button>' : '') +
-            '</span>' +
-            '</div>';
-        }).join('') : '<div class="applock-empty">还没有题目，点下方「添加题目」新建。</div>') +
-        '</div>' +
-        '<div class="applock-btns" style="margin-top:4px">' +
-        '<button type="button" class="al-ghost" data-qal="add">＋ 添加题目</button>' +
-        '<button type="button" class="al-primary" data-qal="done">完成</button>' +
-        '</div>' +
-        (o.extra ? '<div class="applock-sub" style="margin-top:8px">' + o.extra + '</div>' : '');
     } else { // pad
       let dots = '';
       for (let i = 0; i < o.max; i++) dots += '<i></i>';
@@ -267,7 +225,7 @@
   }
   function padOpen(o) {
     cur = Object.assign({}, o);
-    if (o.kind !== 'text' && o.kind !== 'info' && o.kind !== 'qalist') { cur.kind = 'pad'; if (!cur.max) cur.max = 6; if (cur.min == null) cur.min = 1; }
+    if (o.kind !== 'text' && o.kind !== 'info') { cur.kind = 'pad'; if (!cur.max) cur.max = 6; if (cur.min == null) cur.min = 1; }
     buf = '';
     render();
     maskEl().hidden = false;
@@ -285,12 +243,6 @@
       return;
     }
     if (t.closest('#applock-ok')) { padTry(); return; }
-    if (t.closest('[data-qal]')) {
-      if (!cur || cur.kind !== 'qalist') return;
-      const act = t.closest('[data-qal]').getAttribute('data-qal');
-      onQal(act);
-      return;
-    }
     if (t.closest('[data-ok]')) {
       if (!cur || cur.kind !== 'info') return;
       const oc = cur.onPrimary;
@@ -378,8 +330,12 @@
           onSubmit: function (a) {
             if (!a) { showErr('答案不能为空'); return; }
             if (done) done(q, a);
+            // 完成即关闭面板：此前只 save+toast、不隐藏遮罩，面板一直滞留在此屏，
+            // 用户看不到已保存、以为「点完成无反应」。
+            cur = null; buf = '';
+            maskEl().hidden = true;
           },
-          onCancel: function () { /* 中止整个设置 */ if (cur) close(); }
+          onCancel: function () { if (cur) close(); }
         });
       },
       onCancel: function () { if (cur) close(); }
@@ -603,72 +559,8 @@
   }
 
   // ---------- 开屏问答门 · 设置页管理 ----------
-  // 编辑缓冲：qaList() 的 {q,h} 深拷贝；答案留空=保留原答案（摘要不回显）
-  let qaBuf = null;
-  function qaOpenEdit() {
-    qaBuf = (qaRaw() || qaList()).map(function (it) { return { q: String(it.q), h: String(it.h) }; });
-    qaPanel();
-  }
-  function qaPanel() {
-    padOpen({ kind: 'qalist', title: '开屏问答题', sub: '答案加密存储不显示；改题时答案留空＝不变。至少保留 1 道。', ico: ICON_SHIELD, items: qaBuf });
-  }
-  function qaRerender() {
-    if (!cur || cur.kind !== 'qalist' || !qaBuf) return;
-    cur.items = qaBuf;
-    render();
-  }
-  // act: done / add / edit:i / del:i
-  function onQal(act) {
-    if (act === 'done') {
-      const arr = (qaBuf || []).filter(function (it) { return it && it.q; });
-      if (!arr.length) { showErr('至少要保留一道题'); return; }
-      gSet(K_QA_LIST, JSON.stringify(arr.map(function (it) { return { q: it.q, h: it.h }; })));
-      qaBuf = null;
-      maskEl().hidden = true; cur = null; buf = '';
-      toast('问答题已保存');
-      syncQaUi(); syncUi();
-      return;
-    }
-    if (act === 'add') { qaEditItem(null); return; }
-    if (act.indexOf('edit:') === 0) { qaEditItem(parseInt(act.slice(5), 10)); return; }
-    if (act.indexOf('del:') === 0) {
-      const i = parseInt(act.slice(4), 10);
-      if (!qaBuf || i < 0 || i >= qaBuf.length) return;
-      if (qaBuf.length <= 1) { showErr('至少保留一道题'); return; }
-      qaBuf.splice(i, 1);
-      qaRerender();
-    }
-  }
-  // 编辑 idx（null=新增）：题目 → 答案（留空=保留原答案）
-  function qaEditItem(idx) {
-    const isNew = idx === null || idx === undefined;
-    const editing = !isNew ? qaBuf[idx] : null;
-    textAsk({
-      title: isNew ? '添加题目' : '修改题目', sub: isNew ? '输入问题内容：' : '输入新的问题内容（或直接下一步不改）：',
-      placeholder: '问题', maxlen: 80, okLabel: '下一步', cancel: false,
-      value: editing ? editing.q : '',
-      onSubmit: function (q) {
-        if (!q) { showErr('问题不能为空'); return; }
-        textAsk({
-          title: isNew ? '设置答案' : '设置答案（留空＝不变）',
-          sub: isNew ? '输入该题的正确答案（原样输入，区分大小写）：' : '输入新答案；留空则沿用原答案：',
-          placeholder: '答案', maxlen: 60, okLabel: isNew ? '添加' : '保存', cancel: false,
-          onSubmit: function (a) {
-            if (isNew) {
-              if (!a) { showErr('答案不能为空'); return; }
-              qaBuf.push({ q: q, h: h53(String(a).trim()) });
-            } else {
-              editing.q = q;
-              if (a) editing.h = h53(String(a).trim());
-            }
-            qaPanel();
-          }
-        });
-      }
-    });
-  }
   // 管理操作前置验证：有数字密码→输密码；否则→输暗号 990915（防旁人顺手删题/关问答门）
-  // next() 通过；cancel() 用户取消
+  // next() 通过；cancel() 用户取消（仅用于「关闭问答门」的防顺手关闭）
   function qaGuard(next, cancel) {
     const onCancel = function () { if (cancel) cancel(); else { syncQaUi(); syncUi(); } };
     if (pinHash()) {
@@ -699,26 +591,22 @@
     if (!c || !s) return;
     const on = qaEnabled();
     c.checked = on;
-    const raw = qaRaw();
-    const n = raw ? raw.length : (qaList().length);
+    const n = qaList().length;
     let html;
     if (on) {
-      const acts = [{ act: 'qa-manage', label: '编辑问答题' }];
-      if (qaSkipped()) acts.push({ act: 'qa-unskip', label: '恢复本机问答' });
-      html = '<span>已开启：每次打开本站需先答对 <b>' + n + '</b> 道问答题' +
+      const acts = qaSkipped() ? [{ act: 'qa-unskip', label: '恢复本机问答' }] : [];
+      html = '<span>已开启：每次打开本站需先答对 <b>' + n + '</b> 道固定问答题' +
         (enabled() && !!pinHash() ? '，再输入数字密码' : '') + '。' +
         (qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号」可让本机永久跳过问答层。') +
         '</span>' + actsHtml(acts);
     } else {
-      html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时可输暗号让本机永久跳过问答层。</span>' +
-        (raw ? actsHtml([{ act: 'qa-manage', label: '编辑问答题' }]) : '');
+      html = '<span>未开启。开启后每次打开本站需先答对固定问答题才放行；可不设上方数字密码锁单独使用。锁屏时可输暗号让本机永久跳过问答层。</span>';
     }
     s.innerHTML = html;
     Array.prototype.forEach.call(s.querySelectorAll('[data-aa]'), function (b) {
       b.addEventListener('click', function () {
         const act = b.getAttribute('data-aa');
-        if (act === 'qa-manage') qaGuard(qaOpenEdit);
-        else if (act === 'qa-unskip') { qaSkipSet(false); toast('已恢复：本机再次打开会询问问答'); syncQaUi(); }
+        if (act === 'qa-unskip') { qaSkipSet(false); toast('已恢复：本机再次打开会询问问答'); syncQaUi(); }
       });
     });
   }
@@ -732,7 +620,6 @@
       c.disabled = true;
       const done = function () { c.disabled = false; syncQaUi(); syncUi(); };
       if (wantOn) {
-        if (!qaRaw()) { gSet(K_QA_LIST, JSON.stringify(qaList().map(function (it) { return { q: it.q, h: it.h }; }))); }
         qaSetEn(true);
         done();
         toast('开屏问答已开启');
@@ -817,9 +704,8 @@
   else document.addEventListener('DOMContentLoaded', init);
 
   window.__applockReady = true;
-  // 无头验证专用入口（仅 tools/verify-applock.mjs 使用；无锁态下不绕行 evalLock）
+  // 无头验证专用入口（仅 tools/verify-applock.mjs 使用；开屏问答门固定 2 题，无编辑入口）
   window.__applockQaTest = {
-    openEdit: function () { qaOpenEdit(); },
-    getList: function () { return qaRaw() || qaList(); }
+    getList: function () { return qaList(); }
   };
 })();
