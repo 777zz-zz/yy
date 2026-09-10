@@ -524,7 +524,7 @@ const FIX_SENTINELS = [
   { name: '#233 default:__ 误迁系统键存量副本清扫（LS+IDB 同删，防 idbRestore 回填复活；删掉则死副本永占 LS 配额）', file: 'js/contacts.js', needle: "k.indexOf(G + ':default:__') === 0" },
   { name: '#232 朋友圈身份/封面六键改按桌面独立回收（DESK_KEYS 拆分；根键有值即删 default 副本的旧逻辑=朋友圈头像昵称每刷新回退，删此拆分即回归）', file: 'js/feed.js', needle: "const DESK_KEYS = ['feed-cover-bg', 'feed-ta-cover', 'feed-ta-name', 'feed-ta-avatar', 'feed-user-name', 'feed-user-avatar'];" },
   { name: '#232 收养旧全局值前三态确认（idbHasKey false 才收养——大值只在 IDB def.get 看不到≠不存在，删守卫会用旧全局值盖掉大头像/封面）', file: 'js/feed.js', needle: "window.idbHasKey('xy-home-v2:default:' + k)" },
-  { name: '#234 诊断开关体检读取列键位修复（xyStore 前缀不带尾冒号；改回 xyStore(P) 即回归双冒号 default::「读取」列恒缺失误导判读）', file: 'js/device.js', needle: 'window.xyStore(SP).get(short)' },
+  { name: '#234 诊断开关体检读取列键位修复（xyStore 前缀不带尾冒号；2026-09-11 复发修正：G 本身已带尾冒号，SP 必须=G+cid，首修的 G+\':\'+cid 仍是双冒号——改回任何额外冒号拼法即回归「读取」列恒缺失误导判读）', file: 'js/device.js', needle: 'window.xyStore(SP).get(short)' },
   { name: '#139 LS 大键残留清扫（读-比对-CAS 删 LS 副本：IDB 同值纯去重/落后先追平再删，恢复设置保存配额）', file: 'js/idb.js', needle: 'if (localStorage.getItem(k) === lsVal) localStorage.removeItem(k);' },
   { name: '#139 专属字卡库去重预检（__big-idx 尺寸+体检标记免读大值，稳态零开销）', file: 'js/chatcard.js', needle: 'marks[cid][0] === pubRaw.length && marks[cid][1] === ownLen' },
   { name: '#139 专属页导入全量备份防复制守卫（公用库兜底内容与合并结果相同不写专属键）', file: 'js/chatcard.js', needle: "if (fromPubFallback && ccScope === 'own') {" },
@@ -886,6 +886,12 @@ const FIX_SENTINELS = [
   { name: '#283 迁移期分批冲池（每 32 条 flush 封顶 writeBuf/单事务并清回滚账；删则几十 MB 单事务+回滚账常驻=迁移会话堆尖峰）', file: 'js/chat.js', needle: 'const _okMid = await window.mochiMediaFlush();' },
   { name: '#283 冷启动收敛触发（读库成功后 12s 跑 pass；删则只依赖 restore 事件/切桌面——不切桌面的设备历史语音永不被收口）', file: 'js/chat.js', needle: 'scheduleMediaPass(12000)' },
   { name: '#283 收藏语音识别加令牌形态（名称|||@@m:hash 不识别则收藏语音直出令牌串且不可播）', file: 'js/chat.js', needle: '@@m:[0-9a-f]{32}$/.test(f.text)' },
+  // ==== #284 vivo X200s+Edge150「BodyStreamBuffer was aborted」×10/×11 刷错误环：cancel() 拒绝安全 ====
+  { name: '#284 cancel() 拒绝安全（mochiSafeCancelBody 挂空 catch；删则弱网 abort 时 BodyStreamBuffer 拒绝继续裸奔刷错误环）', file: 'js/music-player.js', needle: "if (p && typeof p.catch === 'function') p.catch(function () {});" },
+  // ==== 2026-09-11 #287 群聊点头像拍一拍（用户报「群聊里无法点击联系人头像拍一拍」＝单聊有、群聊从未实现）====
+  { name: '#287 成员消息头像点击开拍一拍面板（renderMsg 头像绑定；删/改绑定则点头像无反应回退功能缺口）', file: 'js/group-chat.js', needle: 'gcOpenPokeCard(rec.cid)' },
+  // ==== 2026-09-11 #288 群聊美化视图卡片化重设计（用户报「美化设置不完整、和聊天里的不一样」＝纯文字行 vs 聊天设置图标卡片页）====
+  { name: '#288 美化视图 set-row 图标行构建（set-row+gc-set-row 双类；回退纯文字 beautyRow 行则该锚点消失）', file: 'js/group-chat.js', needle: "'set-row gc-set-row'" },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

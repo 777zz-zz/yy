@@ -1,3 +1,35 @@
+### 2026-09-11（#286 用户报障 iPhone16P/Safari「歌曲复制出来听不了、歌单复制只复制出一首」+「字卡批量导入页面固定最顶无法滑动」——本会话只核实零改动：报障全部出自 9/7 旧版，修复均已上线）
+- [AI-A 域核实任务，未碰任何 src]（**改动文件：仅 WORKLOG.md；构建状态：未构建，无 src 改动**；本次构建者：非本会话）。
+- 核实链：两份诊断均 v3.26.520 构建 ts=1788740934736＝**2026-09-07 08:28 旧版**，早于其后四批音乐/弹窗修复。①诊断自带错误环 `floorPick` ReferenceError（page-room）→ #255（a736c98 9/7 23:44，room.js floorPick 补齐）已修；②「歌单导入不全/只有 10 首」→ #263（499a1c5 9/10 19:07，fetchNeteasePlaylist 多源并发取最长，实测 62 首歌单全量）已修，已验证 origin/main 产物含该源（grep api.qijieya.cn playlist =1）；③「链接导入的 VIP/付费歌无法播放」是产品既定语义（UI 已注明），非 bug；④「字卡批量导入弹窗固定最顶」同批 #255 弹窗放大/顶对齐相关改动在用户版本里根本不存在，无从对号。最新版识别实测（node 直跑最新正则）：music.163.com 各形态歌单/单曲链接、纯数字 ID、分享混排文本全部正确识别。
+- 结论与处理：与 #260 vivo 停旧版同族——先让手机更新到最新（顶部更新条「刷新使用新版」或关全部标签页重开；#273/#279 冷加载自动升级会自动跟版）再复测。遗留观察项（新版复测仍现才立项）：iOS 网易云 App 分享的 `163cn.tv` 短链无 CORS 头（curl 实测 302 无 ACAO），浏览器端无法跟随解析出歌曲/歌单 ID，属平台限制；用户应改用含完整 music.163.com 链接的分享文本。
+- 待对方处理：无。树上 #282~#285 在途批次不受影响。
+- 编号说明：顺延 #286（#285 本会话开工时刚被 AI-B 占用）。
+
+### 2026-09-11（#285 用户报障「小米17Pro+Edge152 诊断信息有错误」（明说多机型同现）：「开关持久化体检」读取列恒缺失＝#234 首修 SP 拼法仍是双冒号——本次构建者：非本会话（树上 #282/#283/#284 在途，待收口构建顺带））
+- [AI-B 域 src/js/device.js + 登记资产 build.mjs（#234 哨兵名更新，needle 不变）FIX-REGRESSION.md（#234 行补复发修正）tools/verify-exclude-feed-schemes.mjs（V6 断言反向修正）WORKLOG.md]（构建状态：**未构建，需构建者收口**；只追加未触碰他批块）。
+- 需求/反馈：小米17Pro（25098PN5AC）+Edge152 诊断 v3.26.539 输出「cs-voice-send：LS=\ 读取=缺失」；用户强调其他设备型号也有、勿覆盖式修改。
+- 根因（装置性、与机型无关）：#234 首修把 xyStore 前缀写成 SP = G + ':' + cid，但本文件 G='xy-home-v2:' 已带尾冒号，拼出 xy-home-v2::<cid>:: 双冒号键，「读取（内存优先）」列恒缺失——首修只是把双冒号从尾部挪到中间，且 V6 静态断言钉死的正是笔误形态（验证断言写成了病句同款）。
+- 方案（最小改动，零机型分支）：① device.js SP = G + cid（等价 contacts.js 家族 GNS+':'+cid 正确形态）；② V6 断言反向修正：断 SP=G+cid 在位、断 G+':'+cid 与 xyStore(P) 两款病句清零；③ #234 哨兵名更新（needle=window.xyStore(SP).get(short) 不变、仍唯一）。
+- 验证：node --check 过；tools/verify-exclude-feed-schemes.mjs 34/34（含新增反向断言）；node build.mjs --check-sentinels 623 全绿哑 0。修复后该列将如实反映 xyStore 内存优先读值（cs-voice-send 应显示读取=\）。【真机:待验证】（任意机型）：诊断「开关持久化体检」读取列不再恒缺失、与 LS 列一致。
+- 编号说明：顺延 #285（276~284 已占）。
+
+### 2026-09-11（#283 用户报障「vivo S60+Chrome 经常卡、按不动，其他机型也有」：聊天语音令牌化——79.2MB chat-msgs 每次落盘 clone 整包是长任务/卡顿元凶——本次构建者：本会话（顺收口在途 #282/#284））
+- [跨域改动（AI-A 名下 chat.js，理由：语音令牌化主链在消息 normalize/播放，媒体池既有架构延伸；media-pool.js 无归属默认共享）+ AI-B 域 build.mjs/FIX-REGRESSION.md/WORKLOG.md]（**改动文件：src/js/chat.js、src/js/media-pool.js（已随并行批入库）、build.mjs、FIX-REGRESSION.md、tools/verify-voice-pool.mjs（新增）、WORKLOG.md**；构建状态：**本条目后立即构建收口**）。
+- 需求/反馈：vivo S60/V2571A + Chrome149 诊断 v3.26.536（帧率≈25fps、堆 307.1MB、长任务 50~405ms 集中在切后台/收键盘；IDB chat-msgs=79.2MB/2277 条）；用户明说「其他设备型号也有出现」，要求不要覆盖修改引发跨机型回归。
+- 根因（与机型/浏览器无关）：#142 池 v1 `mochiMediaTokenize` 只收 `data:image/`——历史语音/语音字卡以「名称|||data:audio;base64…」整份内联在消息 text。图片早已令牌化（本机历史里已有 @@m: 引用），79.2MB 大头即漏收的语音：每次 saveMsgs 空闲落盘/离页 flushSave 都对整包 structured clone＝低端机 100~400ms 长任务+GC 风暴＝「经常卡、按不动」。触发面也窄：pass 只挂 mochi-restore-done（IDB 挂起时永不到达）与 contact-switched，不切桌面的设备永不收敛。
+- 方案（零机型分支，#142/#186/#202 语义全保留）：① 池收音频：tokenize 放行 data:audio/；音频不进 map 热缓存（迁移不把省下的内存吃回去）；新增 `mochiMediaExpandAsync` 按需 idbGet（校验 data:audio/ 前缀，缺失→null 占位）。② normalize pass 令牌化三种形态：「名称|||data:audio/…」→「名称|||@@m:hash」/裸 data:audio→「|||@@m:hash」/m.voice 字段；迁移期每 32 条分批 mochiMediaFlush（writeBuf/单事务封顶+#186 回滚账除名防堆尖峰），写池失败回滚不变。③ fillVoiceBubble 点按遇令牌先异步取回再播（_vExp 防连点；池缺失 toast「语音数据缺失」），聊天/收藏共用。④ 收藏语音识别加令牌形态、tokenizeFavList 收语音、搜索结果「[语音] 名称」、normCell 给裸形态补 type=voice。⑤ 冷启动收敛：loadMsgs 权威就绪后 12s 调度 pass。语音内容唯一=去重不缩总库，但落盘 clone 从 79MB→44 字符引用，长任务根因消除。
+- 验证：node --check 过；`node build.mjs --check-sentinels` 621 全绿哑 0（新增 #283 哨兵 ×6：池收音频/语音令牌化/播放取回/分批冲池/冷启动触发/收藏识别）；`tools/verify-voice-pool.mjs` 8 项断言（构建后跑）；verify-media-pool 复跑防图片路径回归。【真机:待验证】（vivo S60 优先）：更新后开一次聊天页（≈12s 后台迁移）→ 诊断里 chat-msgs 应从 79MB 级降至 MB 级、语音气泡可播、发消息/收键盘不再长卡顿。
+- 编号说明：原拟 #279 与并行「自动升级防打断」批撞号，本批改号 #283（build.mjs/注释/FIX-REGRESSION 均已 #283）。
+- 待对方处理：无（本构建顺收口树上已声明完整的 #282 device.js 键盘停靠豁免、#284 music-player 安全 cancel——各自 owner 真机验证项照台账执行）。
+
+### 2026-09-11（#284 用户报障「信息诊断显示有错误」（vivo X200s+Edge150）：错误环「BodyStreamBuffer was aborted」成批刷＝cancel() 拒绝裸奔——本次构建者：非本会话（src 已落，待收口构建））
+- [跨域改动（AI-A 名下 music-player.js，理由：错误环噪音根因修复，与 AI-B 域诊断错误环收口配套，改动最小 3 处调用点+1 helper）；改动文件：src/js/music-player.js、build.mjs、FIX-REGRESSION.md、WORKLOG.md]（构建状态：**未构建，需构建者收口**；树上多批在途，编号顺延至 #284）。
+- 需求/反馈：vivo X200s+Edge 错误环「(promise) BodyStreamBuffer was aborted」×9~×11 成批；@@m: 图片 404 旧版遗留已由 #275/#280 覆盖未重复处理。
+- 根因：music-player 三处「收完响应头即 abort+cancel body」里，r.body.cancel() 返回 Promise，流已被超时 abort 打断时 cancel() 必 reject，外层 try/catch 拦不住 → 未处理 rejection 入环；弱网成批 abort 一次爆十条。
+- 方案：模块级 mochiSafeCancelBody(r)（cancel() 挂空 catch），三处调用点统一替换；清理语义不变。
+- 验证：node --check 过；--check-sentinels 全绿哑 0（#284 锚在位）。【真机:待验证】（vivo X200s+Edge 优先，弱网复现）：播放/导歌/封面正常，错误环不再新增该条目。
+- 待对方处理：构建者收口 node build.mjs；AI-A owner 知悉本次跨域改动（仅 cancel 清理行，未触播放逻辑）。
+
 ### 2026-09-11 00:2x（#280/#281 用户报障「华为畅享20 Pro + Edge 刷新黑屏卡顿几分钟、十多次，其他机型也有出现」：@@m: 令牌裸路径 SW 快速 404 + my-emoji-groups 启动取回延迟——本次构建者：本会话（AI-B 域；chat.js 跨域改动已声明））
 - [AI-B 域 sw.js（#280 fetch 头部对 '@@m:' 裸令牌路径本地快速 404，禁发真实网络请求）+ 跨域 chat.js（#281 启动取回延迟 restore-done+4s、myEmojiSave 防盲写闸门扩口径 __myeIdbApplied；跨域理由：用户点名修复的启动卡顿同源于聊天大键启动链）+ build.mjs（#281 FIX_SENTINELS ×2 + #280 swNeedlesSrc/swNeedles 各 ×1）+ FIX-REGRESSION.md（+280/+281 两行）+ tools/verify-refresh-perf.mjs（新增 9 断言）]（改动文件：src/pwa/sw.js、src/js/chat.js、build.mjs、FIX-REGRESSION.md、tools/verify-refresh-perf.mjs、WORKLOG.md；构建状态：已构建·sw mochi-mtvqctt9——src 三处已被并行 4fcb012 先行收编，本提交补台账/verify 脚本/产物并随收 media-pool.js #279 池收音频（接线未提交前纯休眠、已验证自洽））。
 - 需求/反馈：畅享20Pro+EdgA149（诊断 v3.26.536，堆 117MB/32fps/IDB 60.9MB）「刷新出现黑屏卡顿，几分钟后恢复。目前出现十多次了」＋明说其他机型同现＋要求不覆盖式修复（同 #265/#278 口径）。

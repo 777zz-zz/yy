@@ -1228,9 +1228,12 @@
       jobs.push(new Promise(function (res) {
         const cid = String(window.__activeCid || 'default');
         const P = G + cid + ':';
-        // #234：xyStore 的前缀参数不带尾冒号（内部自拼':'）——此前把带尾冒号的 P 传进去
-        // 拼出 default::cs-xxx 双冒号键，「读取」列恒为缺失，误导持久化体检判读
-        const SP = G + ':' + cid;
+        // #234：xyStore 的前缀参数不带尾冒号（内部自拼':'，正确形态见 contacts.js
+        // xyStore(GNS + ':' + cid) 家族）——本文件 G 本身已带尾冒号（'xy-home-v2:'），
+        // 此前先写 G+':'+cid 再传 G+cid+':' 都拼出 xy-home-v2::<cid>::cs-xxx 双冒号键，
+        // 「读取」列恒为缺失，误导持久化体检判读（小米17Pro/vivo/荣耀多机型诊断同现，
+        // 装置性错误与机型无关）。正确拼法 = G + cid。
+        const SP = G + cid;
         const fmt = function (v) { return v === null || v === undefined ? '缺失' : JSON.stringify(String(v)); };
         const KEYS = ['dc-enabled', 'dc-use-chat', 'dc-use-mail', 'dc-use-feed', 'dc-cat-main', 'cs-voice-send'];
         const lines = ['开关持久化体检（当前桌面 ' + cid + '；\'1\'=开 \'0\'=关 缺失=默认值）：'];
@@ -2251,7 +2254,20 @@ window.mochiViewportForm = function (sig) {
     // 满，env=0 的 18.3 系统也按此渲染——原实现误写 innerH 与本注释矛盾，forced
     // 设备自检必误报底部超出）；覆盖形态=envTop+inner、min 屏高防异常超界（#184 起）
     const expBase = Fm.expBase;
-    if (inp.phoneBottom != null && inp.innerH) {
+    // FIX 2026-09-10 #282：安卓键盘停靠豁免（荣耀90GT+Edge150 诊断 v3.26.529 实报
+    // 「底部少填 277px｜env=0 diff=181 inner=633 phone底=356」错误环多机型复发）。
+    // resizes-visual 下键盘只缩可视视口（vv 633→356）、布局视口 inner 不动，.phone
+    // 按设计停靠到键盘上沿=356——布局本身正确；但 ④/⑤b 只对照 inner 期望底，一采集
+    // 就误报「少填/悬空」。sdTick 的输入焦点守卫只在打字期挡得住：Edge 收键盘后 vv
+    // 读数残留（#236 同族）扩大失焦窗口，错误环照样入环。豁免判据沿用 #236 已验证
+    // 的键盘下限：vv 缩幅 ≥ inner×22%（真键盘缩幅均 >200px，几十 px 只可能是壳残留
+    // 带）＝键盘停靠期，④/⑤b 不判底（残留自愈由 syncAndroidKb #236/#267/#209 看门狗
+    // 负责，诊断侧不再刷瞬态假错误）；#236 场景缩幅落在残留带（<22%）仍照常上报，
+    // 不掩盖真残留。iOS 键盘 .phone 内联接管由 sdTick 焦点守卫挡，不经此门。
+    const _kbShrink = inp.vvH > 0 ? inp.innerH - inp.vvH : 0;
+    const _kbDocking = _kbShrink >= Math.round(inp.innerH * 0.22);
+    if (_kbDocking) add(true, '键盘停靠期，跳过底部判定（vv 缩 ' + _kbShrink + 'px，#282）');
+    else if (inp.phoneBottom != null && inp.innerH) {
       const expB = expBase;
       const under = Math.round(expB - inp.phoneBottom);
       const over = Math.round(inp.phoneBottom - expB);
@@ -2265,8 +2281,8 @@ window.mochiViewportForm = function (sig) {
       if (inp.iosH && Math.abs(inp.iosH - expH) > 2) add(false, '--mochi-ios-h 与期望屏高不符', '⚠ ios-h=' + inp.iosH + 'px ≠ envTop+inner=' + expH + 'px（#179 公式：覆盖形态=整屏/已避让=inner）');
       else add(true, '--mochi-ios-h=' + (inp.iosH || '(未设→回落)') + ' 与期望屏高一致');
     }
-    // ⑤b 底部导航栏裁切：tabbar 底边超出可视区
-    if (inp.tabBottom != null && inp.innerH) {
+    // ⑤b 底部导航栏裁切：tabbar 底边超出可视区（#282：键盘停靠期同 ④ 豁免）
+    if (!_kbDocking && inp.tabBottom != null && inp.innerH) {
       const expTB = expBase - (inp.envBottom || 0); // 期望底边=屏底−Home横条避让（#199：浏览器覆盖形态=可视区底）
       const overB = Math.round(inp.tabBottom - expTB);
       if (overB > 2) add(false, '底部导航栏被裁 ' + overB + 'px', '✗ tabbar 底边 ' + inp.tabBottom + 'px 超出期望 ' + expTB + 'px（#148 同族）');

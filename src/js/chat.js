@@ -512,7 +512,8 @@ if (!chatDbReady || authLoadedPrefix !== window.activePrefix()) return;
 _mediaPassBusy = true;
 try {
 let changed = 0;
-const _rollback = []; // FIX 2026-09-05 #186 写池失败回滚账 [{obj, prop, val, msg}]
+let _rollback = []; // FIX 2026-09-05 #186 写池失败回滚账 [{obj, prop, val, msg}]
+let _pendTok = 0; // FIX 2026-09-10 #283 迁移期分批冲池计数
 for (let i = 0; i < msgs.length; i++) {
 const m = msgs[i];
 if (!m || _mediaTokSeen.has(m)) continue;
@@ -525,6 +526,24 @@ if (typeof m.img === 'string' && m.img.indexOf('data:image/') === 0) {
 const t = await window.mochiMediaTokenize(m.img);
 if (t) { _rollback.push({ o: m, p: 'img', v: m.img, msg: m }); m.img = t; changed++; did = true; }
 }
+// FIX 2026-09-10 #283 语音令牌化——历史语音/语音字卡整份 data:audio 内联在 text
+//（「名称|||data:audio/…」，#142 v1 只收图片漏了它 ⇒ 本机诊断 chat-msgs 79.2MB：
+// 每次落盘 structured clone 整包＝低端机长任务 100~400ms+GC 频繁＝「经常卡、按不动」）。
+// 替换为「名称|||@@m:hash」/「|||@@m:hash」，音频本体进池只存一份；名称段原样保留。
+if (typeof m.text === 'string' && m.text.length > 1024) {
+const _bar = m.text.indexOf('|||');
+if (_bar > 0 && m.text.indexOf('data:audio/', _bar + 3) === _bar + 3) {
+const t = await window.mochiMediaTokenize(m.text.slice(_bar + 3));
+if (t) { _rollback.push({ o: m, p: 'text', v: m.text, msg: m }); m.text = m.text.slice(0, _bar + 3) + t; changed++; did = true; }
+} else if (m.text.indexOf('data:audio/') === 0) {
+const t = await window.mochiMediaTokenize(m.text);
+if (t) { _rollback.push({ o: m, p: 'text', v: m.text, msg: m }); m.text = '|||' + t; changed++; did = true; }
+}
+}
+if (typeof m.voice === 'string' && m.voice.length > 1024 && m.voice.indexOf('data:audio/') === 0) {
+const t = await window.mochiMediaTokenize(m.voice);
+if (t) { _rollback.push({ o: m, p: 'voice', v: m.voice, msg: m }); m.voice = t; changed++; did = true; }
+}
 if (Array.isArray(m.parts) && m.parts.length) {
 for (let j = 0; j < m.parts.length; j++) {
 const p = m.parts[j];
@@ -535,7 +554,22 @@ if (t) { _rollback.push({ o: p, p: 'v', v: p.v, msg: m }); p.v = t; changed++; d
 }
 }
 _mediaTokSeen.add(m);
-if ((i & 63) === 63) {
+if (did) _pendTok++;
+if ((i & 63) === 63 || _pendTok >= 32) {
+// FIX 2026-09-10 #283 迁移期分批冲池：语音批量令牌化可达几十 MB，writeBuf 与单条
+// idbSetAll 事务随批封顶（≤32 条）；池数据先落盘后，已冲批次从回滚账除名（池已持久，
+// 无需回滚原件，回滚账常持几十 MB 原件＝迁移会话堆尖峰）
+if (_pendTok >= 32) {
+const _okMid = await window.mochiMediaFlush();
+if (_okMid === false) {
+for (let r = 0; r < _rollback.length; r++) { try { _rollback[r].o[_rollback[r].p] = _rollback[r].v; } catch (e2) {} try { _mediaTokSeen.delete(_rollback[r].msg); } catch (e3) {} }
+scheduleMediaPass(8000);
+console.warn('[mochi] 媒体池写盘失败，本次 ' + changed + ' 处令牌化已回滚待重试');
+return; // finally 复位 busy
+}
+_rollback = []; // 已冲批次池数据均已持久，全部除名（清空回滚账=释放原件引用）
+_pendTok = 0;
+}
 await new Promise(r => setTimeout(r, 0));
 // 中途切桌面/权威归属变化 → 立即中止（WeakSet 未标记的记录留给下次 pass）
 if (authLoadedPrefix !== window.activePrefix()) break;
@@ -552,7 +586,7 @@ scheduleMediaPass(8000);
 console.warn('[mochi] 媒体池写盘失败，本次 ' + changed + ' 处令牌化已回滚待重试');
 } else {
 saveMsgs();
-try { console.info('[mochi] 媒体池：' + changed + ' 处聊天图片已去重为池引用'); } catch (e) {}
+try { console.info('[mochi] 媒体池：' + changed + ' 处聊天图片/语音已去重为池引用'); } catch (e) {}
 }
 }
 } catch (e) {} finally { _mediaPassBusy = false; }
@@ -592,6 +626,10 @@ function normCell(r) {
       if (t !== r.text) { r.text = ICON_ENV + t; c = true; }
     }
     if ((r.type === 'text' || !r.type) && typeof r.text === 'string' && r.text.indexOf('data:image/') === 0) { r.type = 'image'; c = true; }
+// FIX 2026-09-10 #283 语音型归一：裸 data:audio 文本与「|||@@m:令牌」（pass 令牌化后的无主
+// 名称形态）补 type='voice'，走语音气泡渲染（名称缺省「语音消息」），不再当纯文本直出
+if ((r.type === 'text' || !r.type) && typeof r.text === 'string' &&
+(r.text.indexOf('data:audio/') === 0 || (r.text.indexOf('|||') === 0 && window.mochiMediaIsToken && window.mochiMediaIsToken(r.text.slice(3))))) { r.type = 'voice'; c = true; }
     if (r.special === 'poke' && typeof r.text === 'string' && r.text.indexOf('&lt;svg class=&quot;st-ico&quot;') === 0) {
       const mm = r.text.match(/^(&lt;svg class=&quot;st-ico&quot;[\s\S]*?&lt;\/svg&gt;)([\s\S]*)$/);
       if (mm) { r.text = mm[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&') + mm[2]; c = true; }
@@ -947,6 +985,10 @@ try { if (window.activePrefix() === myPrefix && window.idbSet) persistMsgsToIdb(
 }
 // v3.26.x：读库完成后调度后台分批归一化（幂等，仅对当前联系跑一次）
 scheduleDeferredNormalization();
+// FIX 2026-09-10 #283 冷启动收敛触发：语音令牌化原只挂在 mochi-restore-done（IDB 整轮
+// 挂起时永不到达）与切桌面事件上——只在两事件间使用的设备历史语音永远不被收口。pass 自带
+// 权威守卫/WeakSet 去重/幂等，读库成功后延迟跑一次即可覆盖冷启动路径
+try { scheduleMediaPass(12000); } catch (e) {}
 } catch (e) { /* 解析失败：不置 chatDbReady，下次进入再重试 */ }
 });
 }
@@ -1496,8 +1538,19 @@ b.innerHTML = (prefixHtml || '') + '<div class="msg-voice" data-src="' + attrEsc
 const btn = b.querySelector('.msg-voice-play');
 if (btn) btn.addEventListener('click', function (e) {
 e.stopPropagation();
-if (v.src) playVoiceInChat(btn, v.src);
-else toast('语音数据缺失');
+if (!v.src) { toast('语音数据缺失'); return; }
+// FIX 2026-09-10 #283 语音令牌：播放前异步取回池数据（音频不进热缓存，每次点按 idbGet，
+// 池缺失/被剥空 → 与图片占位同口径提示）；_vExp 防取回窗口内连点双播
+if (window.mochiMediaIsToken && window.mochiMediaIsToken(v.src)) {
+if (!window.mochiMediaExpandAsync || btn._vExp) return;
+btn._vExp = true;
+window.mochiMediaExpandAsync(v.src, function (data) {
+btn._vExp = false;
+if (data) playVoiceInChat(btn, data); else toast('语音数据缺失');
+});
+return;
+}
+playVoiceInChat(btn, v.src);
 });
 }
 const QUOTE_PLACEHOLDER = /^(图片|表情包|\[图片\]|\[表情包\])$/;
@@ -6253,7 +6306,10 @@ if (dateLabel) head = dateLabel + ' · 共 ' + results.length + ' 条 · 点击�
 let html = '<div style="font-size:11px;color:var(--muted);margin:6px 2px 10px">' + esc(head) + '</div>';
 results.slice(0, 80).forEach(r => {
 const isImg = r.txt.indexOf('data:') === 0 || (window.mochiMediaIsToken && window.mochiMediaIsToken(r.txt)); // #148 令牌化图片消息搜索结果不直出令牌串
-const label = isImg ? '[图片]' : (r.txt.length > 60 ? r.txt.slice(0, 60) + '…' : r.txt);
+// FIX 2026-09-10 #283 语音消息（名称|||data:audio/名称|||@@m:令牌）搜索结果显示「[语音] 名称」，
+// 不直出整串音频数据/令牌
+const isVc = typeof r.txt === 'string' && /\|\|\|(?:data:audio\/|@@m:[0-9a-f]{32})/.test(r.txt);
+const label = isVc ? ('[语音] ' + r.txt.split('|||')[0]) : (isImg ? '[图片]' : (r.txt.length > 60 ? r.txt.slice(0, 60) + '…' : r.txt));
 const who = r.m.side === 'out' ? myName : partnerName;
 const time = r.m.ts ? fmtSearchTime(r.m.ts) : '';
 html += '<div class="tc-listitem" data-sidx="' + r.i + '"><div class="tc-li-top"><span class="tc-li-q">' + who + '：' + (isImg ? '[图片]' : (q ? hl(label) : esc(label))) + '</span><span class="tc-li-time">' + time + '</span></div></div>';
@@ -6579,6 +6635,15 @@ try {
 if (f && typeof f.text === 'string' && f.text.indexOf('data:image/') === 0) {
 const t = await window.mochiMediaTokenize(f.text);
 if (t) { f = Object.assign({}, f, { text: t }); changed = true; }
+}
+// FIX 2026-09-10 #283 收藏语音令牌化：刚收藏的语音（池 pass 1.5s 延迟窗口内落库）与
+// 历史收藏仍整份 data:audio 内联，这里与聊天记录同池收口（播放链路 fillVoiceBubble 已支持令牌）
+if (f && typeof f.text === 'string' && f.text.length > 1024) {
+const _bi = f.text.indexOf('|||');
+if (_bi > 0 && f.text.indexOf('data:audio/', _bi + 3) === _bi + 3) {
+const t = await window.mochiMediaTokenize(f.text.slice(_bi + 3));
+if (t) { f = Object.assign({}, f, { text: f.text.slice(0, _bi + 3) + t }); changed = true; }
+}
 }
 if (f && Array.isArray(f.parts) && f.parts.length) {
 const parts = new Array(f.parts.length);
@@ -7136,7 +7201,9 @@ if (window.viewChatImage) window.viewChatImage(img.src);
 });
 });
 } else {
-const isVoice = f.type === 'voice' || (typeof f.text === 'string' && f.text.indexOf('|||data:audio/') > 0);
+// FIX 2026-09-10 #283 收藏语音识别加令牌形态（名称|||@@m:hash——收藏落库时语音已令牌化）
+const isVoice = f.type === 'voice' || (typeof f.text === 'string' &&
+(f.text.indexOf('|||data:audio/') > 0 || /(?:^|\|\|\|)@@m:[0-9a-f]{32}$/.test(f.text)));
 const isImg = f.type === 'sticker' || f.type === 'image' || (typeof f.text === 'string' && f.text.indexOf('data:') === 0);
 if (isVoice) {
 b.style.padding = '8px 10px';

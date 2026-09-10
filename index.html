@@ -8954,9 +8954,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789057017837">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.541</b></span>
-        <span class="sv-deploy">部署于 2026-09-11 00:16<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789058503794">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.544</b></span>
+        <span class="sv-deploy">部署于 2026-09-11 00:41<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10130,7 +10130,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.541</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.544</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10421,7 +10421,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.541</span>
+              <span class="lic-ver">v3.26.544</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -15628,7 +15628,10 @@ else if (!Fm.resStand && envTop >= 20 && diff >= envTop - 8 && sbEffTop < envTop
 else add(true, '状态栏顶位 ' + sbEffTop + 'px（安全区 ' + expect + 'px）');
 }
 const expBase = Fm.expBase;
-if (inp.phoneBottom != null && inp.innerH) {
+const _kbShrink = inp.vvH > 0 ? inp.innerH - inp.vvH : 0;
+const _kbDocking = _kbShrink >= Math.round(inp.innerH * 0.22);
+if (_kbDocking) add(true, '键盘停靠期，跳过底部判定（vv 缩 ' + _kbShrink + 'px，#282）');
+else if (inp.phoneBottom != null && inp.innerH) {
 const expB = expBase;
 const under = Math.round(expB - inp.phoneBottom);
 const over = Math.round(inp.phoneBottom - expB);
@@ -15641,7 +15644,7 @@ const expH = Fm.expBase;
 if (inp.iosH && Math.abs(inp.iosH - expH) > 2) add(false, '--mochi-ios-h 与期望屏高不符', '⚠ ios-h=' + inp.iosH + 'px ≠ envTop+inner=' + expH + 'px（#179 公式：覆盖形态=整屏/已避让=inner）');
 else add(true, '--mochi-ios-h=' + (inp.iosH || '(未设→回落)') + ' 与期望屏高一致');
 }
-if (inp.tabBottom != null && inp.innerH) {
+if (!_kbDocking && inp.tabBottom != null && inp.innerH) {
 const expTB = expBase - (inp.envBottom || 0); // 期望底边=屏底−Home横条避让（#199：浏览器覆盖形态=可视区底）
 const overB = Math.round(inp.tabBottom - expTB);
 if (overB > 2) add(false, '底部导航栏被裁 ' + overB + 'px', '✗ tabbar 底边 ' + inp.tabBottom + 'px 超出期望 ' + expTB + 'px（#148 同族）');
@@ -18350,7 +18353,8 @@ const lookupQueue = new Map();    // hash -> { data, cbs:[] }
 let lookupT = null;
 window.mochiMediaTokenize = function (dataUrl) {
 return new Promise(function (resolve) {
-if (typeof dataUrl !== 'string' || dataUrl.indexOf('data:image/') !== 0 || dataUrl.length < 1024) { resolve(null); return; }
+if (typeof dataUrl !== 'string' || dataUrl.length < 1024 ||
+(dataUrl.indexOf('data:image/') !== 0 && dataUrl.indexOf('data:audio/') !== 0)) { resolve(null); return; }
 sha256Hex(dataUrl).then(function (h) {
 if (map.has(h)) { resolve(TOK + h); return; }
 let q = lookupQueue.get(h);
@@ -18372,8 +18376,9 @@ let vals = {};
 try { vals = (await window.idbGetMany(slice.map(function (e) { return FULL + e[0]; }))) || {}; } catch (e) { vals = {}; }
 slice.forEach(function (e) {
 const v = vals[FULL + e[0]];
-if (typeof v === 'string') { map.set(e[0], v); }          // 池里已有（跨会话/桌面重复）→ 不重写
-else { map.set(e[0], e[1].data); writeBuf.push({ k: FULL + e[0], v: e[1].data }); dirty = true; }
+const isImg = e[1].data.indexOf('data:image/') === 0;
+if (typeof v === 'string') { if (isImg) map.set(e[0], v); }          // 池里已有（跨会话/桌面重复）→ 不重写
+else { if (isImg) map.set(e[0], e[1].data); writeBuf.push({ k: FULL + e[0], v: e[1].data }); dirty = true; }
 e[1].cbs.forEach(function (cb) { try { cb(TOK + e[0]); } catch (e2) {} });
 });
 await new Promise(function (r) { setTimeout(r, 0); }); // 分批让出主线程
@@ -25769,7 +25774,8 @@ if (!chatDbReady || authLoadedPrefix !== window.activePrefix()) return;
 _mediaPassBusy = true;
 try {
 let changed = 0;
-const _rollback = []; // FIX 2026-09-05 #186 写池失败回滚账 [{obj, prop, val, msg}]
+let _rollback = []; // FIX 2026-09-05 #186 写池失败回滚账 [{obj, prop, val, msg}]
+let _pendTok = 0; // FIX 2026-09-10 #283 迁移期分批冲池计数
 for (let i = 0; i < msgs.length; i++) {
 const m = msgs[i];
 if (!m || _mediaTokSeen.has(m)) continue;
@@ -25782,6 +25788,20 @@ if (typeof m.img === 'string' && m.img.indexOf('data:image/') === 0) {
 const t = await window.mochiMediaTokenize(m.img);
 if (t) { _rollback.push({ o: m, p: 'img', v: m.img, msg: m }); m.img = t; changed++; did = true; }
 }
+if (typeof m.text === 'string' && m.text.length > 1024) {
+const _bar = m.text.indexOf('|||');
+if (_bar > 0 && m.text.indexOf('data:audio/', _bar + 3) === _bar + 3) {
+const t = await window.mochiMediaTokenize(m.text.slice(_bar + 3));
+if (t) { _rollback.push({ o: m, p: 'text', v: m.text, msg: m }); m.text = m.text.slice(0, _bar + 3) + t; changed++; did = true; }
+} else if (m.text.indexOf('data:audio/') === 0) {
+const t = await window.mochiMediaTokenize(m.text);
+if (t) { _rollback.push({ o: m, p: 'text', v: m.text, msg: m }); m.text = '|||' + t; changed++; did = true; }
+}
+}
+if (typeof m.voice === 'string' && m.voice.length > 1024 && m.voice.indexOf('data:audio/') === 0) {
+const t = await window.mochiMediaTokenize(m.voice);
+if (t) { _rollback.push({ o: m, p: 'voice', v: m.voice, msg: m }); m.voice = t; changed++; did = true; }
+}
 if (Array.isArray(m.parts) && m.parts.length) {
 for (let j = 0; j < m.parts.length; j++) {
 const p = m.parts[j];
@@ -25792,7 +25812,19 @@ if (t) { _rollback.push({ o: p, p: 'v', v: p.v, msg: m }); p.v = t; changed++; d
 }
 }
 _mediaTokSeen.add(m);
-if ((i & 63) === 63) {
+if (did) _pendTok++;
+if ((i & 63) === 63 || _pendTok >= 32) {
+if (_pendTok >= 32) {
+const _okMid = await window.mochiMediaFlush();
+if (_okMid === false) {
+for (let r = 0; r < _rollback.length; r++) { try { _rollback[r].o[_rollback[r].p] = _rollback[r].v; } catch (e2) {} try { _mediaTokSeen.delete(_rollback[r].msg); } catch (e3) {} }
+scheduleMediaPass(8000);
+console.warn('[mochi] 媒体池写盘失败，本次 ' + changed + ' 处令牌化已回滚待重试');
+return; // finally 复位 busy
+}
+_rollback = []; // 已冲批次池数据均已持久，全部除名（清空回滚账=释放原件引用）
+_pendTok = 0;
+}
 await new Promise(r => setTimeout(r, 0));
 if (authLoadedPrefix !== window.activePrefix()) break;
 }
@@ -25805,7 +25837,7 @@ scheduleMediaPass(8000);
 console.warn('[mochi] 媒体池写盘失败，本次 ' + changed + ' 处令牌化已回滚待重试');
 } else {
 saveMsgs();
-try { console.info('[mochi] 媒体池：' + changed + ' 处聊天图片已去重为池引用'); } catch (e) {}
+try { console.info('[mochi] 媒体池：' + changed + ' 处聊天图片/语音已去重为池引用'); } catch (e) {}
 }
 }
 } catch (e) {} finally { _mediaPassBusy = false; }
@@ -25839,6 +25871,8 @@ const t = r.text.replace(/✉️\s*/g, '').replace(/✉\s*/g, '');
 if (t !== r.text) { r.text = ICON_ENV + t; c = true; }
 }
 if ((r.type === 'text' || !r.type) && typeof r.text === 'string' && r.text.indexOf('data:image/') === 0) { r.type = 'image'; c = true; }
+if ((r.type === 'text' || !r.type) && typeof r.text === 'string' &&
+(r.text.indexOf('data:audio/') === 0 || (r.text.indexOf('|||') === 0 && window.mochiMediaIsToken && window.mochiMediaIsToken(r.text.slice(3))))) { r.type = 'voice'; c = true; }
 if (r.special === 'poke' && typeof r.text === 'string' && r.text.indexOf('&lt;svg class=&quot;st-ico&quot;') === 0) {
 const mm = r.text.match(/^(&lt;svg class=&quot;st-ico&quot;[\s\S]*?&lt;\/svg&gt;)([\s\S]*)$/);
 if (mm) { r.text = mm[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&') + mm[2]; c = true; }
@@ -26133,6 +26167,7 @@ try { if (window.activePrefix() === myPrefix && window.idbSet) persistMsgsToIdb(
 }, 0);
 }
 scheduleDeferredNormalization();
+try { scheduleMediaPass(12000); } catch (e) {}
 } catch (e) { /* 解析失败：不置 chatDbReady，下次进入再重试 */ }
 });
 }
@@ -26606,8 +26641,17 @@ b.innerHTML = (prefixHtml || '') + '<div class="msg-voice" data-src="' + attrEsc
 const btn = b.querySelector('.msg-voice-play');
 if (btn) btn.addEventListener('click', function (e) {
 e.stopPropagation();
-if (v.src) playVoiceInChat(btn, v.src);
-else toast('语音数据缺失');
+if (!v.src) { toast('语音数据缺失'); return; }
+if (window.mochiMediaIsToken && window.mochiMediaIsToken(v.src)) {
+if (!window.mochiMediaExpandAsync || btn._vExp) return;
+btn._vExp = true;
+window.mochiMediaExpandAsync(v.src, function (data) {
+btn._vExp = false;
+if (data) playVoiceInChat(btn, data); else toast('语音数据缺失');
+});
+return;
+}
+playVoiceInChat(btn, v.src);
 });
 }
 const QUOTE_PLACEHOLDER = /^(图片|表情包|\[图片\]|\[表情包\])$/;
@@ -31071,7 +31115,8 @@ if (dateLabel) head = dateLabel + ' · 共 ' + results.length + ' 条 · 点击�
 let html = '<div style="font-size:11px;color:var(--muted);margin:6px 2px 10px">' + esc(head) + '</div>';
 results.slice(0, 80).forEach(r => {
 const isImg = r.txt.indexOf('data:') === 0 || (window.mochiMediaIsToken && window.mochiMediaIsToken(r.txt)); // #148 令牌化图片消息搜索结果不直出令牌串
-const label = isImg ? '[图片]' : (r.txt.length > 60 ? r.txt.slice(0, 60) + '…' : r.txt);
+const isVc = typeof r.txt === 'string' && /\|\|\|(?:data:audio\/|@@m:[0-9a-f]{32})/.test(r.txt);
+const label = isVc ? ('[语音] ' + r.txt.split('|||')[0]) : (isImg ? '[图片]' : (r.txt.length > 60 ? r.txt.slice(0, 60) + '…' : r.txt));
 const who = r.m.side === 'out' ? myName : partnerName;
 const time = r.m.ts ? fmtSearchTime(r.m.ts) : '';
 html += '<div class="tc-listitem" data-sidx="' + r.i + '"><div class="tc-li-top"><span class="tc-li-q">' + who + '：' + (isImg ? '[图片]' : (q ? hl(label) : esc(label))) + '</span><span class="tc-li-time">' + time + '</span></div></div>';
@@ -31382,6 +31427,13 @@ try {
 if (f && typeof f.text === 'string' && f.text.indexOf('data:image/') === 0) {
 const t = await window.mochiMediaTokenize(f.text);
 if (t) { f = Object.assign({}, f, { text: t }); changed = true; }
+}
+if (f && typeof f.text === 'string' && f.text.length > 1024) {
+const _bi = f.text.indexOf('|||');
+if (_bi > 0 && f.text.indexOf('data:audio/', _bi + 3) === _bi + 3) {
+const t = await window.mochiMediaTokenize(f.text.slice(_bi + 3));
+if (t) { f = Object.assign({}, f, { text: f.text.slice(0, _bi + 3) + t }); changed = true; }
+}
 }
 if (f && Array.isArray(f.parts) && f.parts.length) {
 const parts = new Array(f.parts.length);
@@ -31909,7 +31961,8 @@ if (window.viewChatImage) window.viewChatImage(img.src);
 });
 });
 } else {
-const isVoice = f.type === 'voice' || (typeof f.text === 'string' && f.text.indexOf('|||data:audio/') > 0);
+const isVoice = f.type === 'voice' || (typeof f.text === 'string' &&
+(f.text.indexOf('|||data:audio/') > 0 || /(?:^|\|\|\|)@@m:[0-9a-f]{32}$/.test(f.text)));
 const isImg = f.type === 'sticker' || f.type === 'image' || (typeof f.text === 'string' && f.text.indexOf('data:') === 0);
 if (isVoice) {
 b.style.padding = '8px 10px';
@@ -43505,6 +43558,12 @@ if (res && res.name) cb(res); else tryNext();
 }
 tryNext();
 }
+function mochiSafeCancelBody(r) {
+try {
+var p = r && r.body && r.body.cancel && r.body.cancel();
+if (p && typeof p.catch === 'function') p.catch(function () {});
+} catch (e) {}
+}
 function normNeteaseCoverUrl(u) {
 var s = String(u || '');
 if (!/^https?:\/\/([^/]+\.)?music\.126\.net\//i.test(s)) return s;
@@ -43520,7 +43579,7 @@ clearTimeout(timer);
 var finalUrl = (r.ok || r.redirected) ? (r.url || '') : '';
 setTimeout(function () {
 try { controller && controller.abort(); } catch (e) {}
-try { r.body && r.body.cancel && r.body.cancel(); } catch (e) {}
+mochiSafeCancelBody(r); // #284：cancel() 拒绝安全（见函数头注释）
 cb(finalUrl ? normNeteaseCoverUrl(finalUrl) : String(url));
 }, 0);
 })
@@ -43764,7 +43823,7 @@ var playable = !!(r.redirected || /^audio\//i.test(ct));
 done(playable ? 0 : 1); // 0=免费可播；1=不可播（会员/付费/失效）——响应头即同步记账
 setTimeout(function () {
 try { controller && controller.abort(); } catch (e) {}
-try { r.body && r.body.cancel && r.body.cancel(); } catch (e) {}
+mochiSafeCancelBody(r); // #284：cancel() 拒绝安全（见函数头注释）
 }, 0);
 })
 .catch(function () { clearTimeout(timer); done(null); }); // null=没探到，绝不冒充免费
@@ -45139,7 +45198,7 @@ var ok = !!(r.redirected || /^audio\//i.test(ct));
 var finalUrl = ok ? ((r.url || '').replace(/^http:/i, 'https:')) : null;
 setTimeout(function () {
 try { controller && controller.abort(); } catch (e) {}
-try { r.body && r.body.cancel && r.body.cancel(); } catch (e) {}
+mochiSafeCancelBody(r); // #284：cancel() 拒绝安全（见函数头注释）
 cb(finalUrl);
 }, 0);
 })
@@ -83042,4 +83101,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtvqctt9 -->
+<!-- __MOCHI_EOF__ mtvr8odu -->

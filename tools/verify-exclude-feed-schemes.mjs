@@ -253,7 +253,12 @@ console.log('V5 全局键旧行为保留：feed-app-unread 滞留副本照旧回
 console.log('V6 #234 device.js 探针键位静态断言');
 {
   const dv = read('src/js/device.js');
-  ok(dv.includes('const SP = G + \':\' + cid;'), '探针为 xyStore 备好无尾冒号前缀 SP');
+  // #234 复发修正（2026-09-11 小米17Pro+Edge152 诊断实证）：首修把 SP 写成 G+':'+cid，
+  // 但本文件 G='xy-home-v2:' 已带尾冒号，仍是 xy-home-v2::<cid>:: 双冒号——「读取」列恒缺失。
+  // 正确形态 = G + cid（等价 contacts.js 家族的 GNS + ':' + cid，GNS 不带尾冒号）。
+  ok(dv.includes('const SP = G + cid;'), '探针 SP=G+cid（G 已含尾冒号，xyStore 内部再自拼一个）');
+  ok(!dv.includes("const SP = G + ':' + cid;"), '双冒号病句 SP=G+\':\'+cid 清零（首修笔误不回流）');
+  ok(!/xyStore\(\s*G\s*\+\s*['"]:['"]\s*\+\s*cid/.test(dv), 'device.js 不再有任何 G+\':\'+cid 形态前缀传 xyStore');
   ok(dv.includes('window.xyStore(SP).get(short)'), '「读取」列走 xyStore(SP)（双冒号修复）');
   ok(!dv.includes('window.xyStore(P).get(short)'), '不再把带尾冒号的 P 传给 xyStore（双冒号病句清零）');
   ok(dv.includes('window.idbGet(P + short)'), 'IDB 权威列键位不受影响（仍读 P+short）');

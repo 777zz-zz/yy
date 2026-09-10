@@ -195,5 +195,35 @@ console.log('[D] #236 安卓浏览器覆盖壳·诊断判定');
   }
 }
 
+// ===== E. #282 安卓键盘停靠期·底部判定豁免（荣耀90GT+Edge150 实报） =====
+console.log('[E] #282 键盘停靠豁免');
+{
+  const jm = device.match(/function screenDiagJudge\(inp\) \{[\s\S]*?\n  \}/);
+  ok(!!jm, 'screenDiagJudge 可提取');
+  if (jm) {
+    const clf = new Function(`'use strict';${cm[0].replace('window.mochiViewportForm = ', 'return ')}`)();
+    let body = jm[0]
+      .replace(/^function screenDiagJudge\(inp\) \{/, '')
+      .replace(/\n  \}$/, '');
+    const run = (inp) => Function('inp', 'window', `'use strict'; ${body}`)(inp, { mochiViewportForm: clf });
+    const base = { scale: 1, envTop: 0, varTop: 0, diff: 181, standalone: false, innerH: 633, screenH: 814,
+      sbTop: null, phoneBottom: 356, tabBottom: 356, envBottom: 0, andr: true,
+      iosMajor: 0, safMajor: 0, fsActive: false, kb: null, kbAnd: null,
+      phoneInlineH: '356px', phoneAlignSelf: '', htmlClass: '', phoneW: 366, innerW: 366, isMobileDev: true };
+    // 报障现场：键盘停靠期（vv 633→356，缩 277 ≥ 22% 键盘下限）.phone 停靠 356 属
+    // resizes-visual 合法形态 → ④「底部少填 277px」/⑤b「导航栏悬空」必须豁免
+    let F = run({ ...base, vvH: 356 });
+    ok(!F.some(f => !f.ok && f.name.indexOf('底部少填') === 0), '键盘停靠期（vv 缩 277px）不出「底部少填」（#282 豁免）');
+    ok(!F.some(f => !f.ok && f.name.indexOf('底部导航栏') === 0), '键盘停靠期不出「底部导航栏悬空」（⑤b 同豁免）');
+    ok(F.some(f => f.ok && f.name.indexOf('键盘停靠期') === 0), '豁免入 ✓ 记录（现场可对号，非静默）');
+    // 对照：同一几何但 vv 已回基准（633）＝真残留/真少填 → 照常上报，豁免不扩权
+    F = run({ ...base, vvH: 633 });
+    ok(F.some(f => !f.ok && f.name.indexOf('底部少填') === 0), 'vv 回基准后 .phone 仍 356 → 照常报「底部少填」（豁免不掩盖真残留）');
+    // #236 壳残留带（缩幅 <22%）不豁免：残带仍照常上报对号
+    F = run({ ...base, vvH: 580, phoneBottom: 580, tabBottom: 580 });
+    ok(F.some(f => !f.ok && f.name.indexOf('底部少填') === 0), '缩幅 53px 落残留带（<22%）→ 照常上报（#236 语义不变）');
+  }
+}
+
 console.log(`\n${pass} PASS / ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

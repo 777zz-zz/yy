@@ -480,6 +480,20 @@
   // v3.26.x #216：封面 URL 归一——网易 CDN 直链去掉旧 param 统一 ?param=300y300
   //（300px 对列表图标/正在播放封面/小组件都够用，原图 1~2MB 太重）；仅网易域名收
   // https+param，其余域名原样返回（混合内容场景下 http 输入本来就走不到重定向）。
+  // FIX 2026-09-10 #284：取消读流必须「拒绝安全」——r.body.cancel() 返回 Promise，
+  // 流已被 abort 打断（超时 abort / 8s 计时器）时 cancel() 必然 reject，外层
+  // try/catch 只拦同步异常拦不住 → 变成「BodyStreamBuffer was aborted」未处理
+  // rejection 刷诊断错误环（vivo X200s+Edge150 实测 ×10/×11 突发，page-music
+  // 最密；一加Ace3+Edge 同族）。此前 #216 只把 abort 挪到 setTimeout(0) 异步，
+  // cancel() 的拒绝仍然裸奔——本 helper 给 cancel() 挂空 catch，三处调用点统一
+  // 走这里。清理语义不变（该断照断），仅吞掉预期内的拒绝。
+  function mochiSafeCancelBody(r) {
+    try {
+      var p = r && r.body && r.body.cancel && r.body.cancel();
+      if (p && typeof p.catch === 'function') p.catch(function () {});
+    } catch (e) {}
+  }
+
   function normNeteaseCoverUrl(u) {
     var s = String(u || '');
     if (!/^https?:\/\/([^/]+\.)?music\.126\.net\//i.test(s)) return s;
@@ -500,7 +514,7 @@
         var finalUrl = (r.ok || r.redirected) ? (r.url || '') : '';
         setTimeout(function () {
           try { controller && controller.abort(); } catch (e) {}
-          try { r.body && r.body.cancel && r.body.cancel(); } catch (e) {}
+          mochiSafeCancelBody(r); // #284：cancel() 拒绝安全（见函数头注释）
           cb(finalUrl ? normNeteaseCoverUrl(finalUrl) : String(url));
         }, 0);
       })
@@ -815,7 +829,7 @@
           // 记账不进延迟定时器：无头/后台页定时器会被节流拖到分钟级（T4/T8 实测）
           setTimeout(function () {
             try { controller && controller.abort(); } catch (e) {}
-            try { r.body && r.body.cancel && r.body.cancel(); } catch (e) {}
+            mochiSafeCancelBody(r); // #284：cancel() 拒绝安全（见函数头注释）
           }, 0);
         })
         .catch(function () { clearTimeout(timer); done(null); }); // null=没探到，绝不冒充免费
@@ -2470,7 +2484,7 @@
           // aborted」未处理 rejection（诊断面板噪音来源），让 promise 链先落地
           setTimeout(function () {
             try { controller && controller.abort(); } catch (e) {}
-            try { r.body && r.body.cancel && r.body.cancel(); } catch (e) {}
+            mochiSafeCancelBody(r); // #284：cancel() 拒绝安全（见函数头注释）
             cb(finalUrl);
           }, 0);
         })
