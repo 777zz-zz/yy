@@ -91,6 +91,11 @@ const cases = [
     want: { form: 'avoided', safeTop: 0, px: '', expBase: 780, expTop: 12 }
   },
   {
+    n: '华为畅享70Pro · Chrome150 · 常规安卓浏览器 screen 报数坏值（#278 实测 screen796<inner1331：坏 screenH 不再钳期望底边——旧式 min(796,1331)=796 致 .phone 贴 inner 正常铺满被误判「底部超出 535px」+「导航栏被裁」错误环，多安卓机型复发）',
+    sig: { standalone: false, envTop: 0, innerH: 1331, screenH: 796, iosMajor: 0 },
+    want: { form: 'plain', safeTop: 0, px: '', expBase: 1331, expTop: 12 }
+  },
+  {
     n: '保留形态信号但 env 超上限 160（异常值不认，回落实测链）',
     sig: { standalone: true, envTop: 200, innerH: 793, screenH: 993, iosMajor: 18, safMajor: 18 },
     want: { form: 'covered', safeTop: 0, px: '', expBase: 993, expTop: 200 }

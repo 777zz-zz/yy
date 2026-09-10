@@ -8954,9 +8954,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789044254502">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.539</b></span>
-        <span class="sv-deploy">部署于 2026-09-10 20:44<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789056827889">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.540</b></span>
+        <span class="sv-deploy">部署于 2026-09-11 00:13<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10130,7 +10130,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.539</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.540</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10421,7 +10421,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.539</span>
+              <span class="lic-ver">v3.26.540</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -12995,6 +12995,10 @@ transition-duration: .01ms !important;
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11H6a2 2 0 01-2-2V6a2 2 0 012-2h2a2 2 0 012 2v7a4 4 0 01-4 4"/><path d="M20 11h-4a2 2 0 01-2-2V6a2 2 0 012-2h2a2 2 0 012 2v7a4 4 0 01-4 4"/></svg>
           <span>引用</span>
         </button>
+        <button class="ma-btn" data-act="copy" title="复制">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          <span>复制</span>
+        </button>
         <button class="ma-btn" data-act="fav" title="收藏">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5h11a1 1 0 011 1v16l-6.5-4-6.5 4v-16a1 1 0 011-1z"/></svg>
           <span>收藏</span>
@@ -14213,6 +14217,9 @@ try { st = (e.error && e.error.stack) ? String(e.error.stack) : ''; } catch (e3)
 var tag = String(e.target.tagName || '').toLowerCase();
 var url = String(e.target.src || e.target.href || '');
 if ((tag === 'audio' || tag === 'source') && /api\.injahow\.cn|music\.163\.com|music\.126\.net/.test(url)) return;
+var imTok = '';
+try { imTok = String((e.target.getAttribute && e.target.getAttribute('src')) || ''); } catch (e4) {}
+if (tag === 'img' && window.mochiMediaIsToken && window.mochiMediaIsToken(imTok)) return;
 m = '资源加载失败 <' + tag + '> ' + url.slice(0, 120);
 }
 } catch (e2) {}
@@ -15538,8 +15545,8 @@ if (forceCover) safeTop = (envTop >= 20) ? envTop : ((diff >= 20 && diff <= 160)
 else if (resStand) safeTop = 0;
 else safeTop = ((standalone || coverBrowser) && envTop >= 20 && envTop <= 160) ? envTop : 0;
 const expBase = (coverBrowser || resStand || ipadForm) ? innerH
-: (forceCover ? (screenH || (safeTop + innerH))
-: Math.min(screenH || (envTop + innerH), envTop + innerH));
+: (forceCover ? ((screenH >= innerH ? screenH : 0) || (safeTop + innerH))
+: Math.min((screenH >= innerH ? screenH : 0) || (envTop + innerH), envTop + innerH));
 const expTop = resStand ? 12 : Math.max(envTop, 12);
 const form = forceCover ? 'force-cover' : resStand ? 'reserved' : ipadForm ? 'ipad'
 : coverBrowser ? 'cover-browser' : (envTop >= 20 ? 'covered' : (diff >= 20 ? 'avoided' : 'plain'));
@@ -18162,7 +18169,7 @@ onCancel: onCancel
 return;
 }
 textAsk({
-title: '验证身份', sub: '本机未设数字密码，请输入开屏问答的暗号继续：',
+title: '验证身份', sub: '本机未设数字密码，请输入开屏问答的暗号继续（暗号是 99 + mochi 字卡出生日期，一共 6 个数字）：',
 placeholder: '暗号', maxlen: 12, okLabel: '确定', cancelLabel: '取消',
 onSubmit: function (v) {
 if (String(v || '').trim() === QA_SKIP_CODE) { next(); }
@@ -18372,7 +18379,7 @@ if (inflight[h]) return;
 inflight[h] = true;
 window.idbGet(FULL + h).then(function (v2) {
 delete inflight[h];
-if (typeof v2 !== 'string') return; // 池缺失（理论不发生：池先于引用落盘）→ 保持原样不伪装
+if (typeof v2 !== 'string' || v2.indexOf('data:image/') !== 0) return;
 map.set(h, v2);
 let nodes;
 try { nodes = document.querySelectorAll('img[src="' + TOK + h + '"]'); } catch (e) { nodes = []; }
@@ -31666,6 +31673,34 @@ toast('已收藏到我的收藏');
 }
 }
 closeMsgActions();
+} else if (act === 'copy') {
+if (rec) {
+const qsnap = quoteTextOf(rec);
+const _copyRaw = (window.mochiMediaExpand && window.mochiMediaExpand(qsnap.text)) || qsnap.text;
+const _copyTxt = (_copyRaw || '').trim();
+if (!_copyTxt || _copyRaw.indexOf('data:') === 0) {
+toast('该消息没有可复制的文字');
+} else {
+try {
+const ta = document.createElement('textarea');
+ta.value = _copyTxt;
+ta.setAttribute('readonly', '');
+ta.style.cssText = 'position:fixed;left:-9999px;top:0;width:10px;height:10px;opacity:0;';
+document.body.appendChild(ta);
+try { ta.select(); } catch (e) {}
+let ok = false;
+try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+window.mochiKillCopySelection && window.mochiKillCopySelection(ta); // 防安卓原生全选条卡屏（device.js #261 同款）
+setTimeout(function () { try { document.body.removeChild(ta); } catch (e2) {} }, 800);
+if (!ok && navigator.clipboard && navigator.clipboard.writeText) {
+navigator.clipboard.writeText(_copyTxt).then(() => toast('已复制')).catch(() => toast('复制失败'));
+} else {
+toast(ok ? '已复制' : '复制失败');
+}
+} catch (e) { toast('复制失败'); }
+}
+}
+closeMsgActions();
 } else if (act === 'retract') {
 if (activeMsgEl) retractMsg(activeMsgEl, 'out');
 closeMsgActions();
@@ -32081,6 +32116,7 @@ if (lc < 0 || cnt(data) > lc) {
 myGroups = data;
 if (!emojiPanel.hidden) renderEmojiPanel();
 }
+window.__myeIdbApplied = true;
 return true;
 } catch (e) { return false; }
 }
@@ -32092,7 +32128,9 @@ try { const raw = myEmojiStore().get('my-emoji-groups'); if (raw) myeApplyIdb(ra
 });
 }
 function myEmojiSave() {
-if (window.__xyIdbDeferredKeys && window.__xyIdbDeferredKeys.indexOf(MYE_KEY()) >= 0 && window.idbHydrateKey) {
+if (window.idbHydrateKey &&
+(window.__myeIdbApplied !== true ||
+(window.__xyIdbDeferredKeys && window.__xyIdbDeferredKeys.indexOf(MYE_KEY()) >= 0))) {
 window.idbHydrateKey(MYE_KEY()).then(ok => {
 if (ok === false) return;
 if (ok === true) {
@@ -32108,6 +32146,7 @@ g[1].forEach(item => { if (t[1].indexOf(item) < 0) t[1].push(item); });
 }
 } catch (e) {}
 }
+window.__myeIdbApplied = true;
 myEmojiStore().set('my-emoji-groups', JSON.stringify(myGroups));
 });
 return true;
@@ -32125,7 +32164,8 @@ if (!v) { if (retry < 3) { retry++; setTimeout(tryRestore, 800 * retry); } else 
 myeApplyIdb(v);
 });
 }
-tryRestore();
+if (window.__mochiDataReady) setTimeout(tryRestore, 4000);
+else document.addEventListener('mochi-restore-done', function () { setTimeout(tryRestore, 4000); });
 })();
 (function () {
 const gStore = myEmojiStore();
@@ -34149,7 +34189,7 @@ return m;
 }
 const quoteStr = rec.quote ? gcQuoteHtml(rec.quote) : '';
 if (rec.retracted) {
-b.dataset.orig = rec.orig || gcRetractFallbackHtml(rec);
+b.dataset.orig = gcRetractMediaHtml(rec) || rec.orig || gcRetractFallbackHtml(rec);
 const who = rec.side === 'out' ? '我' : memberName(rec.cid);
 b.innerHTML = '<span style="opacity:.6;font-size:12px;cursor:pointer">' + who + '撤回了一条消息</span>';
 b.style.cursor = 'pointer';
@@ -34583,6 +34623,26 @@ return (imgs ? ph('[图片]') : '') +
 (txt ? '<span style="opacity:.85;word-break:break-word">' + escTxtBr(txt) + '</span>' : '');
 }
 return '<span style="opacity:.85;word-break:break-word">' + escTxtBr(rec.text || '') + '</span>';
+}
+function gcRetractMediaHtml(rec) {
+if (rec.type === 'image' && rec.text) {
+return '<img class="msg-img msg-img-big" src="' + attrEsc(rec.text) + '" alt="图片" loading="lazy" decoding="async">';
+}
+if (rec.type === 'sticker' && rec.text) {
+return '<img class="msg-img msg-img-sm" src="' + attrEsc(rec.text) + '" alt="表情" loading="lazy" decoding="async">';
+}
+if (rec.parts && rec.parts.length) {
+const imgs = rec.parts.filter(p => p && p.k === 'img');
+if (!imgs.length) return '';
+const txt = rec.parts.filter(p => p && p.k === 'text').map(p => p.v).join(' ');
+return '<div class="msg-parts-imgs' + (imgs.length > 1 ? ' multi' : '') + '">' +
+imgs.map(p => {
+const isSticker = p.sub === 'sticker';
+return '<img class="msg-img' + (isSticker ? ' msg-img-sm' : ' msg-img-big') + '" src="' + attrEsc(p.v) + '" alt="' + (isSticker ? '表情' : '图片') + '" loading="lazy" decoding="async">';
+}).join('') + '</div>' +
+(txt ? '<span style="opacity:.85;word-break:break-word">' + escTxtBr(txt) + '</span>' : '');
+}
+return '';
 }
 function retractGcMsg(idx, gid) {
 if (gid !== undefined && gid !== curGid) {
@@ -78866,9 +78926,10 @@ const LS_SMALL_LIMIT = 20 * 1024;        // ≤ 此体积的键进备份的 ls �
 const MODE_ASK_BYTES = 150 * 1024 * 1024; // 本机数据超过这个量才弹「选备份范围」，小库不打扰
 const MODE_IMPORT_WARN = 120 * 1024 * 1024; // 成品文件超过这个体积就如实提示「新设备可能导不回」
 const MUSIC_KEY_RE = /:music-file:/;      // 本地上传音乐的文件体：最占体积、且新设备上可重新添加
+const MEDIA_POOL_KEY_RE = /^xy-home-v2:media:[0-9a-f]{32}$/;
 function exportCfg(mode) {
 if (mode === 'no-music') return { mode: mode, label: '不含音乐文件', note: '不含本地音乐文件', skip: (k) => MUSIC_KEY_RE.test(k), strip: false };
-if (mode === 'text') return { mode: mode, label: '只备份文字', note: '不含图片/语音/音乐附件', skip: (k) => MUSIC_KEY_RE.test(k), strip: true };
+if (mode === 'text') return { mode: mode, label: '只备份文字', note: '不含图片/语音/音乐附件', skip: (k) => MUSIC_KEY_RE.test(k) || MEDIA_POOL_KEY_RE.test(k), strip: true };
 return { mode: 'full', label: '完整备份', note: '全部数据完整', skip: () => false, strip: false };
 }
 let expStage = '';
@@ -78950,6 +79011,7 @@ for (let i = 0; i < localStorage.length; i++) {
 const k = localStorage.key(i);
 if (!k || k.indexOf('xy-home-v2:') !== 0) continue;
 if (k === SNAPSHOT_KEY) continue; // v3.7.0：副本键不进导出文件（防自包含无限增长）
+if (cfg.skip(k)) continue; // #275 范围外键（文字模式的媒体池等）同样不进小键段，防 strip 剥成空串入库
 const v = localStorage.getItem(k);
 if (byteLen(v) > LS_SMALL_LIMIT) lsBig[k] = v; // 大键：留待 IndexedDB 权威读取
 else { small[k] = v; cover.see(k, v); }
@@ -78992,6 +79054,7 @@ let cursor = 0;      // idbKeys 游标
 let tailKeys = null; // idbKeys 走完后，lsBig 里没被 IDB 收录的键（最终兜底）
 let tailCursor = 0;
 let skipped = 0;     // 按所选范围排除掉的键数（音乐文件等）
+let skippedMedia = 0; // #275 文字模式跳过的媒体池条目数（单列，不混进音乐计数）
 const pct = () => 8 + Math.round((idbKeys.length ? Math.min(cursor, idbKeys.length) / idbKeys.length : 1) * 78);
 async function readNext() {
 while (cursor < idbKeys.length) {
@@ -79002,7 +79065,7 @@ try {
 if (k.indexOf('xy-home-v2:') !== 0) continue;
 if (k === SNAPSHOT_KEY) continue; // v3.7.0：副本键不进导出文件
 if (k in small && !isAuthorityKey(k)) continue;
-if (cfg.skip(k)) { skipped++; continue; } // 所选范围之外的键（如本地音乐文件）
+if (cfg.skip(k)) { skipped++; if (MEDIA_POOL_KEY_RE.test(k)) skippedMedia++; continue; } // 所选范围之外的键（本地音乐文件/文字模式媒体池）
 impShow('正在导出…', '正在读取并打包 ' + Math.min(cursor, estTotal) + ' / ' + estTotal, pct());
 let v = await window.idbGet(k);
 if ((v === undefined || v === null) && lsBig[k] === undefined) {
@@ -79069,6 +79132,7 @@ const pack = await jsonToBlobStreaming({ exportTime: exportTime, cfg: cfg }, rea
 const blob = pack.finish();
 let coverText = (cfg.mode === 'full' ? '导出内容（全局全部数据）：\n' : '导出内容（' + cfg.label + '）：\n') + cover.lines().join('\n') + '\n——';
 if (skipped) coverText += '\n· 按所选范围跳过本地音乐文件 ' + skipped + ' 个（到新设备重新添加即可）';
+if (skippedMedia) coverText += '\n· 按所选范围跳过图片附件（媒体池条目）' + skippedMedia + ' 个（只备份文字＝图片不进文件）';
 if (pack.stat.stripCnt) {
 coverText += '\n· 按所选范围跳过图片/语音等媒体附件 ' + pack.stat.stripCnt + ' 处（约 ' +
 fmtSize(pack.stat.stripChars * 2) + '，文字与设置全部保留）';
@@ -79383,6 +79447,16 @@ confirmAndImport(data);
 }
 function doImportGo(data) {
 impShow('正在导入…', '准备中', 2);
+function scrubMediaPool(obj) {
+if (!obj || typeof obj !== 'object') return;
+Object.keys(obj).forEach(function (k) {
+if (!MEDIA_POOL_KEY_RE.test(k)) return;
+const v = obj[k];
+if (typeof v !== 'string' || v.indexOf('data:') !== 0) { try { delete obj[k]; } catch (e) {} }
+});
+}
+scrubMediaPool(data.idb);
+scrubMediaPool(data.ls);
 let backup = null;
 try {
 backup = {};
@@ -79647,7 +79721,8 @@ setTimeout(() => { try { if (input.parentNode) input.remove(); } catch (e) {} },
 }
 })();
 } catch (__e) { try { console.error("[JS] data-backup.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-(function () { try {
+</script>
+<script>(function () { try {
 (function () {
 try {
 if (navigator.storage && navigator.storage.persist) {
@@ -79662,9 +79737,22 @@ t.className = 'cc-toast'; void t.offsetWidth; t.className = 'cc-toast show';
 clearTimeout(t._timer);
 t._timer = setTimeout(() => { t.className = 'cc-toast'; }, 3000);
 }
+let _userActTs = 0;
+function markUserAct() { if (!_userActTs) _userActTs = Date.now(); }
+['touchstart', 'pointerdown', 'mousedown', 'keydown'].forEach(function (t) {
+try { document.addEventListener(t, markUserAct, { capture: true, passive: true }); } catch (e) {}
+});
+function autoReloadAllowed() {
+try { if (document.visibilityState === 'hidden') return true; } catch (e) {}
+return !_userActTs;
+}
+window.__pwaAutoUpgradeTest = { allowed: function () { return autoReloadAllowed(); } };
 let _prMsg = null;
-function refreshNow() {
-const doReload = function () { try { location.reload(); } catch (e) {} };
+function refreshNow(auto, autoTs) {
+const doReload = function () {
+if (auto && !autoReloadAllowed()) { showVerBar(autoTs); return; }
+try { location.reload(); } catch (e) {}
+};
 try {
 if (navigator.serviceWorker && navigator.serviceWorker.controller) {
 let done = false;
@@ -79783,7 +79871,7 @@ fetchJson('./version.json?v=' + Date.now(), 5000).then(function (d) {
 const ts = Number(d && d.ts);
 if (!ts || isNaN(ts)) return;
 if (!baseGot) { baseTs = ts; baseGot = true; return; }
-if (ts > baseTs && !tryAutoUpgrade()) showVerBar(ts);
+if (ts > baseTs && !tryAutoUpgrade(ts)) showVerBar(ts);
 }).catch(function () { /* 网络不可用：不动静，等周期轮询网络恢复后弹条 */ });
 });
 })();
@@ -79855,12 +79943,16 @@ if (!ts || isNaN(ts) || ts > localTs) showVerBar(ts);
 });
 }
 const AUTO_UPGRADE_KEY = 'xy-home-v2:auto-upgrade-session';
-function tryAutoUpgrade() {
+function tryAutoUpgrade(autoTs) {
 try {
 if (sessionStorage.getItem(AUTO_UPGRADE_KEY)) return false;
 sessionStorage.setItem(AUTO_UPGRADE_KEY, String(Date.now()));
 } catch (e) { return false; }
-if (navigator.serviceWorker && navigator.serviceWorker.controller) { refreshNow(); return true; }
+if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+if (!autoReloadAllowed()) return false;
+refreshNow(true, autoTs);
+return true;
+}
 return false;
 }
 let deferredPrompt = null;
@@ -80035,8 +80127,7 @@ n.insertBefore(mkWatchBar('2', '转载署名 · 严禁倒卖', W2), b1 ? b1.next
 }, 5000);
 })();
 } catch (__e) { try { console.error("[JS] pwa.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
-</script>
-<script>(function () { try {
+(function () { try {
 (function () {
 const G = 'xy-home-v2';
 const ROSTER_KEY = 'cjian-roster';
@@ -82028,7 +82119,8 @@ _iProvDock();
 } catch (e) {}
 }
 var _vvFitOn = false;
-var _envTopCache = -1; // #148：env(safe-area-inset-top) 探针缓存（-1=未测）；旋转时失效
+var _envTopCache = -1; // #148：env(safe-area-inset-top) 探针缓存（-1=未测）；旋转/#277 矛盾自愈时失效
+var _envTopCacheAt = 0; // #277：缓存写入时刻（矛盾重探 5s 节流，防 1s 自愈循环频繁建探针 DOM）
 var _zoomFixCnt = 0, _zoomFixAt = 0; // #174：缩放异常自愈计数（每会话 ≤3 次，间隔 4s）
 function syncVvFit() {
 try {
@@ -82048,6 +82140,14 @@ _sig0.iosMajor = Math.max(_osM ? +_osM[1] : 0, _vM ? +_vM[1] : 0);
 _sig0.safMajor = _vM ? +_vM[1] : 0; // #235：Safari 主版本（26.x 起覆盖形态，保留判定加门）
 } catch (e9) {}
 try { _sig0.safeTopForce = localStorage.getItem('xy-home-v2:__safe-top-force') === '1'; } catch (eF0) {}
+try {
+var _diff0 = _sh2 - _ih2;
+if (_sig0.standalone && _diff0 >= 20 && _envTopCache >= 0
+&& (_envTopCache === 0 || Math.abs(_envTopCache - _diff0) > 8)
+&& Date.now() - _envTopCacheAt > 5000) {
+_envTopCache = -1; _envTopCacheAt = Date.now();
+}
+} catch (eE5) {}
 var _f0 = window.mochiViewportForm(_sig0);
 if (_f0.needEnvProbe && _envTopCache < 0 && _sh2 > 0 && _vh2 > 0) {
 try {
@@ -82057,6 +82157,7 @@ document.body.appendChild(_probe);
 _envTopCache = parseFloat(getComputedStyle(_probe).paddingTop) || 0;
 document.body.removeChild(_probe);
 } catch (e4) { _envTopCache = 0; }
+_envTopCacheAt = Date.now(); // #277：探回值连同时刻一起入账（重探节流基准）
 _sig0.envTop = _envTopCache;
 }
 var _f = window.mochiViewportForm(_sig0);
@@ -82930,4 +83031,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtvir9k6 -->
+<!-- __MOCHI_EOF__ mtvq8r8x -->

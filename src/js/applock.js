@@ -593,7 +593,7 @@
       return;
     }
     textAsk({
-      title: '验证身份', sub: '本机未设数字密码，请输入开屏问答的暗号继续：',
+      title: '验证身份', sub: '本机未设数字密码，请输入开屏问答的暗号继续（暗号是 99 + mochi 字卡出生日期，一共 6 个数字）：',
       placeholder: '暗号', maxlen: 12, okLabel: '确定', cancelLabel: '取消',
       onSubmit: function (v) {
         if (String(v || '').trim() === QA_SKIP_CODE) { next(); }

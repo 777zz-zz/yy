@@ -21,13 +21,39 @@
     t._timer = setTimeout(() => { t.className = 'cc-toast'; }, 3000);
   }
 
+  // ================= v3.26.x：#279 自动升级防打断——用户活动感知 =================
+  // 多机型（iQOO12 Chrome 等，机型无关）反馈「用着用着页面自己重开回开屏、问答门又要重答」：
+  // #273 冷加载自动升级的 reload 在 PRECACHE_NOW 预取完成那一刻无条件落地，弱网（GitHub
+  // Pages 国内 3.6MB+ 产物）预取可达几十秒，正好砸进用户已开始的会话（打字/切页/答问答门）。
+  // 通用根因修复、零机型分支：捕获级记本页面首次交互（触摸/按下/按键）时刻，自动重载
+  // 落地前复核——用户已操作且页面在前台就放弃重载、退回常驻更新条；页面在后台时照常重载
+  //（回前台即新版）。手动点「刷新使用新版」不受此限。与 v3.5.114 撤销 SW 通道自动刷新
+  //（「刚进入桌面就被打断回到开屏」）同一设计取向。
+  let _userActTs = 0;
+  function markUserAct() { if (!_userActTs) _userActTs = Date.now(); }
+  ['touchstart', 'pointerdown', 'mousedown', 'keydown'].forEach(function (t) {
+    try { document.addEventListener(t, markUserAct, { capture: true, passive: true }); } catch (e) {}
+  });
+  // 自动重载放行条件：页面在后台（用户看不见、重载无感）或本页面用户还没碰过
+  function autoReloadAllowed() {
+    try { if (document.visibilityState === 'hidden') return true; } catch (e) {}
+    return !_userActTs;
+  }
+  // 无头验证专用探针（tools/verify-auto-upgrade-guard.mjs 使用，只读）
+  window.__pwaAutoUpgradeTest = { allowed: function () { return autoReloadAllowed(); } };
+
   // v3.10.x：点「刷新使用新版」——先让 SW 预取最新 index.html 写入当前缓存
   //（PRECACHE_NOW），收到回执后再 reload；弱网下 reload 的导航请求若直接走网络
   // 优先仍可能超时回退旧缓存 → 永远卡旧版。SW 回执或 2.5s 兜底超时后刷新。
   let _prMsg = null;
-  function refreshNow() {
+  function refreshNow(auto, autoTs) {
     // v3.26.x：ack 已在按钮 onclick 里写入（按版本 ts 免打扰），这里只管预取+刷新
-    const doReload = function () { try { location.reload(); } catch (e) {} };
+    const doReload = function () {
+      // #279：自动升级（auto=true）的重载落地前最后一刻复核——预取期间用户开始操作时
+      // 放弃本次自动重载、退回常驻更新条由用户自选时机，绝不打断会话中途。
+      if (auto && !autoReloadAllowed()) { showVerBar(autoTs); return; }
+      try { location.reload(); } catch (e) {}
+    };
     try {
       if (navigator.serviceWorker && navigator.serviceWorker.controller) {
         let done = false;
@@ -196,7 +222,7 @@
         const ts = Number(d && d.ts);
         if (!ts || isNaN(ts)) return;
         if (!baseGot) { baseTs = ts; baseGot = true; return; }
-        if (ts > baseTs && !tryAutoUpgrade()) showVerBar(ts);
+        if (ts > baseTs && !tryAutoUpgrade(ts)) showVerBar(ts);
       }).catch(function () { /* 网络不可用：不动静，等周期轮询网络恢复后弹条 */ });
     });
   })();
@@ -294,12 +320,18 @@
   // 绝不无限循环。周期轮询（15s/5s）与 SW updatefound 通道不动，只弹更新条不自动刷新，
   // 避免打断用户会话中途的操作（发消息/编辑中）。
   const AUTO_UPGRADE_KEY = 'xy-home-v2:auto-upgrade-session';
-  function tryAutoUpgrade() {
+  function tryAutoUpgrade(autoTs) {
     try {
       if (sessionStorage.getItem(AUTO_UPGRADE_KEY)) return false;
       sessionStorage.setItem(AUTO_UPGRADE_KEY, String(Date.now()));
     } catch (e) { return false; }
-    if (navigator.serviceWorker && navigator.serviceWorker.controller) { refreshNow(); return true; }
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      // #279：用户已在本页面开始操作（且前台）→ 不发自动重载，返回 false 让调用方
+      // 走 showVerBar 常驻更新条；预取期间才开始操作的由 refreshNow 内部在重载前让路
+      if (!autoReloadAllowed()) return false;
+      refreshNow(true, autoTs);
+      return true;
+    }
     return false;
   }
 

@@ -6901,6 +6901,35 @@ toast('已收藏到我的收藏');
 }
 }
 closeMsgActions();
+} else if (act === 'copy') {
+// 复制消息文字：复用 quoteTextOf（语音取名称、图片/表情只回文字），令牌先展开成原 dataURL 判空
+if (rec) {
+const qsnap = quoteTextOf(rec);
+const _copyRaw = (window.mochiMediaExpand && window.mochiMediaExpand(qsnap.text)) || qsnap.text;
+const _copyTxt = (_copyRaw || '').trim();
+if (!_copyTxt || _copyRaw.indexOf('data:') === 0) {
+toast('该消息没有可复制的文字');
+} else {
+try {
+const ta = document.createElement('textarea');
+ta.value = _copyTxt;
+ta.setAttribute('readonly', '');
+ta.style.cssText = 'position:fixed;left:-9999px;top:0;width:10px;height:10px;opacity:0;';
+document.body.appendChild(ta);
+try { ta.select(); } catch (e) {}
+let ok = false;
+try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+window.mochiKillCopySelection && window.mochiKillCopySelection(ta); // 防安卓原生全选条卡屏（device.js #261 同款）
+setTimeout(function () { try { document.body.removeChild(ta); } catch (e2) {} }, 800);
+if (!ok && navigator.clipboard && navigator.clipboard.writeText) {
+navigator.clipboard.writeText(_copyTxt).then(() => toast('已复制')).catch(() => toast('复制失败'));
+} else {
+toast(ok ? '已复制' : '复制失败');
+}
+} catch (e) { toast('复制失败'); }
+}
+}
+closeMsgActions();
 } else if (act === 'retract') {
 if (activeMsgEl) retractMsg(activeMsgEl, 'out');
 closeMsgActions();
@@ -7345,6 +7374,9 @@ if (lc < 0 || cnt(data) > lc) {
 myGroups = data;
 if (!emojiPanel.hidden) renderEmojiPanel();
 }
+// FIX 2026-09-10 #281：本会话已成功应用 IDB 权威值——myEmojiSave 的防盲写闸门据此放行
+//（启动取回延迟后，闸门条件从「在挂起名单」扩为「未应用过权威值 或 仍在挂起名单」）
+window.__myeIdbApplied = true;
 return true;
 } catch (e) { return false; }
 }
@@ -7357,7 +7389,11 @@ try { const raw = myEmojiStore().get('my-emoji-groups'); if (raw) myeApplyIdb(ra
 }
 function myEmojiSave() {
 // #172 防覆盖闸门：挂起名单仍含本键 = 本会话没恢复过全量，盲写会顶掉 IDB 全量
-if (window.__xyIdbDeferredKeys && window.__xyIdbDeferredKeys.indexOf(MYE_KEY()) >= 0 && window.idbHydrateKey) {
+// FIX 2026-09-10 #281：启动取回延迟后（见下方 bootRestore 调度），「尚未成功应用过 IDB
+// 权威值」的窗口同样不得盲写——闸门从「在挂起名单」扩为「未应用过权威值 或 仍在挂起名单」
+if (window.idbHydrateKey &&
+(window.__myeIdbApplied !== true ||
+(window.__xyIdbDeferredKeys && window.__xyIdbDeferredKeys.indexOf(MYE_KEY()) >= 0))) {
 window.idbHydrateKey(MYE_KEY()).then(ok => {
 // 取回失败不写回——防用小包覆盖 IDB 全量；键保持挂起，本会话内下次保存/开面板再试
 if (ok === false) return;
@@ -7374,6 +7410,9 @@ g[1].forEach(item => { if (t[1].indexOf(item) < 0) t[1].push(item); });
 }
 } catch (e) {}
 }
+// FIX 2026-09-10 #281：true=取回合并完成；null=健康连接确认 IDB 无此键（新用户空库）。
+// 两者之后内存值都可安全落笔，本会话不再走盲写闸门
+window.__myeIdbApplied = true;
 myEmojiStore().set('my-emoji-groups', JSON.stringify(myGroups));
 });
 return true;
@@ -7397,7 +7436,14 @@ if (!v) { if (retry < 3) { retry++; setTimeout(tryRestore, 800 * retry); } else 
 myeApplyIdb(v);
 });
 }
-tryRestore();
+// FIX 2026-09-10 #281 刷新黑屏卡顿收口②（华为畅享20Pro+Edge 等「刷新黑屏卡顿几分钟」，多机型同现）：
+// 启动取回改为「数据就绪后再延迟 4s」——原实现脚本求值即 idbGet(my-emoji-groups 大键，
+// #172 实例 34.93MB / 诊断实例 17.26MB)＋主线程 JSON.parse 整包，秒级长任务恰好压在
+// 开屏/桌面/聊天首屏渲染的启动关键窗口上（#250 切桌面卡死已同口径治理过 contact-switched，
+// 启动路径漏了）。恢复语义不变：表情面板/朋友圈插入面板打开时本就 reloadMyEmojiFromIdb
+// 现读权威（#172 防丢主链），保存走上方防盲写闸门；这里只把「整包读+解析」挪出关键窗口。
+if (window.__mochiDataReady) setTimeout(tryRestore, 4000);
+else document.addEventListener('mochi-restore-done', function () { setTimeout(tryRestore, 4000); });
 })();
 (function () {
 const gStore = myEmojiStore();

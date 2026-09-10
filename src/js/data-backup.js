@@ -314,10 +314,16 @@
   const MODE_ASK_BYTES = 150 * 1024 * 1024; // 本机数据超过这个量才弹「选备份范围」，小库不打扰
   const MODE_IMPORT_WARN = 120 * 1024 * 1024; // 成品文件超过这个体积就如实提示「新设备可能导不回」
   const MUSIC_KEY_RE = /:music-file:/;      // 本地上传音乐的文件体：最占体积、且新设备上可重新添加
+  // FIX 2026-09-10 #275 媒体池条目键（xy-home-v2:media:<hash32>，值为 dataURL 字符串）。
+  // 「只备份文字」strip 导出只剥 data: 前缀的载荷，消息里的 @@m: 令牌不匹配被原样保留，
+  // 池键值却被剥成空串——导入后＝令牌全体失配的永久坏图，且空串条目随今后每次完整备份
+  // 继续传播给对方设备（多机型反复「图片丢失」的真相）。文字模式必须整键跳过，绝不剥值留键。
+  const MEDIA_POOL_KEY_RE = /^xy-home-v2:media:[0-9a-f]{32}$/;
 
   function exportCfg(mode) {
     if (mode === 'no-music') return { mode: mode, label: '不含音乐文件', note: '不含本地音乐文件', skip: (k) => MUSIC_KEY_RE.test(k), strip: false };
-    if (mode === 'text') return { mode: mode, label: '只备份文字', note: '不含图片/语音/音乐附件', skip: (k) => MUSIC_KEY_RE.test(k), strip: true };
+    // #275：文字模式媒体池整键跳过（skip 在读值前生效）——strip 只会剥值，键若留下就是空池
+    if (mode === 'text') return { mode: mode, label: '只备份文字', note: '不含图片/语音/音乐附件', skip: (k) => MUSIC_KEY_RE.test(k) || MEDIA_POOL_KEY_RE.test(k), strip: true };
     return { mode: 'full', label: '完整备份', note: '全部数据完整', skip: () => false, strip: false };
   }
 
@@ -421,6 +427,7 @@
         const k = localStorage.key(i);
         if (!k || k.indexOf('xy-home-v2:') !== 0) continue;
         if (k === SNAPSHOT_KEY) continue; // v3.7.0：副本键不进导出文件（防自包含无限增长）
+        if (cfg.skip(k)) continue; // #275 范围外键（文字模式的媒体池等）同样不进小键段，防 strip 剥成空串入库
         const v = localStorage.getItem(k);
         if (byteLen(v) > LS_SMALL_LIMIT) lsBig[k] = v; // 大键：留待 IndexedDB 权威读取
         else { small[k] = v; cover.see(k, v); }
@@ -478,6 +485,7 @@
     let tailKeys = null; // idbKeys 走完后，lsBig 里没被 IDB 收录的键（最终兜底）
     let tailCursor = 0;
     let skipped = 0;     // 按所选范围排除掉的键数（音乐文件等）
+    let skippedMedia = 0; // #275 文字模式跳过的媒体池条目数（单列，不混进音乐计数）
     const pct = () => 8 + Math.round((idbKeys.length ? Math.min(cursor, idbKeys.length) / idbKeys.length : 1) * 78);
     // 逐键「读 → 序列化 → 释放」的拉取器：打包器每写完一个键才来拉下一个，
     // 所以全过程中内存里最多只有当前这一个大键（旧实现是 800MB 全量对象图一起常驻）。
@@ -491,7 +499,7 @@
           if (k === SNAPSHOT_KEY) continue; // v3.7.0：副本键不进导出文件
           // 权威键不跳过（LS 有损快照不能代替 IDB 权威值）；双写一致键 LS 小键已收录则跳过
           if (k in small && !isAuthorityKey(k)) continue;
-          if (cfg.skip(k)) { skipped++; continue; } // 所选范围之外的键（如本地音乐文件）
+          if (cfg.skip(k)) { skipped++; if (MEDIA_POOL_KEY_RE.test(k)) skippedMedia++; continue; } // 所选范围之外的键（本地音乐文件/文字模式媒体池）
           impShow('正在导出…', '正在读取并打包 ' + Math.min(cursor, estTotal) + ' / ' + estTotal, pct());
           let v = await window.idbGet(k);
           if ((v === undefined || v === null) && lsBig[k] === undefined) {
@@ -588,6 +596,7 @@
     // 注意：full 模式必须写成完整字面量（不能拼接），build.mjs 哨兵按「导出内容（全局全部数据）」整串检索产物。
     let coverText = (cfg.mode === 'full' ? '导出内容（全局全部数据）：\n' : '导出内容（' + cfg.label + '）：\n') + cover.lines().join('\n') + '\n——';
     if (skipped) coverText += '\n· 按所选范围跳过本地音乐文件 ' + skipped + ' 个（到新设备重新添加即可）';
+    if (skippedMedia) coverText += '\n· 按所选范围跳过图片附件（媒体池条目）' + skippedMedia + ' 个（只备份文字＝图片不进文件）';
     if (pack.stat.stripCnt) {
       coverText += '\n· 按所选范围跳过图片/语音等媒体附件 ' + pack.stat.stripCnt + ' 处（约 ' +
         fmtSize(pack.stat.stripChars * 2) + '，文字与设置全部保留）';
@@ -1007,6 +1016,22 @@
   function doImportGo(data) {
     // v3.5.113：导入进度遮罩（读取已完成，这里开始逐条写入）
     impShow('正在导入…', '准备中', 2);
+
+    // FIX 2026-09-10 #275 旧「只备份文字」备份的池腐蚀自愈：strip 导出曾把媒体池 dataURL 剥成
+    // 空串而消息里的 @@m: 令牌原样保留——导入后＝全体令牌失配的永久坏图（渲染侧 map 缓存 ''
+    // + img.src=''），且空串条目 ≤20KB 会随今后每次完整备份继续传给别的设备（多机型反复
+    // 「图片丢失」的传播链）。导入前把这类脏池条目（空串/非 data: 值）直接丢弃：键保持缺席
+    // → 渲染走「图片丢失：媒体数据缺失」准确占位，日后导入完整备份即自愈；合法池值一律不动。
+    function scrubMediaPool(obj) {
+      if (!obj || typeof obj !== 'object') return;
+      Object.keys(obj).forEach(function (k) {
+        if (!MEDIA_POOL_KEY_RE.test(k)) return;
+        const v = obj[k];
+        if (typeof v !== 'string' || v.indexOf('data:') !== 0) { try { delete obj[k]; } catch (e) {} }
+      });
+    }
+    scrubMediaPool(data.idb);
+    scrubMediaPool(data.ls);
 
     // ---- 1. 备份当前 localStorage 的 xy-home-v2 键（导入失败可回滚） ----
     let backup = null;

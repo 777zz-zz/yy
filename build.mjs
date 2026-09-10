@@ -293,6 +293,7 @@ const FIX_SENTINELS = [
   { name: '#225 更新条一直重复提醒收口v2（showVerBar 弹条门加 verSeen 一版一弹：同版本只弹一次不按时间过期+弱网无 ts 不绕过；新版本立即弹无任何时间窗——站点主口径一天可部署十几次，v1 的 24h 时间窗已废）', file: 'js/pwa.js', needle: '!verShouldNotify(onlineTs) || verSeen(onlineTs)' },
   { name: '#273 普通刷新自愈进新版（pageshow 冷加载对比云端版本，更新且本会话未尝试时 tryAutoUpgrade 走 PRECACHE_NOW+reload 自动进新版；session 守卫防死循环，失败退回更新条；字符串键压缩后仍在产物，比函数名锚稳）', file: 'js/pwa.js', needle: "'xy-home-v2:auto-upgrade-session'" },
   { name: '#273 弱网刷新兜底（拉 version.json 连败弹「网络异常」更新条+重试刷新入口，防弱网下顶部刷新按钮消失）；字符串锚压缩后仍在产物', file: 'js/pwa.js', needle: "'网络异常，未能确认最新版本'" },
+  { name: '#279 自动升级防打断（重载落地前复核用户活动：auto 且用户已交互且前台时放弃重载退回更新条，防弱网预取几十秒后砸进会话中途「页面自己重开」；删/改该条件即断）', file: 'js/pwa.js', needle: 'auto && !autoReloadAllowed()' },
   { name: '公用拍一拍选中态去虚线统一（poke-tab-pub.sel 实心）', file: 'css/dark.css', needle: 'poke-tab-pub.sel { background:var(--ink)' },
   { name: '吃什么切菜单可直接选指定菜单（eatSwitchRenderChips 直选，不复用转盘）', file: 'js/p2-features.js', needle: 'function eatSwitchRenderChips' },
   { name: '导出聊天记录以 IDB 权威为准（lsBig 兜底，防取旧快照）', file: 'js/data-backup.js', needle: '留待 IndexedDB 权威读取' },
@@ -663,7 +664,7 @@ const FIX_SENTINELS = [
   { name: '#208 聊天输入栏上移白边·判定器布局视口未贴底（保留形态 diff 应≈envTop；键盘收起未还原时按 inner 判贴合全绿漏报，单列 ✗ 让白带状态可诊断）', file: 'js/device.js', needle: 'diff > envTop + 24 && !(inp.kb && inp.kb.kbActive)' },
   { name: '#209 输入栏下方灰底断截面·焦点保留硬证据自愈（安卓返回键收键盘不派 blur/#197 族 focusout 丢失时 !foc 复原分支永不执行=停靠残留卡死；可视区双信号回满 ≤12px 即复原，焦点在不在都算键盘已收；推定停靠 _aProv/_iProv 与全屏态不碰）', file: 'js/mobile-adapt.js', needle: 'if (_hNow <= 0 || _hNow < _aH - 12) return;' },
   { name: '#210 视口形态判定器同源（window.mochiViewportForm 单一事实源：执行器 syncVvFit 与诊断 screenDiagJudge 共用，新形态只改一处；删定义即回归两处手抄判式漂移——#186 期间 force 分支已实际漂移两处）', file: 'js/device.js', needle: 'window.mochiViewportForm = function (sig) {' },
-  { name: '#210 判定器·force 声明期望底边=屏高（#186 缺陷修正：原误写 innerH 与「期望=屏高」注释矛盾，forced 设备自检必误报底部超出；env=0 的 18.3 白边期望按 safeTop+inner 补满）', file: 'js/device.js', needle: 'forceCover ? (screenH || (safeTop + innerH))' },
+  { name: '#210 判定器·force 声明期望底边=屏高（#186 缺陷修正：原误写 innerH 与「期望=屏高」注释矛盾，forced 设备自检必误报底部超出；env=0 的 18.3 白边期望按 safeTop+inner 补满。#276 起该分支同步加坏 screenH 门，needle 随代码演进）', file: 'js/device.js', needle: 'forceCover ? ((screenH >= innerH ? screenH : 0) || (safeTop + innerH))' },
   { name: '#210 采集器 force 传入判定器（#186 缺陷修正：漏传致「用户已声明覆盖形态」分支在真实采集路径永不命中=死分支）', file: 'js/device.js', needle: "inp.force = (function () { try { return localStorage.getItem('xy-home-v2:__safe-top-force') === '1'; } catch (e) { return false; } })();" },
   { name: '#210 屏幕适配事件沿捕获（5s 轮询漏瞬态：切后台回来 innerHeight 短报整屏/旋转中态；resize/vv/旋转/回前台 1.2s 去抖补采，同一键盘守卫+签名去重）', file: 'js/device.js', needle: "window.visualViewport.addEventListener('resize', sdEdge)" },
   { name: '#210 屏幕适配错误环带事发现场数值（最近错误直读 env/var/diff/inner/sb/scale，报障免复现）', file: 'js/device.js', needle: "(snap ? snap.envTop : '?') + ' var=' + (snap ? snap.varTop : '?')" },
@@ -733,6 +734,7 @@ const FIX_SENTINELS = [
   { name: '#247 群聊媒体令牌化（落盘前 data:image 统一换 @@m: 池令牌+池先落盘——删 normalize 则表情/图片继续整段 base64 内联进消息数组，全量重写一次比一次大直到 LS 配额静默丢写）', file: 'js/group-chat.js', needle: 'Promise.resolve(window.mochiMediaTokenize(v)).then(t => { seen.set(v, t || v); })' },
   { name: '#247 群聊撤回快照防臃肿（媒体类记录/超大快照走占位回退不存 DOM 快照——否则令牌化省下的空间被快照里的整段 base64 吃回去）', file: 'js/group-chat.js', needle: "const mediaish = rec.type === 'sticker' || rec.type === 'image' || rec.type === 'voice' ||" },
   { name: '#248 群聊历史分页·渲染窗口起点（进群只渲最近 RENDER_MAX 条，gcRenderStart 供「查看更早」续载——删则回归只上不下，老消息存了但界面永远看不到）', file: 'js/group-chat.js', needle: 'gcRenderStart = Math.max(0, n - RENDER_MAX);' },
+  { name: '#276 群聊撤回图片可看缩略图（点击查看时 gcRetractMediaHtml 即时从 rec.text/rec.parts 重拼 img，data:/@@m: 均可显；优先于存量占位快照——改回 rec.orig 优先则撤回图片只剩【图片】文字）', file: 'js/group-chat.js', needle: 'gcRetractMediaHtml(rec) || rec.orig || gcRetractFallbackHtml(rec)' },
   { name: '#248 群聊历史分页·滚动位置保持（顶部补历史按 scrollHeight 差值回补 scrollTop——删则点查看更早视口跳底/闪跳）', file: 'js/group-chat.js', needle: 'try { body.scrollTop += body.scrollHeight - prevH; } catch (e) {}' },
   { name: '#268 搜索/引用跳转·裁剪区下界外扩窗（jumpToMsg 只处理 idx<renderStart，落在被 pruneWindowBottom 裁剪的 idx>=renderEnd 时 target 查不到=搜索点了不跳不高亮；补向下增量展开直到 renderEnd>idx——删此分支即回归「搜索/引用点了没反应」）', file: 'js/chat.js', needle: 'else if (idx >= renderEnd && idx < msgs.length) {' },
   { name: '收口第二批 env 能力层（device.js 唯一 UA 嗅探处：chat 语音 WebView/data-backup 分享黑名单/music-player API 拦截提示/bg-keep 小米通知提示四消费端只读标记——删 env 挂载=四端读 undefined 恒 false，语音走错容器/华为夸克分享假成功回归）', file: 'js/device.js', needle: 'env: env,' },
@@ -829,6 +831,28 @@ const FIX_SENTINELS = [
   // 修复：改为 selfHealChecked 先异步查 IDB——IDB 有密码就回填本机并继续锁屏，只有双端都确认
   // 无密码才自愈关锁（防锁死初衷保留）。needle 用「IDB 有密码→回填→重评估锁屏」逻辑锚。
   { name: '应用锁自愈加固（IDB 有密码先回填不放关锁，防「刷新后锁被误关」回流；删则改回同步置 0=又门户大开）', file: 'js/applock.js', needle: 'gSet(K_PIN, v); evalLock();' },
+  // ==== #277 iPhone17/Safari(WebKit26.6) standalone「底部白带+导航栏悬空」＝env 探针缓存中毒永不自愈 ====
+  // 根因：syncVvFit 的 env(safe-area-inset-top) 探针缓存只在旋转时失效——独立应用切后台/
+  // 回前台 WebKit 会改写顶部安全区形态，冷启动早帧探到 0 被永久缓存，稳定后实为覆盖形态
+  // env=62：expBase 少算 env 段 → --mochi-ios-h 卡 894、.phone 底部 62px 白带/tabbar 悬空，
+  // 且 1s 常驻自愈每次按同值「确认」坏态永不自愈（错误环 9/8~9/10 反复采集同一签名）。
+  // 修复：矛盾信号（screen−inner≥20 而缓存=0 或与缺口差>8）节流 5s 重探；真已避让形态
+  // 探回同值零行为变化。needle 是矛盾判定表达式本体，删/改条件即断。
+  { name: '#277 env 缓存矛盾自愈（standalone 顶部缺段与缓存不符即 5s 节流重探，防「底部白带/tabbar 悬空」随切后台回流；删则 stale envTop=0 永久中毒）', file: 'js/mobile-adapt.js', needle: '(_envTopCache === 0 || Math.abs(_envTopCache - _diff0) > 8)' },
+  // ==== #278 华为畅享70Pro/Chrome150 等多安卓机型「底部超出/导航栏被裁 diff≈-535」误报错误环 ====
+  // screen.height 报数坏值（796 < 实际 inner 1331，物理不可能＝坏值）：旧式
+  // min(screenH, envTop+innerH) 取到 796 → .phone 贴 inner 正常铺满被误判底部超出
+  // 535px（自动采集刷错误环，多机型复发）。修复：min 钳制加 screenH≥innerH 门，
+  // 坏值弃用回退 envTop+innerH；正常机型 min 语义不变零回归。needle 是门表达式
+  // 本体（两个分支各一处），删/改条件即断。
+  { name: '#278 坏 screenH 门（screenH<innerH 不作期望底边钳制，防「底部超出 diff=-535」误报环；删则坏值又钳到 796）', file: 'js/device.js', needle: 'Math.min((screenH >= innerH ? screenH : 0) || (envTop + innerH), envTop + innerH)' },
+  // ==== 2026-09-10 #281 刷新黑屏卡顿收口②（华为畅享20Pro+Edge 等多机型）：my-emoji-groups 启动「就绪后再延迟取回」+ 防盲写闸门加固 ====
+  // 根因：chat.js 脚本求值即 idbGet(17~35MB 级 my-emoji-groups)+主线程 JSON.parse 整包，
+  // 秒级长任务压在开屏/首屏渲染关键窗口（#250 切桌面已同口径治理，启动路径漏了）。
+  // 延迟到 mochi-restore-done 后 4s；面板打开本就现读权威（#172 主链）；保存闸门同步扩为
+  // 「未应用过权威值(__myeIdbApplied) 或 仍在挂起名单」防延迟窗口盲写覆盖 IDB 全量。
+  { name: '#281 my-emoji 启动取回延迟（mochi-restore-done 后 4s 才整包读+解析；改回脚本求值即取回=大库机刷新首屏再吃秒级长任务）', file: 'js/chat.js', needle: "document.addEventListener('mochi-restore-done', function () { setTimeout(tryRestore, 4000); });" },
+  { name: '#281 防盲写闸门扩口径（未应用过 IDB 权威值也禁盲写，防延迟窗口保存把空/小包顶掉 IDB 全量=我的表情包全丢复发）', file: 'js/chat.js', needle: 'window.__myeIdbApplied !== true' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');
@@ -964,7 +988,9 @@ if (CHECK_SENTINELS) {
       'INDEX_NETWORK_TIMEOUT = 30000',
       'isIndexUrl(url) ? INDEX_NETWORK_TIMEOUT : NETWORK_TIMEOUT',
       "fetchWithTimeout('./index.html', INDEX_NETWORK_TIMEOUT)",
-      'isIndexUrl(u) ? INDEX_NETWORK_TIMEOUT : NETWORK_TIMEOUT'
+      'isIndexUrl(u) ? INDEX_NETWORK_TIMEOUT : NETWORK_TIMEOUT',
+      // FIX 2026-09-10 #280：媒体池令牌裸路径（@@m:）本地快速 404，禁止发真实网络请求
+      'u.pathname.indexOf(\'@@m:\') >= 0'
     ];
     const swMiss = swNeedlesSrc.filter(n => !swSrc.includes(n));
     if (swMiss.length) {
@@ -998,7 +1024,9 @@ try {
     'INDEX_NETWORK_TIMEOUT = 30000',
     'isIndexUrl(url) ? INDEX_NETWORK_TIMEOUT : NETWORK_TIMEOUT',
     "fetchWithTimeout('./index.html', INDEX_NETWORK_TIMEOUT)",
-    'isIndexUrl(u) ? INDEX_NETWORK_TIMEOUT : NETWORK_TIMEOUT'
+    'isIndexUrl(u) ? INDEX_NETWORK_TIMEOUT : NETWORK_TIMEOUT',
+    // FIX 2026-09-10 #280：媒体池令牌裸路径（@@m:）本地快速 404，禁止发真实网络请求
+    "u.pathname.indexOf('@@m:') >= 0"
   ];
   const swMissing = swNeedles.filter(n => !swSrc.includes(n));
   if (swMissing.length) {

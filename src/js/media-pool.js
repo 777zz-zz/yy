@@ -103,7 +103,12 @@
     inflight[h] = true;
     window.idbGet(FULL + h).then(function (v2) {
       delete inflight[h];
-      if (typeof v2 !== 'string') return; // 池缺失（理论不发生：池先于引用落盘）→ 保持原样不伪装
+      // FIX 2026-09-10 #275 池值体检：池里只可能存 data:image/ 字符串（tokenize 入口已保证）。
+      // 读到空串/脏值（旧「只备份文字」备份把池 dataURL 剥成 "" 再导入所致）绝不能当有效数据：
+      // 原 `typeof v2 !== 'string'` 放行空串 → map 永久缓存 '' + img.src=''（解析成页面 URL）
+      // ＝永久坏图且占位误报「网络不通」。改与「池缺失」同路：保持令牌原样交给 #186/#202 占位；
+      // 日后导入完整备份补回池键，下次渲染经此处重读即自愈（不入 map 负缓存，缺数据可重试）。
+      if (typeof v2 !== 'string' || v2.indexOf('data:image/') !== 0) return;
       map.set(h, v2);
       let nodes;
       try { nodes = document.querySelectorAll('img[src="' + TOK + h + '"]'); } catch (e) { nodes = []; }

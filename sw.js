@@ -6,8 +6,8 @@
 // 会一直显示「正在安装」永不完成（WebAPK 安装要经 SW 拉 start_url/图标）。
 // 现在每个请求最多等 NETWORK_TIMEOUT 毫秒，超时立即回退缓存（没缓存则快速
 // 失败），SW 最迟约 10 秒内必然激活，安装/加载都不再无限挂起。
-const CACHE = 'mochi-mtvir9k6';
-const BUILD_INFO = '部署于 2026-09-10 20:44';
+const CACHE = 'mochi-mtvq8r8x';
+const BUILD_INFO = '部署于 2026-09-11 00:13';
 const PRECACHE = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-180.png'];
 // v3.10.x：网络优先超时从 8000 → 3500ms。GitHub Pages 国内访问经常 >8s，
 // 原 8s 超时导致手机端 fetch 频繁超时 → 回退 SW 缓存旧 index.html → 用户永远
@@ -224,6 +224,18 @@ self.addEventListener('fetch', (e) => {
   // 版本检测才真正可靠。notice.json（开屏公告）同理。
   const u = new URL(req.url);
   if (u.pathname.endsWith('/version.json') || u.pathname.endsWith('/notice.json')) return;
+  // FIX 2026-09-10 #280 刷新黑屏卡顿收口①（华为畅享20Pro+Edge 等多机型「刷新黑屏卡顿几分钟」）：
+  // 媒体池令牌渲染解析失败/未完成时 img.src 短暂（或失败路径下长期）保持 '@@m:<hash>' 裸令牌，
+  // 浏览器把它当相对路径解析成同源 URL 发真实网络请求（诊断实证 资源加载失败 …/mochi/@@m:<md5>）。
+  // GitHub Pages 国内弱网下每个都要挂 30s~几分钟才失败（#202 失败占位要等 error 事件才能上），
+  // 还挤占同源并发连接拖累 version.json/notice.json 等正常资源。这类路径永远不可能是真实资源
+  // （令牌只是内部引用，真数据在 IDB xy-home-v2:media:<hash>），本地立即 404：error 毫秒级
+  // 触发、失败占位即时显示、网络零占用；池读取成功场景照旧由 media-pool 观察器改写 src，
+  // 被取消的这条 404 无任何副作用。
+  if (u.pathname.indexOf('@@m:') >= 0) {
+    e.respondWith(Promise.resolve(new Response('', { status: 404, statusText: 'media token (not a network resource)' })));
+    return;
+  }
   // v3.26.x #157：导航请求改「缓存优先 + 后台静默刷新」——standalone 桌面快捷方式每次
   // 启动都是一条导航请求，原「网络优先 3.5s」对 4MB 产物在国内网络必然超时回退缓存：
   // 每次打开先白等 3.5s、预缓存/更新通道全失败 → 「要刷新很多次才能打开甚至打不开」。

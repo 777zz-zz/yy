@@ -224,6 +224,18 @@ self.addEventListener('fetch', (e) => {
   // 版本检测才真正可靠。notice.json（开屏公告）同理。
   const u = new URL(req.url);
   if (u.pathname.endsWith('/version.json') || u.pathname.endsWith('/notice.json')) return;
+  // FIX 2026-09-10 #280 刷新黑屏卡顿收口①（华为畅享20Pro+Edge 等多机型「刷新黑屏卡顿几分钟」）：
+  // 媒体池令牌渲染解析失败/未完成时 img.src 短暂（或失败路径下长期）保持 '@@m:<hash>' 裸令牌，
+  // 浏览器把它当相对路径解析成同源 URL 发真实网络请求（诊断实证 资源加载失败 …/mochi/@@m:<md5>）。
+  // GitHub Pages 国内弱网下每个都要挂 30s~几分钟才失败（#202 失败占位要等 error 事件才能上），
+  // 还挤占同源并发连接拖累 version.json/notice.json 等正常资源。这类路径永远不可能是真实资源
+  // （令牌只是内部引用，真数据在 IDB xy-home-v2:media:<hash>），本地立即 404：error 毫秒级
+  // 触发、失败占位即时显示、网络零占用；池读取成功场景照旧由 media-pool 观察器改写 src，
+  // 被取消的这条 404 无任何副作用。
+  if (u.pathname.indexOf('@@m:') >= 0) {
+    e.respondWith(Promise.resolve(new Response('', { status: 404, statusText: 'media token (not a network resource)' })));
+    return;
+  }
   // v3.26.x #157：导航请求改「缓存优先 + 后台静默刷新」——standalone 桌面快捷方式每次
   // 启动都是一条导航请求，原「网络优先 3.5s」对 4MB 产物在国内网络必然超时回退缓存：
   // 每次打开先白等 3.5s、预缓存/更新通道全失败 → 「要刷新很多次才能打开甚至打不开」。

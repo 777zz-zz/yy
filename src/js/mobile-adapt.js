@@ -1047,7 +1047,8 @@
       // --mochi-safe-bottom：底部被浏览器工具条占据时归零。见下方 CSS 侧
       //   var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)) 的 27 处替换。
       var _vvFitOn = false;
-      var _envTopCache = -1; // #148：env(safe-area-inset-top) 探针缓存（-1=未测）；旋转时失效
+      var _envTopCache = -1; // #148：env(safe-area-inset-top) 探针缓存（-1=未测）；旋转/#277 矛盾自愈时失效
+      var _envTopCacheAt = 0; // #277：缓存写入时刻（矛盾重探 5s 节流，防 1s 自愈循环频繁建探针 DOM）
       var _zoomFixCnt = 0, _zoomFixAt = 0; // #174：缩放异常自愈计数（每会话 ≤3 次，间隔 4s）
       function syncVvFit() {
         try {
@@ -1082,6 +1083,25 @@
             _sig0.safMajor = _vM ? +_vM[1] : 0; // #235：Safari 主版本（26.x 起覆盖形态，保留判定加门）
           } catch (e9) {}
           try { _sig0.safeTopForce = localStorage.getItem('xy-home-v2:__safe-top-force') === '1'; } catch (eF0) {}
+          // FIX 2026-09-10 #277：env 缓存矛盾自愈——缓存此前只在旋转时失效，但独立应用
+          // 切后台/回前台 WebKit 会改写顶部安全区形态：冷启动早帧探针探到 0（standalone
+          // 覆盖布局尚未稳定）后被永久缓存，稳定后实为覆盖形态 env=62（iPhone17 +
+          // WebKit26.6 standalone 实证，错误环 9/8~9/10 反复采集同一签名「--mochi-ios-h、
+          // 底部导航栏悬空、底部少填｜env=62 var=0 diff=62 inner=894 phone底=894」）。
+          // stale envTop=0 令 expBase 少算 env 段 → --mochi-ios-h 卡 894、.phone 底部
+          // 62px 白带/tabbar 悬空；且 1s 常驻自愈每次按同值「确认」坏态，永不自愈。
+          // 判据零机型分支：「布局视口顶部确实缺了一段（screen−inner≥20）而缓存却说
+          // 没有顶部 inset（=0），或缓存值与缺口对不上（差>8）」＝矛盾信号，节流 5s
+          // 重探一次。真「已避让」形态（env 实为 0）探回同值、缓存不变＝零行为变化；
+          // 旋转失效路径（orientationchange 监听）不变。
+          try {
+            var _diff0 = _sh2 - _ih2;
+            if (_sig0.standalone && _diff0 >= 20 && _envTopCache >= 0
+                && (_envTopCache === 0 || Math.abs(_envTopCache - _diff0) > 8)
+                && Date.now() - _envTopCacheAt > 5000) {
+              _envTopCache = -1; _envTopCacheAt = Date.now();
+            }
+          } catch (eE5) {}
           var _f0 = window.mochiViewportForm(_sig0);
           if (_f0.needEnvProbe && _envTopCache < 0 && _sh2 > 0 && _vh2 > 0) {
             try {
@@ -1091,6 +1111,7 @@
               _envTopCache = parseFloat(getComputedStyle(_probe).paddingTop) || 0;
               document.body.removeChild(_probe);
             } catch (e4) { _envTopCache = 0; }
+            _envTopCacheAt = Date.now(); // #277：探回值连同时刻一起入账（重探节流基准）
             _sig0.envTop = _envTopCache;
           }
           var _f = window.mochiViewportForm(_sig0);

@@ -637,7 +637,9 @@
       // FIX 撤回查看 #244：原 `rec.orig || rec.text` 在点击时 innerHTML 直出原始文本——
       // 多行丢换行、图片/表情/语音点开整屏 base64、字卡含 HTML 会被当标签执行（注入）。
       // 对齐单聊 chat.js retractMsg（撤回时存渲染快照 rec.orig）；无快照走安全回退。
-      b.dataset.orig = rec.orig || gcRetractFallbackHtml(rec);
+      // 撤回图片可看 #248：媒体记录即时从 rec.text/rec.parts 重拼缩略图视图（优先于
+      // 存量占位快照 rec.orig——老数据撤回时只存了 [图片] 占位也能看图）
+      b.dataset.orig = gcRetractMediaHtml(rec) || rec.orig || gcRetractFallbackHtml(rec);
       const who = rec.side === 'out' ? '我' : memberName(rec.cid);
       b.innerHTML = '<span style="opacity:.6;font-size:12px;cursor:pointer">' + who + '撤回了一条消息</span>';
       b.style.cursor = 'pointer';
@@ -1134,6 +1136,30 @@ if (defs && defs.type === 'text' && defs.text) t = defs.text;
         (txt ? '<span style="opacity:.85;word-break:break-word">' + escTxtBr(txt) + '</span>' : '');
     }
     return '<span style="opacity:.85;word-break:break-word">' + escTxtBr(rec.text || '') + '</span>';
+  }
+  // 撤回图片可看 #248：媒体消息的「点击查看」视图即时从记录数据生成缩略图——
+  // 图片/表情/含图组合的 src 本就持久化在 rec.text / rec.parts 里，渲染时重拼 img
+  // 即可（data: 直显、@@m: 令牌由 media-pool 文档级观察器重写），不需要也不往
+  // rec.orig 快照塞 base64（防臃肿语义不变）。无图数据返回空串走快照/占位回退。
+  function gcRetractMediaHtml(rec) {
+    if (rec.type === 'image' && rec.text) {
+      return '<img class="msg-img msg-img-big" src="' + attrEsc(rec.text) + '" alt="图片" loading="lazy" decoding="async">';
+    }
+    if (rec.type === 'sticker' && rec.text) {
+      return '<img class="msg-img msg-img-sm" src="' + attrEsc(rec.text) + '" alt="表情" loading="lazy" decoding="async">';
+    }
+    if (rec.parts && rec.parts.length) {
+      const imgs = rec.parts.filter(p => p && p.k === 'img');
+      if (!imgs.length) return '';
+      const txt = rec.parts.filter(p => p && p.k === 'text').map(p => p.v).join(' ');
+      return '<div class="msg-parts-imgs' + (imgs.length > 1 ? ' multi' : '') + '">' +
+        imgs.map(p => {
+          const isSticker = p.sub === 'sticker';
+          return '<img class="msg-img' + (isSticker ? ' msg-img-sm' : ' msg-img-big') + '" src="' + attrEsc(p.v) + '" alt="' + (isSticker ? '表情' : '图片') + '" loading="lazy" decoding="async">';
+        }).join('') + '</div>' +
+        (txt ? '<span style="opacity:.85;word-break:break-word">' + escTxtBr(txt) + '</span>' : '');
+    }
+    return '';
   }
   // v3.9.x：单条成员消息撤回（标记 + 局部重渲染）
   // FIX 串群 #242：带来源群 gid——不是当前群时落到该群存储，绝不写错群；

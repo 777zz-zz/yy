@@ -1,3 +1,37 @@
+### 2026-09-11 00:13（#279 用户报 iQOO12 Chrome「不清楚问题的bug」（附诊断）：#273 冷加载自动升级重载砸进会话中途＝「页面自己重开、问答门重答」——本次构建者：本会话，收口构建 sw mochi-mtvq8r8x）
+- [AI-B 域 pwa.js（用户活动感知捕获监听 + refreshNow(auto,autoTs)/tryAutoUpgrade(autoTs) 防打断守卫 + __pwaAutoUpgradeTest 只读探针）+ build.mjs（#279 哨兵 ×1）+ FIX-REGRESSION.md（+279 行）+ tools/verify-auto-upgrade-guard.mjs（新增）+ WORKLOG.md]（**改动文件：src/js/pwa.js、build.mjs、FIX-REGRESSION.md、tools/verify-auto-upgrade-guard.mjs、WORKLOG.md**；构建状态：**已构建·sw mochi-mtvq8r8x**；本批收口构建同时把树上在途各批次一并构入：#276 群聊撤回图、#277 env 探针、#278 device.js 误判环、红包概率、#272 暗号提示等）。
+- 需求/反馈：iQOO12 Chrome「不清楚问题的bug」，用户明说其他设备型号也有、要求不要机型化修补（防覆盖式回归）。诊断解读（device.js 记录器口径：交互=click 捕获 / 触摸=touchstart / 输入轨迹 n=文本长度、st/sh/ch=scrollTop/scrollHeight/clientHeight）：**19:39:48 用户还在应用内点 tab 切页（当时无锁屏遮挡），19:39:56 却点了开屏「进入」＝两步之间页面被重载过一次**；随后 19:39:57~19:40:00 问答门两题作答全程正常（ce-box→applock-txt 同步成对出现、每次点击有响应、无死点击、卡死逃生记录空）＝输入/点击链路无恙，异常就是「会话中途自动重载」。已排除：#134 截断自愈（仅文档截断且限 1 次/会话）、SW updatefound 通道（v3.5.114 起只弹条）、personalize/data-backup 的 reload（均用户主动触发）。
+- 根因（pwa.js）：#273 冷加载自动升级 tryAutoUpgrade → refreshNow() 的 reload 在 PRECACHE_NOW 预取完成那一刻无条件落地——弱网（GitHub Pages 国内 3.6MB+ 产物）预取可达几十秒，正好砸进用户已开始的会话，被迫回开屏+问答门重答。与 v3.5.114 撤销 SW 通道自动刷新（「刚进入桌面就被打断回到开屏」）同族；#273 设计说明自己写着「避免打断会话中途操作」，但只在轮询/SW 通道做了，自动升级通道漏了。
+- 方案（通用根因、零机型分支）：①捕获级记录本页面首次交互（touchstart/pointerdown/mousedown/keydown，只记时刻不记内容）；②refreshNow(auto, autoTs) 的 doReload 落地前最后一刻复核 autoReloadAllowed()——页面 hidden 放行（回前台即新版、重载无感）、零交互放行（保留 #273「冷加载一跳进新版」快路径）；用户已操作且前台→放弃自动重载、退回 showVerBar(autoTs) 常驻更新条；③tryAutoUpgrade(autoTs) 入口先查活动、不满足 return false 让调用方弹条；手动点「刷新使用新版」不受限；session 守卫/预取失败退回更新条逻辑不变。
+- 验证：node --check 过；构建哨兵 **610/610 全绿哑 0**、sw 哨兵 15/15；`tools/verify-auto-upgrade-guard.mjs` **6/6**（P1 零交互 allowed=true / P2 mousedown 后 false / P3 重载+touchstart 仍拦截 / P4 产物接线静态锚）；复跑 verify-applock **61/61**、verify-env-reprobe **13/13** 无连带回归。【真机:待验证】（iQOO12 Chrome 及任意机型/浏览器）：①部署本版后打开旧版放着不动→仍自动进新版；②正在操作（答问答门/打字/切页）时部署新版→页面不再自己重开、顶部出「刷新使用新版」条；③后台挂起时部署新版→回前台已是新版。
+- 编号说明：本批原拟 #276，与群聊批撞号（276 先被群聊批占用、277 被 env 批 build.mjs 哨兵占用、278 被 device.js 误判环批占用）→ 定 **#279**。⚠️ 需要对方处理：①群聊批 WORKLOG 声称「FIX-REGRESSION.md（+276 行）」但该行不在当前文件中（疑被并发覆写丢失）——请群聊会话自行补写 276 行；②env 批 FIX-REGRESSION 行号 275 与 build.mjs 哨兵名 #277 不一致，请该会话对齐；③树上 `?? tools/diag-cc-list.mjs`/`diag-page.mjs` 为误名的字卡库脚本副本（非本批产物），请 owner 按临时脚本规则处理。
+
+### 2026-09-11（#278 用户报障「信息诊断显示有错误」：多安卓机型错误环「底部超出/底部导航栏被裁 diff=-535」＝坏 screen.height 误报——本次构建者：非本会话（src 已落，待收口构建））
+- [AI-B 域 device.js（mochiViewportForm 期望底边 min 钳制加 screenH≥innerH 坏值门）+ build.mjs（#278 哨兵 ×1；#210 force 分支 needle 随代码演进同步）+ tools/verify-viewport-form.mjs（#278 台账 fixture）+ FIX-REGRESSION.md（+278 行）+ WORKLOG.md]（**改动文件：src/js/device.js、build.mjs、tools/verify-viewport-form.mjs、FIX-REGRESSION.md、WORKLOG.md**；构建状态：**未构建，需构建者收口**；⚠️ device.js/mobile-adapt.js/build.mjs 树上有并行会话 #275/#277 在途改动，本次只**追加**未触碰其块）。
+- 需求/反馈：华为畅享70Pro+Chrome 诊断错误环反复「[屏幕适配] 底部超出／底部导航栏被裁｜diff=-535 inner=1331 phone底=1332」；用户强调多机型出现、勿覆盖式修改。
+- 根因：该批安卓机 Chrome 的 screen.height 报数坏值（screen=796 < 实际 inner=1331，物理不可能）；判定器 min(screenH, envTop+innerH) 取坏值 796 当期望屏底，.phone 贴 inner 正常铺满（底=vv=1332、空隙 0）被误判「底部超出 535px」刷错误环。**布局本身无故障，纯诊断误报**。
+- 方案（零机型分支）：screenH<innerH 视为坏值弃用、回退 envTop+innerH；forceCover 分支同款门。执行器与诊断共用判定器两处同源，正常机型（screen≥inner）min 语义零变化。
+- 验证：node --check 过；verify-viewport-form.mjs **80/80**（新增 #278 fixture）；--check-sentinels **608 条全绿哑 0**。
+- 待对方处理：构建者收口 node build.mjs（连同树上 #273/#274/#275/#276/#277 在途一并构入）+ 复跑 verify-viewport-form / verify-suite。【真机:待验证】（报障机型优先）：屏幕适配诊断全 ✓，错误环不再新增「底部超出 diff=-535」。
+
+### 2026-09-10 深夜（vivo X100s Chrome 149「后台保活失效/锁屏不提示」报障核实：#260 修复已上线，用户手机停在 9/7 旧版——本会话只核实零改动）
+- [AI-B 域核实任务]（**改动文件：仅 WORKLOG.md；构建状态：未构建，无 src 改动**）。
+- 核实链：src/js/bg-keep.js 含 #260 全部逻辑锚（amp `0.002 : 0.02`／WebRTC 回环 `mochi-ka`／`__ka-hb` 心跳／`__kaProbe`）；本地产物与 `git show HEAD:index.html` 三锚全在；HEAD==origin，线上 version.json ts=1789044254502（9/10 20:44）＝已部署产物含修复。防线无缺口：FIX-REGRESSION #260 台账行（L247）、build.mjs 5 条哨兵、tools/verify-keep-audio.mjs 均在位。
+- 结论：用户诊断 build ts=1788796421477＝**2026-09-07 23:53 旧版**，早于 #260 构建两天半；Chrome 升 149 后旧版单音频锚 0.006 电平丢冻结豁免＝#260 同根因复发。处理＝手机更新一次（顶部更新条「刷新使用新版」或关全部标签页重开；新构建含 #273 冷加载自动升级，此后刷新自动跟版，不会再停旧版）；更新后仍失败则诊断信息【保活现场】行（通知权限/心跳断流秒数）直出证据再按数据修。
+- 待对方处理：无（本会话未碰 src，在途并行批次不受影响）。
+
+### 2026-09-10（#276 群聊撤回图片可看缩略图——未构建，待收口）
+- [AI-A 域 group-chat.js + 跨域 build.mjs/FIX-REGRESSION.md]（**改动文件：src/js/group-chat.js（新增 gcRetractMediaHtml：image/sticker/parts 含图撤回记录从 rec.text/rec.parts 即时重拼 img，data:/@@m: 令牌均可显；renderMsg 撤回分支改为「媒体即时视图 > 存量快照 rec.orig > gcRetractFallbackHtml 占位」取值）、build.mjs（哨兵 +1=607，#276 逻辑锚）、FIX-REGRESSION.md（+276 行）；构建状态：**未构建**，本次构建者默认 AI-B，请收口时一并构入）。
+- 需求/反馈：用户「群聊里联系人撤回的消息的图片显示为【图片】的文字，无法查看撤回的图片的缩略图」。根因：#245/#247 防臃肿批规定媒体类撤回不存 DOM 快照，点击查看只给占位文字；但图片 src 本就持久化在 rec.text/rec.parts（含 @@m: 令牌），渲染时即时重拼即可看图，防臃肿语义不变（快照仍不存 base64）。
+- 验证：node --check 过；`node build.mjs --check-sentinels` 本条锚点在位（另见 device.js #210 红=你口在途未提交改动所致，非本批引入，收口时以你口定稿为准）。git status 树上你口另有 applock.js/data-backup.js/device.js/media-pool.js 在途 M，本口未触碰。
+- 【真机:待验证】群聊联系人发图→撤回→点提示应显示缩略图；表情包/图片+文字组合同理；语音撤回仍[语音]占位属正确。
+### 2026-09-10（聊天消息操作菜单加【复制】按钮——未构建，待收口）
+- [AI-A 域 chat.js + template.html]（**改动文件：src/js/chat.js、src/template.html**；构建状态：**未构建**，本次构建者默认 AI-B，请收口时一并构入）。
+- 需求/反馈：用户「聊天消息出现的引用窗口（气泡操作菜单），没有【复制】复制文字的功能」。
+- 方案：#msg-actions 在「引用」与「收藏」之间新增 `data-act="copy"` 按钮（复制图标）；chat.js msgActions 点击处理加 `copy` 分支——文字取 `quoteTextOf(rec).text`（语音取名称、图片/表情只回文字），先 `mochiMediaExpand` 展开媒体池令牌再判空/判 dataURL（纯图片/语音提示「该消息没有可复制的文字」）；复制走 textarea+execCommand('copy') 优先、clipboard API 兜底、`mochiKillCopySelection` 收选区（device.js #261 同款防安卓全选条卡屏），toast 反馈。
+- 验证：node --check chat.js 过；`node build.mjs --check-sentinels` 我的改动无锚点缺失（现存 1 条 device.js #210 报警为 AI-B 在途改动，非本次引入，未触碰）。
+- 待对方处理：构建者收口 `node build.mjs`；群聊（gc-msg-actions）如需同款复制可后续照搬。
+
 ### 2026-09-10（#274 用户反馈「刷新/重新打开网站应用锁被关了」：自愈误关加固——本次构建者：本会话（AI-B 域）收口）
 - [AI-B 域 applock.js（evalLock 同步自愈 → selfHealChecked 先查 IDB，防「一时未回填/ LS 快照缺 pin」误关锁）+ build.mjs（#274 哨兵 ×1 `gSet(K_PIN, v); evalLock();`）+ FIX-REGRESSION.md（+274 行）+ tools/verify-applock.mjs（新增 R 组 2 断言 + H7 静态锚）+ WORKLOG.md]（**改动文件：src/js/applock.js、build.mjs、FIX-REGRESSION.md、tools/verify-applock.mjs、WORKLOG.md**；构建状态：**待收口构建**）。
 - 需求/反馈：用户「设置了应用锁，但刷新重新打开网站，应用锁被关了」（澄清：安卓同一标签页刷新，既不弹锁屏、设置页开关也显示关闭）。

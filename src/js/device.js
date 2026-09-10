@@ -498,6 +498,14 @@
           //（api.injahow.cn / music.163.com / m8.music.126.net），进日志只制造噪音
           //（实测诊断 13 条错误全是它），掩盖真错误。静默即可，兜底逻辑会接管播放。
           if ((tag === 'audio' || tag === 'source') && /api\.injahow\.cn|music\.163\.com|music\.126\.net/.test(url)) return;
+          // FIX 2026-09-10 #275 未解析媒体池令牌 404 不进错误日志——img src 还是 @@m: 令牌
+          // （池数据缺失）时，浏览器把它当相对路径打网络请求必然 404，属已处理的预期失败
+          //（media-pool 观察器 + #186/#202 渲染占位已如实提示「图片丢失：媒体数据缺失」），
+          // 进日志只会逐次渲染刷屏（OPPO Reno16 诊断 20 条错误全是它），掩盖真错误。判定
+          // 必须用 getAttribute 原始值（.src 属性已被浏览器解析成绝对地址，匹配不上令牌正则）。
+          var imTok = '';
+          try { imTok = String((e.target.getAttribute && e.target.getAttribute('src')) || ''); } catch (e4) {}
+          if (tag === 'img' && window.mochiMediaIsToken && window.mochiMediaIsToken(imTok)) return;
           m = '资源加载失败 <' + tag + '> ' + url.slice(0, 120);
         }
       } catch (e2) {}
@@ -2115,10 +2123,17 @@ window.mochiViewportForm = function (sig) {
   // 期望 .phone 底边 / 全屏期望屏高：保留/iPad/浏览器壳贴 inner（超 inner=文档
   // 滚动量=与自愈 pin 对打）；#186 force 声明=屏高（safeTop+inner 补满屏底，修
   // 18.3 底部白边的正确期望，原实现误写 innerH）；覆盖形态=envTop+inner、min 屏高
-  // 防异常超界（#184 起 min 为三形态统一式）
+  // 防异常超界（#184 起 min 为三形态统一式）。
+  // FIX 2026-09-10 #278：min 钳制加 screenH≥innerH 门——部分安卓机 Chrome 的
+  // screen.height 报数不可靠、比实际可视区还小（华为畅享70Pro/Chrome150 实测
+  // screen=796 < inner=1331，OPPO 等多机型同报「底部超出 diff≈-535」错误环），
+  // 物理上屏幕不可能小于视口，此时 screenH 必为坏值：min(796, 1331) 取到 796 →
+  // .phone（贴 inner 铺满、布局本身正常）被误判「底部超出 535px」+「底部导航栏被裁」
+  // 自动采集刷错误环。坏值弃用回退 envTop+innerH（执行器 vh 同源，行为=维持现状
+  // 铺满可视区零变化）；screenH 正常（≥inner）的机型 min 钳制语义不变零回归。
   const expBase = (coverBrowser || resStand || ipadForm) ? innerH
-    : (forceCover ? (screenH || (safeTop + innerH))
-      : Math.min(screenH || (envTop + innerH), envTop + innerH));
+    : (forceCover ? ((screenH >= innerH ? screenH : 0) || (safeTop + innerH))
+      : Math.min((screenH >= innerH ? screenH : 0) || (envTop + innerH), envTop + innerH));
   // 期望状态栏顶位（诊断 ③）：保留形态系统已避让=12 兜底；其余=max(env,12)。
   // force 时 resStand=false → forced 设备（如 14 Pro/26.6 sbTop≈73）不再被
   // expect=12+60 误判「顶部双倍避让」
