@@ -535,15 +535,16 @@
 
   // ================= 网易云歌单导入 =================
   // v3.8.x：直接导入网易云歌单（粘贴歌单分享链接 / 链接添加里填歌单 ID）。
-  // 主源：meting API type=playlist（api.injahow.cn，与播放 type=url 同源同域，
-  // 大陆直连、无 CORS 问题，最多返回约 200 首）；兜底：网易云官方 v6 歌单详情
-  // API（无 Cookie 可用，含全部曲目）经多个 CORS 代理转发（代理可用性随环境变化，
-  // 与 fetchNeteaseInfo 同思路，留作未来恢复能力）。
-  // 识别歌单链接：music.163.com/playlist?id=xxx / y.music.163.com/m/playlist?id=xxx / #/playlist?id=xxx
+  // #263：改为「多源并发 + 取最长」（见 fetchNeteasePlaylist）——网易官方 playlist/detail
+  // 的 tracks 对用户自建歌单只给首屏 10 首（trackIds/trackCount 才是全量），只读 tracks 的
+  // meting 实例必然回 10 首，旧「第一个非空源即返回」= 全机型只能导入 10 首。
+  // 识别歌单链接：music.163.com/playlist?id=xxx / y.music.163.com/m/playlist?id=xxx /
+  // #/playlist?id=xxx / 移动端网页复制的 m/playlist#!?id=xxx
   function extractPlaylistId(line) {
     if (!line || typeof line !== 'string') return '';
     if (/\.mp3/i.test(line)) return '';
-    const m = line.match(/playlist[\/?#]*(?:id=)?(\d+)/i);
+    // 分隔符类含 # ! &（m/playlist#!?id=xxx）；不含 = 故 playlist=123 仍不当歌单（与旧行为一致）
+    const m = line.match(/playlist[\/?#&!\s]*(?:id=)?(\d+)/i);
     return m ? m[1] : '';
   }
   // v3.9.x：从任意输入中提取网易云歌曲数字 ID——纯数字、song?id=xxx、#/song?id=xxx
@@ -562,102 +563,130 @@
     if (m) return m[1];
     return '';
   }
+  // 网易云 meting 播放直链固定走 injahow（neteaseMetingUrl），封面同理归一到 injahow
+  // 图片代理：#216 的 COVER_PROXY_RE 迁移链只认这个域名，会把代理 URL 解析成网易 CDN
+  // 直链入库。各列表实例（qijieya/i-meto）自带的 pic 代理 URL 不改写就成了新的第三方
+  // 单点——该实例哪天挂了这批封面一起丢（#254 同族教训）。
+  function canonicalMetingPicUrl(pic) {
+    const s = String(pic || '');
+    if (!s) return '';
+    const idm = /[?&]type=pic\b/i.test(s) && s.match(/[?&]id=(\d+)/);
+    if (idm) return 'https://api.injahow.cn/meting/?server=netease&type=pic&id=' + idm[1];
+    return s.replace(/^http:\/\//i, 'https://');
+  }
+  // meting 系源统一解析：各实例返回同一份 JSON 数组（字段 name/artist 或 title/author，
+  // url 内含 type=url&id=<网易云ID>）。{"error":"unknown playlist id"} 等非数组回 null。
+  function parseMetingPlaylist(txt) {
+    let j; try { j = JSON.parse(txt); } catch (e) { return null; }
+    if (!Array.isArray(j) || !j.length) return null;
+    const list = [];
+    j.forEach(t => {
+      if (!t) return;
+      const mid = String(t.url || '').match(/type=url&id=(\d+)/);
+      const url = mid ? neteaseMetingUrl(mid[1]) : (t.url || '');
+      if (!url) return;
+      list.push({
+        neteaseId: mid ? mid[1] : '',
+        name: t.name || t.title || '',
+        artist: t.artist || t.author || '',
+        cover: canonicalMetingPicUrl(t.pic),
+        url: url,
+        duration: 0
+      });
+    });
+    return list.length ? { list: list } : null;
+  }
+  // 网易官方 v6 详情解析：tracks 带 fee/时长（VIP 前置过滤与时长一次到位），
+  // trackCount 是全量曲目数——tracks 被截断时据此如实报告缺口。
+  function parseOfficialPlaylist(txt) {
+    let j; try { j = JSON.parse(txt); } catch (e) { return null; }
+    const pl = j && j.playlist;
+    if (!pl || !Array.isArray(pl.tracks) || !pl.tracks.length) return null;
+    const list = [];
+    pl.tracks.forEach(s => {
+      if (!s || !s.id) return;
+      list.push({
+        neteaseId: String(s.id),
+        name: s.name || '',
+        artist: ((s.ar || []).map(a => a.name).filter(Boolean).join('/')),
+        cover: String((s.al && s.al.picUrl) || '').replace(/^http:\/\//i, 'https://'),
+        url: neteaseMetingUrl(s.id),
+        duration: s.dt ? Math.round(s.dt / 1000) : 0,
+        fee: s.fee
+      });
+    });
+    return list.length ? { list: list, total: parseInt(pl.trackCount, 10) || 0 } : null;
+  }
+  // 歌单曲目数 = 10 是网易 detail 的 tracks 首屏截断特征（同请求的 trackCount 常远大于 10），
+  // 见到它就说明这一路很可能只拿到了首屏，不能当完整歌单收口。
+  var NETEASE_TRACKS_TRUNC = 10;
   function fetchNeteasePlaylist(id, cb) {
     const apiUrl = 'https://music.163.com/api/v6/playlist/detail?id=' + encodeURIComponent(String(id)) + '&n=1000&s=8';
+    const pid = encodeURIComponent(String(id));
     const sources = [
-      // 主源：meting 歌单接口（与播放同源，稳定可用，约 200 首上限）
-      { url: 'https://api.injahow.cn/meting/?type=playlist&id=' + encodeURIComponent(String(id)), parse(txt) {
-          let j; try { j = JSON.parse(txt); } catch (e) { return null; }
-          if (!Array.isArray(j) || !j.length) return null;
-          return j.map(t => {
-            const mid = (t.url || '').match(/type=url&id=(\d+)/);
-            return {
-              neteaseId: mid ? mid[1] : '',
-              name: t.name || '',
-              artist: t.artist || '',
-              cover: String(t.pic || '').replace(/^http:\/\//i, 'https://'),
-              url: mid ? neteaseMetingUrl(mid[1]) : (t.url || ''),
-              duration: 0
-            };
-          }).filter(t => t.url);
-        } },
-      // v3.9.x：备用 meting 镜像（i-meto，独立域名——手机浏览器拦截/主源不可达时兜底；
-      // 字段名 title/author，url 里的 id 提取方式与主源一致）
-      { url: 'https://api.i-meto.com/meting/api?server=netease&type=playlist&id=' + encodeURIComponent(String(id)), parse(txt) {
-          let j; try { j = JSON.parse(txt); } catch (e) { return null; }
-          if (!Array.isArray(j) || !j.length) return null;
-          return j.map(t => {
-            const mid = (t.url || '').match(/type=url&id=(\d+)/);
-            return {
-              neteaseId: mid ? mid[1] : '',
-              name: t.title || t.name || '',
-              artist: t.author || t.artist || '',
-              cover: String(t.pic || '').replace(/^http:\/\//i, 'https://'),
-              url: mid ? neteaseMetingUrl(mid[1]) : (t.url || ''),
-              duration: 0
-            };
-          }).filter(t => t.url);
-        } },
-      // 兜底：网易云官方 v6 歌单详情 API（无 Cookie 返回全部曲目）经 CORS 代理
-      // v3.9.x：corsproxy.io(403)/codetabs(超时)已失效，改用 proxy.cors.sh（Cloudflare
-      // Workers 代理，CORS 头正确、稳定可用）；allorigins/corsproxy 保留作低优先级兜底
-      { url: 'https://proxy.cors.sh/' + apiUrl, parse(txt) {
-          let j; try { j = JSON.parse(txt); } catch (e) { return null; }
-          const pl = j && j.playlist;
-          if (!pl || !Array.isArray(pl.tracks) || !pl.tracks.length) return null;
-          return pl.tracks.map(s => ({
-            neteaseId: String(s.id || ''),
-            name: s.name || '',
-            artist: ((s.ar || []).map(a => a.name).filter(Boolean).join('/')),
-            cover: String((s.al && s.al.picUrl) || '').replace(/^http:\/\//i, 'https://'),
-            url: s.id ? neteaseMetingUrl(s.id) : '',
-            duration: s.dt ? Math.round(s.dt / 1000) : 0,
-            fee: s.fee // v3.10.x：1=VIP 专属 4=购买专辑——导入时过滤
-          })).filter(t => t.url);
-        } },
-      { url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl), parse(txt) {
-          let j; try { j = JSON.parse(txt); } catch (e) { return null; }
-          const pl = j && j.playlist;
-          if (!pl || !Array.isArray(pl.tracks) || !pl.tracks.length) return null;
-          return pl.tracks.map(s => ({
-            neteaseId: String(s.id || ''),
-            name: s.name || '',
-            artist: ((s.ar || []).map(a => a.name).filter(Boolean).join('/')),
-            cover: String((s.al && s.al.picUrl) || '').replace(/^http:\/\//i, 'https://'),
-            url: s.id ? neteaseMetingUrl(s.id) : '',
-            duration: s.dt ? Math.round(s.dt / 1000) : 0,
-            fee: s.fee
-          })).filter(t => t.url);
-        } },
-      // v3.26.x：corsproxy.io 源已移除——整体 401（要求注册 API key），无意义请求只刷
-      // 「网络失败」日志（vivo Y35+Edge 诊断实证）
+      // #263：按 trackIds 批量补歌曲详情的 meting 实例——用户自建歌单也给全量。
+      // 实测 2026-09-10 同一张歌单 18366934337（共 62 首）：本源 62 / injahow 10；
+      // 官方榜 3778678 两源各 200。CORS 头 ACAO:*，iOS Safari/安卓/桌面同通道
+      { url: 'https://api.qijieya.cn/meting/?server=netease&type=playlist&id=' + pid, parse: parseMetingPlaylist },
+      // 与播放同源的 meting 主实例（官方榜单全量；用户自建歌单只有 detail 首屏 10 首）
+      { url: 'https://api.injahow.cn/meting/?type=playlist&id=' + pid, parse: parseMetingPlaylist },
+      // 备用 meting 镜像（独立域名——别的源被拦/不可达时兜底；字段名 title/author 已归一）
+      { url: 'https://api.i-meto.com/meting/api?server=netease&type=playlist&id=' + pid, parse: parseMetingPlaylist },
+      // 兜底：网易官方 v6 详情（tracks 带 fee/时长，trackCount 是全量曲目数，供缺口如实
+      // 提示）。公共代理是持续死亡的消耗品（#254：cors.sh 域名注销、allorigins 522、
+      // corsproxy.io 401），排在 meting 之后＝同源数时不抢 meting 那条既有链路，只有给出
+      // 更长列表（代理活着且 tracks 没被截断）时才胜出，顺带自动用上导入时 VIP 前置过滤
+      { url: 'https://proxy.cors.sh/' + apiUrl, parse: parseOfficialPlaylist },
+      { url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl), parse: parseOfficialPlaylist }
     ];
-    let idx = 0;
-    function tryNext() {
-      if (idx >= sources.length) { cb(null); return; }
-      const src = sources[idx++];
-      const srcLabel = src.url.substring(0, 60);
+    const results = [];
+    let pending = sources.length, knownTotal = 0, settled = false, graceTimer = 0, hardTimer = 0;
+    function bestList() {
+      let best = null;
+      results.forEach(r => {
+        if (!best || r.list.length > best.list.length ||
+          (r.list.length === best.list.length && r.pri < best.pri)) best = r;
+      });
+      return best && best.list;
+    }
+    function finish() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(hardTimer); clearTimeout(graceTimer);
+      const best = bestList();
+      cb(best && best.length ? best : null, knownTotal);
+    }
+    hardTimer = setTimeout(finish, 8000);
+    sources.forEach((src, pri) => {
       let controller;
       try { controller = new AbortController(); } catch (e) { controller = null; }
       const timer = setTimeout(() => { try { controller && controller.abort(); } catch (e) {} }, 7000);
+      let called = false;
+      // 每路源落定一次（成功/失败/超时都算），全部落定即收口
+      const done = () => { if (called) return; called = true; clearTimeout(timer); if (--pending <= 0) finish(); };
       fetch(src.url, controller ? { signal: controller.signal } : undefined)
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
         .then(txt => {
-          clearTimeout(timer);
-          try {
-            const res = src.parse(txt);
-            if (res && res.length) cb(res); else tryNext();
-          } catch (e) { tryNext(); }
+          let res = null;
+          try { res = src.parse(txt); } catch (e) { res = null; }
+          if (res && res.list && res.list.length) {
+            res.pri = pri;
+            results.push(res);
+            if (res.total) knownTotal = Math.max(knownTotal, res.total);
+            const n = bestList().length;
+            if (knownTotal && n >= knownTotal) { done(); finish(); return; }
+            if (n !== NETEASE_TRACKS_TRUNC && !graceTimer) graceTimer = setTimeout(finish, 1500);
+          }
+          done();
         })
-        .catch((err) => { clearTimeout(timer); tryNext(); });
-    }
-    tryNext();
+        .catch(() => { done(); });
+    });
   }
   // 导入单个歌单：去重（网易云 ID 已存在则跳过），只入内存，由调用方统一 saveLibrary
   // v3.10.x：VIP/付费歌曲前置过滤——数据源自带 fee 时（官方 v6 源）直接不入库；
   // meting 源不带 fee，由 enrichImportedDurations 拿到 v6 详情后再移除本批 VIP
   function importNeteasePlaylist(id, done, targetPl) {
-    fetchNeteasePlaylist(id, function (tracks) {
+    fetchNeteasePlaylist(id, function (tracks, totalKnown) {
       if (!tracks || !tracks.length) { done({ ok: false }); return; }
       let added = 0, skipped = 0, vip = 0;
       const now = Date.now();
@@ -671,7 +700,9 @@
         addedIds.push(nid);
         added++;
       });
-      done({ ok: true, added: added, skipped: skipped, vip: vip });
+      // 上游标明的全量数与实取数之差 = 数据源截断造成的缺口（重导同一链接可补齐：去重只跳已有）
+      const miss = Math.max(0, (totalKnown || 0) - tracks.length);
+      done({ ok: true, added: added, skipped: skipped, vip: vip, miss: miss });
       // v3.9.x：导入后一次性补时长（meting 不带 duration）——v6 全量快路径 + 音频探测兜底
       // v3.10.x：同一趟 v6 详情顺带识别 VIP 并移除本批 VIP 曲目
       if (addedIds.length) enrichImportedDurations(id, addedIds);
@@ -1018,11 +1049,11 @@
   }
   // 串行导入多个歌单（避免并发刷爆网络）
   function importPlaylistIds(ids, cb, targetPl) {
-    let total = 0, plOk = 0, plFail = 0, skipped = 0, vip = 0;
+    let total = 0, plOk = 0, plFail = 0, skipped = 0, vip = 0, miss = 0;
     const next = (i) => {
-      if (i >= ids.length) { cb({ total: total, plOk: plOk, plFail: plFail, skipped: skipped, vip: vip }); return; }
+      if (i >= ids.length) { cb({ total: total, plOk: plOk, plFail: plFail, skipped: skipped, vip: vip, miss: miss }); return; }
       importNeteasePlaylist(ids[i], (res) => {
-        if (res.ok) { plOk++; total += res.added; skipped += res.skipped; vip += res.vip || 0; }
+        if (res.ok) { plOk++; total += res.added; skipped += res.skipped; vip += res.vip || 0; miss += res.miss || 0; }
         else plFail++;
         next(i + 1);
       }, targetPl);
@@ -1329,6 +1360,7 @@
               ? '已导入 ' + res.plOk + ' 个歌单 / ' + res.total + ' 首' + (res.skipped ? '（跳过已有 ' + res.skipped + ' 首）' : '')
               : '歌单导入失败';
             if (res.vip) msg += '（VIP 歌曲 ' + res.vip + ' 首未导入）';
+            if (res.miss) msg += '（数据源受限，另有 ' + res.miss + ' 首未取到，稍后重导同一链接可补齐）';
             if (res.plFail) {
               if (!res.total) {
                 msg += '：可能为私密歌单、已失效或被浏览器拦截';
@@ -1455,6 +1487,7 @@
             }
             if (res.skipped) msg += '（跳过已有 ' + res.skipped + ' 首）';
             if (res.vip) msg += '（VIP 歌曲 ' + res.vip + ' 首未导入）';
+            if (res.miss) msg += '（数据源受限，另有 ' + res.miss + ' 首未取到，稍后重导同一链接可补齐）';
             if (res.plFail && res.total) msg += '；' + res.plFail + ' 个歌单失败（可能私密/已失效/被拦截）';
             toast(msg);
           }, targetPl);

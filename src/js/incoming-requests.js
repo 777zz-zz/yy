@@ -29,6 +29,13 @@
   const chatCoolMs = 3 * 60 * 60 * 1000; // 求聊天冷却（3 小时，比查岗久）
   const seenKeepMs = 24 * 60 * 60 * 1000; // seen 记录保留 24h 后清理
   const POKE_MSGS = ['在干嘛呢？', '忙完了吗？', '想我了没有？', '我来看看你。'];
+  // v3.26.x #264：本页面会话标识 + 跨会话 pending 存活上限。
+  // 队列存 localStorage（跨刷新存活），而前台弹窗只活在当前页面会话里：刷新/返回键/被别的
+  // 弹窗顶掉/逃生门复位都会让 openModal 回调永不触发 → 该 cid 的 pending 永远留在队列 →
+  // hasPending 从此挡掉这个联系人的一切跨桌面触发（用户视角＝"开了好几天一次都没有"）。
+  const SESSION_ID = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+  const PENDING_TTL_MS = 10 * 60 * 1000;
+  const BUSY_ESCAPE = 3;                // 软互斥最多让路 3 轮（3 分钟），之后照投——防别的弹窗长期占屏变成新的永不触发
 
   // ---- 全局开关（全桌面通，默认开启） ----
   function deskCheckinEn() {
@@ -140,7 +147,7 @@
       title: '联系人跨桌面打电话',
       subTag: '功能说明',
       tagTitle: '联系人跨桌面打电话',
-      detail: '开启后，其他桌面的联系人会按各自的来电概率（默认约 2%，可在 设置→回复速度→跨桌面来电概率 里逐联系人调整）主动给你打语音电话；同一联系人触发后会有 30 分钟冷却、不重复来电。你接听后即可正常通话，接听会自动挂断当前通话、且不会跳到对方的桌面。关闭后不再有跨桌面来电。',
+      detail: '开启后，其他桌面的联系人会主动给你打语音电话；概率与冷却由下方「跨桌面查岗频率」三档全局统一生效（频繁 6%/15min、标准 2%/30min、安静 1%/3h，对所有桌面联系人同时生效），不再逐个联系人在回复设置里单独调。你接听后即可正常通话，接听会自动挂断当前通话、且不会跳到对方的桌面。关闭后不再有跨桌面来电。',
       get: deskCallEn,
       set: window.setDeskCallEn,
       toast: function (en) { return en ? '已开启：其他桌面的TA会主动给你打电话' : '已关闭：其他桌面的TA不再主动来电'; }
@@ -238,13 +245,68 @@
   function rootGet(k) { try { return window.xyStore(ROOT).get(k); } catch (e) { return null; } }
   function rootSet(k, v) { try { window.xyStore(ROOT).set(k, v); } catch (e) {} }
 
+  // ---- v3.26.x #264 调度可观测性 + 弹窗互斥（跨机型同一条路径，无设备分支） ----
+  var ticks = 0;                         // 本会话轮询次数（诊断：定时器活着吗）
+  var busyTicks = 0;                     // 连续让路轮数（软互斥逃逸计数）
+  var releaseLog = [];                   // 最近释放事件（环形 3 条，供诊断回看）
+  var liveModals = {};                   // 本会话已投出的前台弹窗：cid -> 当时的弹窗标题
+  function noteRelease(msg) {
+    releaseLog.push(msg + '@' + new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+    if (releaseLog.length > 3) releaseLog.shift();
+  }
+  // 全站弹窗共用同一批 DOM（openModal 只有一个 #modal-mask），已有浮层时投递 = 互相顶掉：
+  // 被顶掉那一侧的回调永不触发，pending 就成了孤儿。与 ta-ask.js / ck-question.js 的
+  // cardPopupBusy 同款互斥，另外多挡通话面板。
+  // #264：应用锁/问答门（#applock-mask，z-index 高于一切弹窗且盖满全屏）属硬互斥——
+  // 投进去只会落在锁屏底下，用户解完锁才发现（或永远发现不了），锁着期间整轮不掷。
+  function hardLocked() {
+    const el = document.getElementById('applock-mask');
+    return !!(el && !el.hidden);
+  }
+  function layerBusy() {
+    return ['modal-mask', 'tc-mask', 'qa-mask', 'call-mask'].some(function (id) {
+      const el = document.getElementById(id);
+      return el && !el.hidden;
+    });
+  }
+  // 正在打字时不弹（跨桌面弹窗会抢焦点：IME 组合中的文字直接丢失，同 ta-ask 那批报障）
+  function typingBusy() {
+    const ae = document.activeElement;
+    if (!ae || ae === document.body) return false;
+    const ci = document.getElementById('chat-input');
+    if (ci && ae === ci) return true;
+    return ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable === true;
+  }
+  // 本会话投出的弹窗若已不在屏幕上（被别的弹窗顶掉/返回键关闭/死点击逃生门复位），
+  // 回调永远不会再执行 → 当场释放 pending，别让这条记录把该联系人卡死到永远。
+  function reconcileLiveModals() {
+    const mask = document.getElementById('modal-mask');
+    const titleEl = document.getElementById('modal-title');
+    Object.keys(liveModals).forEach(function (cid) {
+      const ours = !!(mask && !mask.hidden && titleEl && titleEl.textContent === liveModals[cid]);
+      if (ours) return;
+      delete liveModals[cid];
+      if (setStatus(cid, 'seen')) noteRelease('弹窗消失未应答，释放 ' + cName(cid));
+    });
+  }
+
   function queue() {
     let q = [];
     try { const v = rootGet(KEY); if (v) { const a = JSON.parse(v); if (Array.isArray(a)) q = a; } } catch (e) {}
     // 清理 seen 过久的（保留 pending）
     const now = Date.now();
+    // v3.26.x #264：跨会话孤儿 pending 自愈。弹窗只活在投出它的那个页面会话里，而队列存
+    // localStorage 会跨刷新存活：刷新/返回键/无应答留下的 pending 超过存活上限一律释放，
+    // 否则 hasPending 会永久挡掉该联系人的一切跨桌面查岗/来电（用户视角＝开了很久一次没有）。
+    let healed = 0;
+    q.forEach(function (x) {
+      if (x.status === 'pending' && x.sid !== SESSION_ID && now - (x.ts || 0) > PENDING_TTL_MS) {
+        x.status = 'seen'; x.ts = now; healed++;
+      }
+    });
     const filtered = q.filter(x => x.status !== 'seen' || now - (x.ts || 0) < seenKeepMs);
-    if (filtered.length !== q.length) { rootSet(KEY, JSON.stringify(filtered)); q = filtered; }
+    if (healed || filtered.length !== q.length) { rootSet(KEY, JSON.stringify(filtered)); q = filtered; }
+    if (healed) noteRelease('跨会话孤儿 pending 释放 ' + healed + ' 条');
     return q;
   }
   function saveQ(q) { rootSet(KEY, JSON.stringify(q.slice(-MAX))); }
@@ -323,9 +385,17 @@
   }
 
   // 入队 + 表现：前台弹窗 / 后台系统通知
-  function deliver(req) {
+  // force＝让路已达上限或用户手动触发时照投（顶掉当前浮层，被顶掉那侧的 pending 由
+  // reconcileLiveModals 下一轮对账释放）——否则软互斥会变成新的「永久不触发」。
+  function deliver(req, force) {
     const q = queue();
     if (q.some(x => x.cid === req.cid && x.status === 'pending')) return false; // 未处理不重复
+    if (!document.hidden && (hardLocked() || typingBusy())) return false;
+    // v3.26.x #264：浮层占用时默认不投——#modal-mask 是全站唯一 DOM，同一轮里后一个
+    // 联系人的投递会把前一个刚投出的弹窗顶掉，被顶掉那侧回调永不触发＝孤儿 pending。
+    // 拒绝即不入队、不写冷却，该联系人下一轮照样有机会；force 时才顶（对账会善后）。
+    if (!force && !document.hidden && layerBusy()) return false;
+    req.sid = SESSION_ID;   // v3.26.x #264：弹窗只活在本页面会话，标记归属才能识别跨会话孤儿
     q.push(req);
     saveQ(q);
     markLast(req.cid, req.kind);
@@ -383,6 +453,7 @@
         try { if (typeof window.toast === 'function') window.toast('请先选择「' + okText + '」或「稍后」'); } catch (e) {}
         return;
       }
+      delete liveModals[req.cid]; // 已应答（无论选哪边）→ 不再需要对账
       if (v === 'later') {
         // v3.25.x：查岗点「稍后」不再凭空消失——与后台路径同口径，把卡落到该联系人
         // 桌面聊天（稍后进聊天仍可作答）并写主页「桌面查岗」关心记录，事件留痕。
@@ -402,6 +473,7 @@
       pills: [{ label: '稍后', value: 'later' }, { label: okText, value: 'reply' }]
     });
     try { if (modalCtl && modalCtl.okText) modalCtl.okText('确认'); } catch (e) {}
+    liveModals[req.cid] = title; // v3.26.x #264：登记活弹窗，弹窗被顶掉/关闭时对账释放 pending
     return true;
   }
 
@@ -493,6 +565,20 @@
   // 调度：遍历所有联系人，非激活桌面按各自配置掷概率（查岗/聊天/来电各自受开关控制）
   function maybeIncoming() {
     try {
+      ticks++;
+      reconcileLiveModals();
+      // v3.26.x #264：锁屏期整轮不掷（弹窗会压在锁底下）；打字期不掷也不计数（IME 组合
+      // 中的文字会被抢焦点丢掉）；已有浮层先让路，最多让 BUSY_ESCAPE 轮后照投。
+      // 跳过的那些轮不消耗冷却（markLast 只在投递时写），所以让路结束后当轮就能正常触发，
+      // 不会像旧版那样把触发窗口整体吃掉。
+      if (hardLocked()) return;
+      var escape = false; // 本轮一次性额度：只授权顶掉一次屏幕，投成功即收回
+      if (typingBusy()) return;
+      if (layerBusy()) {
+        busyTicks++;
+        if (busyTicks <= BUSY_ESCAPE) return;
+        busyTicks = 0; escape = true; // 照投后重新计票，避免长期占屏时每一轮都去顶它
+      } else busyTicks = 0;
       const cur = window.__activeCid || 'default';
       const list = window.getContacts() || [];
       if (list.length < 2) return; // 只有当前桌面：无需跨桌面打扰
@@ -512,7 +598,7 @@
           const callCool = dm.cool;
           const callProb = dm.prob;
           if (Date.now() - lastAt(cid, 'call') >= callCool * 60000 && Math.random() * 100 < callProb) {
-            deliver({ cid: cid, kind: 'call', text: '', ts: Date.now(), status: 'pending' });
+            if (deliver({ cid: cid, kind: 'call', text: '', ts: Date.now(), status: 'pending' }, escape)) escape = false;
             return;
           }
         }
@@ -527,7 +613,7 @@
             if (q && q.text) {
               // v3.18.x：互动动作弹窗显示方向文案（比动作名更自然），切过去后当场发卡再随机方向
               const showText = q.type === 'action' ? (q.taToMe || q.text) : q.text;
-              deliver({ cid: cid, kind: 'checkin', text: showText, q: q, ts: Date.now(), status: 'pending' });
+              if (deliver({ cid: cid, kind: 'checkin', text: showText, q: q, ts: Date.now(), status: 'pending' }, escape)) escape = false;
               return;
             }
           }
@@ -536,7 +622,7 @@
         if (deskCheckinEn() && num(cfg, 'as-en', 0) === 1) {
           const prob = num(cfg, 'as-prob', 30);
           if (Date.now() - lastAt(cid, 'chat') >= chatCoolMs && Math.random() * 100 < prob) {
-            deliver({ cid: cid, kind: 'chat', text: '想和你聊聊天，你有空吗？', ts: Date.now(), status: 'pending' });
+            if (deliver({ cid: cid, kind: 'chat', text: '想和你聊聊天，你有空吗？', ts: Date.now(), status: 'pending' }, escape)) escape = false;
           }
         }
       });
@@ -548,16 +634,54 @@
     if (!deskCheckinEn()) { try { if (window.toast) window.toast('联系人跨桌面查岗已关闭（可在设置里开启）'); } catch (e) {} return false; }
     const q = window.ckQuestionPickFor ? window.ckQuestionPickFor(cid || 'default') : null;
     if (!q || !q.text) return false;
-    return deliver({ cid: cid || 'default', kind: 'checkin', text: q.text, q: q, ts: Date.now(), status: 'pending' });
+    return deliver({ cid: cid || 'default', kind: 'checkin', text: q.text, q: q, ts: Date.now(), status: 'pending' }, true);
   };
   // 手动触发（测试 / 诊断用）：触发指定桌面一次来电
   window.triggerIncomingCallReq = function (cid) {
     if (!deskCallEn()) { try { if (window.toast) window.toast('联系人跨桌面打电话已关闭（可在设置里开启）'); } catch (e) {} return false; }
-    return deliver({ cid: cid || 'default', kind: 'call', text: '', ts: Date.now(), status: 'pending' });
+    return deliver({ cid: cid || 'default', kind: 'call', text: '', ts: Date.now(), status: 'pending' }, true);
   };
 
-  setTimeout(function () {
+  // 只读探针：供设置→诊断信息打印跨桌面来消息现场（报障时不再靠猜「为什么没触发」）
+  window.__mochiIncomingProbe = function () {
+    try {
+      const dm = deskDMode();
+      const cur = window.__activeCid || 'default';
+      const now = Date.now();
+      const q = queue();
+      const next = (window.getContacts() || []).filter(c => c.id !== cur).slice(0, 6).map(function (c) {
+        const wCall = dm.cool * 60000 - (now - lastAt(c.id, 'call'));
+        const wCk = dm.cool * 60000 - (now - lastAt(c.id, 'checkin'));
+        return c.name + ' 来电' + (wCall > 0 ? Math.ceil(wCall / 60000) + 'min' : '可掷') +
+          '·查岗' + (wCk > 0 ? Math.ceil(wCk / 60000) + 'min' : '可掷');
+      });
+      return {
+        ticks: ticks,
+        mode: deskFreqMode(), prob: dm.prob, cool: dm.cool,
+        pending: q.filter(function (x) { return x.status === 'pending'; }).length,
+        live: Object.keys(liveModals).length,
+        gate: hardLocked() ? '锁屏中' : (typingBusy() ? '输入中暂停' : (layerBusy() ? ('浮层占用让路' + busyTicks + '/' + BUSY_ESCAPE) : '空闲')),
+        hidden: !!document.hidden,
+        next: next,
+        releases: releaseLog.slice(-2)
+      };
+    } catch (e) { return null; }
+  };
+
+  // v3.26.x #264：首查从 30~90s 提前到 12s（手机上「开一下看一眼就走」的短会话此前
+  // 一次都掷不到）；回前台 3s 后补一次——iOS Safari 后台会冻结定时器，切回来若只等
+  // 60s 轮询，每次都要白等一整分钟。
+  var started = false;
+  function startIncomingTick() {
+    if (started) return;
+    started = true;
     maybeIncoming();
     setInterval(maybeIncoming, CHECK_MS);
-  }, (30 + Math.random() * 60) * 1000);
+  }
+  setTimeout(startIncomingTick, 12000);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden || !started) return;
+    reconcileLiveModals();
+    setTimeout(maybeIncoming, 3000);
+  });
 })();

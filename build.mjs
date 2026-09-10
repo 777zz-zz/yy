@@ -546,7 +546,7 @@ const FIX_SENTINELS = [
   { name: '#152 群聊「继续说」按钮防键盘收起吞 click（同单聊 pointerdown+防重入）', file: 'js/group-chat.js', needle: "gcContinueBtn.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; gcCsFireContinue(); });" },
   { name: '#153 后台冻结1分钟(Chromium139 stop-in-background)保活自愈·切后台音频暂停立即补播+最快档重试（防静默窗口跨冻结线整页冻结=后台消息/通知全停）', file: 'js/bg-keep.js', needle: "if (document.visibilityState !== 'hidden') return;" },
   { name: '#153 后台冻结1分钟(Chromium139)保活自愈·隐藏期补播退避封顶20s（前台60s不变，冻结线内保证2~3次重试机会）', file: 'js/bg-keep.js', needle: "if (document.visibilityState === 'hidden' && delayMs > 20000) delayMs = 20000;" },
-  { name: '#190 保活音频安卓幅度降到物理不可闻（0.006，修 OPPO Find X9 自带浏览器等多机型「一进网页就有底噪/电流声」——220Hz 纯音 -60dBFS 实听嗡声）', file: 'js/bg-keep.js', needle: 'kaIsIOS() ? 0.002 : 0.006' },
+  { name: '#190/#260 保活音频安卓幅度（0.006→0.02 恢复：#190/#207 底噪根因在 220Hz 频率已换 18kHz，0.0003 电平距 audible 线仅 20% 余量、Edge/Chromium 152 收紧判定即丢冻结豁免=vivo X200s「后台保活失败」；iOS 0.002 bit 级不动）', file: 'js/bg-keep.js', needle: 'kaIsIOS() ? 0.002 : 0.02' },
   { name: '防倒卖回填·远程时效公告bulletin在位判定（notice.json下发text+until过期自动摘除,所有联网副本含二传显示）', file: 'js/clock.js', needle: "(!bulletin.until || Date.now() < bulletin.until)" },
   { name: '防倒卖回填·公告内容变化重写（标题固定「公告」+text 精确比对）', file: 'js/clock.js', needle: "if (box.textContent !== '公告' + want)" },
   { name: '防倒卖第二锚点·pwa.js在位看门狗（clock.js回填被删时的独立兜底,5s补回缺失声明）', file: 'js/pwa.js', needle: "n.insertBefore(mkWatchBar('1', '防骗提醒', W1), n.firstChild)" },
@@ -732,6 +732,7 @@ const FIX_SENTINELS = [
   { name: '#247 群聊撤回快照防臃肿（媒体类记录/超大快照走占位回退不存 DOM 快照——否则令牌化省下的空间被快照里的整段 base64 吃回去）', file: 'js/group-chat.js', needle: "const mediaish = rec.type === 'sticker' || rec.type === 'image' || rec.type === 'voice' ||" },
   { name: '#248 群聊历史分页·渲染窗口起点（进群只渲最近 RENDER_MAX 条，gcRenderStart 供「查看更早」续载——删则回归只上不下，老消息存了但界面永远看不到）', file: 'js/group-chat.js', needle: 'gcRenderStart = Math.max(0, n - RENDER_MAX);' },
   { name: '#248 群聊历史分页·滚动位置保持（顶部补历史按 scrollHeight 差值回补 scrollTop——删则点查看更早视口跳底/闪跳）', file: 'js/group-chat.js', needle: 'try { body.scrollTop += body.scrollHeight - prevH; } catch (e) {}' },
+  { name: '#268 搜索/引用跳转·裁剪区下界外扩窗（jumpToMsg 只处理 idx<renderStart，落在被 pruneWindowBottom 裁剪的 idx>=renderEnd 时 target 查不到=搜索点了不跳不高亮；补向下增量展开直到 renderEnd>idx——删此分支即回归「搜索/引用点了没反应」）', file: 'js/chat.js', needle: 'else if (idx >= renderEnd && idx < msgs.length) {' },
   { name: '收口第二批 env 能力层（device.js 唯一 UA 嗅探处：chat 语音 WebView/data-backup 分享黑名单/music-player API 拦截提示/bg-keep 小米通知提示四消费端只读标记——删 env 挂载=四端读 undefined 恒 false，语音走错容器/华为夸克分享假成功回归）', file: 'js/device.js', needle: 'env: env,' },
   { name: '收口第二批 语音 WebView 消费锚（chat.js 改读 mochiDevice.env.isAndroidWebView——标准安卓 Chrome 才走 webm/opus 防爆音，删读取则全安卓 WebView 误走 webm 能录不能播）', file: 'js/chat.js', needle: 'return !!((window.mochiDevice || {}).env || {}).isAndroidWebView;' },
   { name: '收口第二批 备份分享黑名单消费锚（data-backup.js 改读 env.brokenFileShare——删读取则华为/夸克分享假成功 AbortError 回归=无法导出备份）', file: 'js/data-backup.js', needle: 'const brokenFileShare = !!((window.mochiDevice || {}).env || {}).brokenFileShare;' },
@@ -750,6 +751,61 @@ const FIX_SENTINELS = [
   { name: '#255 批量导入弹窗放大（opts.big 宽版 420px/94vw + 原生 textarea rows=8——272px 窄弹窗用户报障「太小了」；删则回退窄版）', file: 'js/chatcard.js', needle: 'textareaRows: 8' },
   { name: '#257 整页「点不动」死点击逃生门·判定锚（同点 3 快击零 click=死点击，先做 click 活性复核防误报——删则健康页误触发复位/真死页缺判定依据）', file: 'js/mobile-adapt.js', needle: 'if (_escLastClickAt >= tapEndAt)' },
   { name: '#257 整页「点不动」诊断·触摸轨迹采集（与交互轨迹并排输出：触摸有 click 无=死点击实锤；key __diag-touch 跨重启随诊断回收）', file: 'js/device.js', needle: "'xy-home-v2:__diag-touch'" },
+  { name: '#261 复制用的隐藏 textarea 复制完当场塌回零长选区（select() 的全选留给延迟 removeChild 变孤儿选区=安卓原生黑色【全选】浮条失去宿主、永久卡在桌面「今日情话」右边；删则浮条卡屏回流）', file: 'js/device.js', needle: 'ta.setSelectionRange(0, 0)' },
+  { name: '#261 死选区回收·判定范围（只收脱离文档的选区 + 禁选桌面内的非编辑区选区——编辑区活选区必须放过，否则弹窗「手动全选复制」/输入框改字被误清；放宽即成新 bug）', file: 'js/mobile-adapt.js', needle: 'if (editable || !desk || !desk.contains(host)) return false;' },
+  { name: '#261 死选区回收·事件接线（回收器定义了没人调=死代码；selectionchange 是内核自造选区当场收口的唯一入口，删则已卡住的浮条要等下次触摸才消）', file: 'js/mobile-adapt.js', needle: "document.addEventListener('selectionchange', reapSoon)" },
+  { name: '#262 表情「内容为空」误报·判空前必过静态图门禁（canvas 只画得出动画图第一帧，而表情包 GIF 首帧常是全透明清屏帧＝正常动图被判坏图并误导去字卡库清理；去掉门禁此锚消失）', file: 'js/chat.js', needle: "if (!alphaCheckable(im.getAttribute('src') || '')) return;" },
+  { name: '#262 表情「内容为空」误报·GIF 多帧门禁（≥2 个图形控制扩展 21 F9 04＝动图一律不判；放宽成不数帧则动图再度中招）', file: 'js/chat.js', needle: 'if (n >= 2) return false;' },
+  { name: '#262 表情「内容为空」误报·APNG 门禁（acTL 块＝动画 PNG，canvas 同样只画首帧，一律不判）', file: 'js/chat.js', needle: "if (type === 'acTL') return false;" },
+  { name: '#262 表情「内容为空」误报·只嗅探小文件（真空白图压完必然极小；超 96KB base64 直接放行＝大动图零 atob 成本，去掉上限则每条大表情都整包解码扫字节）', file: 'js/chat.js', needle: 'if (!b64.length || b64.length > EMPTY_SNIFF_MAX_B64) return false;' },
+  { name: '#262 表情「内容为空」误报·二次采样确认（首采全 0 后隔 350ms 复采仍有画面＝引擎解码未就绪，撤销判定；去掉复采=iOS/未知内核时序差直接误报）', file: 'js/chat.js', needle: 'if (!alphaSampleEmpty(im)) return; // 复采有画面＝首采遇解码未就绪，撤销判定' },
+  { name: '#260 保活双锚·WebRTC 回环数据通道（页内 RTCPeerConnection 对=页面生命周期与音频并列的冻结豁免信号；Edge/Chromium 152 收紧 audible 判定后单押音频失效=后台 1 分钟冻结，删此锚只剩音频单锚）', file: 'js/bg-keep.js', needle: "p1.createDataChannel('mochi-ka');" },
+  { name: '#260 保活双锚·后台心跳节拍（隐藏期每 30s 写 IDB 计数/轨迹=冻结取证；device.js「保活现场」靠它出「心跳断流=页面被冻结」实锤，删则后台死活只剩用户口述）', file: 'js/bg-keep.js', needle: 'setInterval(kaHbTick, 30000);' },
+  { name: '#260 保活诊断出口 __kaProbe（device.js「保活现场」的数据源，删则诊断行静默消失、保活现场无从取证）', file: 'js/bg-keep.js', needle: 'window.__kaProbe = function () {' },
+  { name: '#260 诊断「保活现场」行消费 __kaProbe（开关/音频/媒体条/WebRTC/心跳断流判决一行直出，删则「后台保活失败」类报障继续靠口述猜）', file: 'js/device.js', needle: "window.__kaProbe === 'function'" },
+  { name: '#263 取最长而非首个非空（多源并发比列表长度、同数取靠前者；退回「第一个非空源即收口」正是「只能导入 10 首」的根因）', file: 'js/music-player.js', needle: 'r.list.length > best.list.length' },
+  { name: '#263 曲目数=10 是网易 detail tracks 首屏截断签名，见到就不收口、给慢源 1.5s 宽限（删则截断源抢收，62 首歌单回到 10 首）', file: 'js/music-player.js', needle: 'if (n !== NETEASE_TRACKS_TRUNC && !graceTimer) graceTimer = setTimeout(finish, 1500);' },
+  { name: '#263 全量 meting 实例接入（按 trackIds 批量补歌曲详情的源——用户自建歌单只有它给全量；删掉这一路=又只剩首屏 10 首的实例）', file: 'js/music-player.js', needle: 'https://api.qijieya.cn/meting/?server=netease&type=playlist&id=' },
+  { name: '#263 缺口如实记账（trackCount 全量数 − 实取数 = miss → toast「另有 N 首未取到，稍后重导可补齐」；删则只拿到首屏也报全量成功，用户无从知道漏了多少）', file: 'js/music-player.js', needle: 'const miss = Math.max(0, (totalKnown || 0) - tracks.length);' },
+  { name: '#263 移动端「复制链接」歌单识别（分隔符类含 # 与 !——m/playlist#!?id=xxx 不再整张被当一首歌导入）', file: 'js/music-player.js', needle: 'line.match(/playlist[\\/?#&!\\s]*(?:id=)?(\\d+)/i)' },
+  { name: '#263 各 meting 实例封面 URL 归一到 injahow 图片代理（#216 迁移链只认这个域名；不归一则列表实例代理 URL 成为新的第三方单点、实例挂了一起丢封面）', file: 'js/music-player.js', needle: 'cover: canonicalMetingPicUrl(t.pic),' },
+  // ==== v3.26.x #264 跨桌面查岗/来电「开了好几天一次都没触发」====
+  // 根因：未应答的 pending 永久留在 localStorage 队列 → hasPending 从此挡死该联系人一切跨桌面触发。
+  // 每条 needle 都是「修复生效必然存在、逻辑被改必然消失」的表达式，名字留着实现改坏也能拦下。
+  { name: '#264 孤儿 pending 自愈判据（跨会话 + 超存活上限才释放；去掉 sid 条件=本会话正显示的弹窗被抢答、去掉时限=用户还没看到就被清掉，两种都会把修复改成新 bug）', file: 'js/incoming-requests.js', needle: "x.sid !== SESSION_ID && now - (x.ts || 0) > PENDING_TTL_MS" },
+  { name: '#264 投递记录会话归属（弹窗只活在投出它的页面会话里，没有 sid 就识别不出跨会话孤儿，自愈整块变死代码）', file: 'js/incoming-requests.js', needle: "req.sid = SESSION_ID;" },
+  { name: '#264 活弹窗对账（遮罩在且标题仍是当初投出的那个才算还活着；去掉标题比对=别的弹窗顶掉它之后仍被认成活弹窗，pending 永不释放＝本 bug 回流）', file: 'js/incoming-requests.js', needle: "titleEl.textContent === liveModals[cid]" },
+  { name: '#264 浮层互斥覆盖面（全站唯一弹窗 DOM + 查岗卡 + 问答门 + 通话面板四类；漏一个就是同轮互相顶掉留下孤儿 pending）', file: 'js/incoming-requests.js', needle: "'modal-mask', 'tc-mask', 'qa-mask', 'call-mask'" },
+  { name: '#264 锁屏/打字期硬挡投递（应用锁问答门冷启动默认开，投进去只会压在锁底下；打字期抢焦点会丢掉 IME 组合中的字）', file: 'js/incoming-requests.js', needle: "if (!document.hidden && (hardLocked() || typingBusy())) return false;" },
+  { name: '#264 浮层占用默认不投、force 才顶（去掉 force 参数=手动触发和逃逸额度一起失效，软互斥变成新的永不触发）', file: 'js/incoming-requests.js', needle: "if (!force && !document.hidden && layerBusy()) return false;" },
+  { name: '#264 让路有上限后照投（长期占屏最多让 BUSY_ESCAPE 轮，之后重新计票继续投；删此锚=别的弹窗常驻时跨桌面触发永远归零）', file: 'js/incoming-requests.js', needle: "busyTicks = 0; escape = true;" },
+  { name: '#264 逃逸额度一次性消费（投成功即收回；退回「整轮共用一个布尔」=逃逸那一轮同轮投出 2 个弹窗，后一个顶掉前一个又造孤儿）', file: 'js/incoming-requests.js', needle: "if (deliver({ cid: cid, kind: 'checkin', text: showText, q: q, ts: Date.now(), status: 'pending' }, escape)) escape = false;" },
+  { name: '#264 首查提前到 12s（手机上「开一下看一眼就走」的短会话此前 30~90s 内一次都掷不到；改回大延迟=短会话用户继续零触发）', file: 'js/incoming-requests.js', needle: "setTimeout(startIncomingTick, 12000)" },
+  { name: '#264 诊断「跨桌面来消息体检」行（轮询次数/闸门/档位/下次可掷/近期释放一行直出，删则「开了好久没触发」类报障继续靠口述猜）', file: 'js/device.js', needle: "ip.ticks + ' 次 闸门=' + ip.gate" },
+  // ==== v3.32.x #265 桌面图标顺序「退出浏览器后还原初始布局」（小米13+Edge，内核无关）====
+  // 根因：启动 IDB 补读块无条件写回，把「LS 比 IDB 新鲜」这条自家优先级反向覆盖了。
+  { name: '#265 IDB 补读只填「现在读不到」的键（LS 有值即跳过；删掉这行守卫=启动补读又无条件覆盖更新鲜的 localStorage，Edge/真我/荣耀/小米等丢弃 fire-and-forget idbSet 的内核上「改完布局退出浏览器就还原」原样回流）', file: 'js/personalize.js', needle: 'if (store.get(rel) !== null) return;' },
+  { name: '#265 补读前缀只取一次 activePrefix（filter 与 slice 共用同一个 iconPfx；改回两次调用=异步期间 correctCidFromIdb 纠正 cid 后，前缀与 slice 长度对不上，会把别的桌面的键名/键值搬进当前桌面，与 #151 同族串桌面）', file: 'js/personalize.js', needle: "const iconPfx = window.activePrefix() + ':';" },
+  { name: '#265 mochi-restore-done 后重排图标顺序（导入/恢复回填完成时按权威值再排一次；删掉=备份导入后桌面仍是默认布局，直到下次重启才生效）', file: 'js/personalize.js', needle: 'try { restoreAppIconOrder(); } catch (e) {}' },
+  { name: '#265 切换联系人时重排图标顺序（app-icon-order-<grid> 是 per-cid 键；漏监听=切桌面后仍显示上一个联系人的排序，与 hidden-icons 的 #151 处理成对）', file: 'js/personalize.js', needle: "document.addEventListener('contact-switched', restoreAppIconOrder);" },
+  { name: '#265 补读完成后图标图片与顺序一起重绘（Promise.all 落地同调两个 restore；只留 restoreAppIcons=补读到的顺序永远等不到重排，本次修复的核心断言 T1/T2 回流）', file: 'js/personalize.js', needle: 'restoreAppIcons(); restoreAppIconOrder(); }' },
+  // ==== v3.32.x #266 字卡库列表页兜底取回 IIFE「漏调用括号」死代码（iOS13+Chrome/Edge 等「导入字卡过一段时间就没了，刷新就消失」，多机型同族）====
+  // 根因：f143621 把本段结尾 `})();` 改成 `});` —— 语法合法、node --check 过、文本锚点也在，
+  // 但整段 IIFE 变永不执行的死代码。iOS 启动回填被后台杀连接打断后，内存/LS 两路读空、只剩
+  // IndexedDB 有权威数据，唯一会按用户查看时点把库拉回来的防线（hidden 观察者）就此断掉 =
+  // 字卡库读出空 = 「没了」。修复 = 恢复 `})();` 立即调用。needle 取「observe 调用 + 结尾调用括号」，
+  // 只保留注释/名字不改括号，反照样能抓到。
+  { name: '#266 字卡库列表页兜底取回 IIFE 必须立即调用（结尾 `})();`；漏调用括号=语法合法但整段死代码=iOS 回填被打断后字卡库永久空载「刷新字卡消失」，多机型同族）', file: 'js/chatcard.js', needle: "observe(libPage, { attributes: true, attributeFilter: ['hidden'] });\n}\n})();" },
+  // ==== v3.32.x #267 安卓「平移型键盘内核」停靠与卡死（荣耀 X50 自带浏览器，多机型同族）====
+  // 根因两处：浏览器为露焦点的平移量在归零前被丢弃 → 保底停靠只能盲猜 58%（IME 更高时
+  // 输入栏整行仍在键盘下）；主链路接管不清 _aProv → _aKb+_aProv 并存把四条复原路全堵死。
+  { name: '#267 实测平移记档（_aPinPan 归零前把平移量存进 _aPanSeen；删掉=保底停靠回盲猜 58%，荣耀 X50 等平移型内核输入栏整行仍在键盘下看不见打不出）', file: 'js/mobile-adapt.js', needle: 'if (_panPx > 8) {' },
+  { name: '#267 停靠有实测按实测（_aProvDock 采信 ≥80px 且 1.5s 内新鲜的平移量；改回恒 58%=IME 高于 42% 的机型整行被盖、矮于 42% 的机型多缩出空白，X5/旧夸克无实测仍走 58% 不受影响）', file: 'js/mobile-adapt.js', needle: '_aPanSeen >= 80 && Date.now() - _aPanSeenAt < 1500' },
+  { name: '#267 主链路接管即清推顶（open 分支补 _aProvClear；缺它则 _aKb 与 _aProv 并存，看门狗与 #209 清扫全被挡住 → 键盘期内联收缩高永久残留＝输入栏下方一整块空白）', file: 'js/mobile-adapt.js', needle: 'kbDockPanels(); _aProvClear(); }' },
+  { name: '#267 卡死停靠自愈·视口侧（_aKb 真而 vv+inner 双回基准且活焦点不在文本框即复原；删掉=收键盘不再派 resize 的内核（荣耀自带浏览器族）无人复检，停靠锁死在键盘数值）', file: 'js/mobile-adapt.js', needle: 'if (_vN > 0 && _vN >= _aH - 12 && _iN >= _aIH - 12 && !_aIsText(document.activeElement)) {' },
+  { name: '#267 卡死停靠自愈·焦点侧（软键盘必依附焦点：kb/prov 任一在顶 + 活焦点不在文本框 + 静默 2.2s + vv 读数已稳 → 复原并按需置 #236 残留闩；缺它则 vv 读数滞留收缩值时四条复原路全断）', file: 'js/mobile-adapt.js', needle: 'if ((_aKb || _aProv) && !_aIsText(document.activeElement) && Date.now() - _aLastAct > 2200 && Date.now() - _aVvChgAt > 1200) {' },
+  { name: '#267 安卓键盘探针导出实测平移（panSeen/panSeenAgo 进 __mochiAndroidKb；缺则「点开键盘没有输入框」类报障拿不到键盘高度证据，只能靠口述猜机型）', file: 'js/mobile-adapt.js', needle: 'panSeen: Math.round(_aPanSeen)' },
+  { name: '#267 诊断算焦点框是否被键盘挡住（mochiVvDiag().focusCovered + 诊断行「焦点框被挡」；缺则遮挡类与空白类两种病在一份诊断里分不开）', file: 'js/device.js', needle: 'out.focusCovered = ar.bottom > (vv.offsetTop || 0) + vv.height + 2 ? 1 : 0;' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

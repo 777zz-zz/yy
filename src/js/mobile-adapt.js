@@ -50,6 +50,50 @@
   // 禁止双击放大页面（双击选中文本不在此列，长按选词不受影响）
   document.addEventListener('dblclick', function (e) { e.preventDefault(); });
 
+  // v3.32.x #261：全局「死选区」回收——修安卓桌面「今日情话」右边卡着一个消不掉的黑色
+  // 【全选】按钮（荣耀畅玩40 Plus/夸克报障，多机型同族）。原生文字选择工具条（黑色圆角
+  // 浮层「全选 / 复制」）以**文档选区**为宿主：选区不清它就不退，而浮层归浏览器所有、
+  // 不随页面数据销毁，所以切后台再回来仍在（＝用户「退出重进」试过无效）。桌面侧的来源是
+  // 部分内核无视 home.css 的 #page-phone user-select:none 照样自造选区。
+  // removeAllRanges() 走 Blink FrameSelection::ClearSelection，正是内核用来终结工具条的
+  // 那条路，所以清掉死选区即可让已卡住的浮层当场消失（用户不必重进）。
+  // ⚠ 复制兜底路径那条残留**不归本回收器管**（实测见 verify-copy-selection B3a）：Blink 在
+  //   选区宿主被移除时不是留下「指向已脱离文档节点」的孤儿，而是把选区重挂到
+  //   document.body 且仍然活着——那种状态谁都不该清（用户正当的整页全选长得一模一样），
+  //   所以复制站点必须自己当场塌选区（device.js mochiKillCopySelection＝#261 主防线）。
+  // 这里只收两类必然非法的选区：
+  //   ① 宿主节点已脱离文档（正常交互不可能选中不存在的节点，编辑区内的孤儿选区同样收；
+  //      Blink 不会走到这形态，留给其它内核/老版本）；
+  //   ② 落在桌面 #page-phone 内且不在编辑控件里（桌面 CSS 本就全站禁选，见 home.css v3.14.x）。
+  // 页面其它区域的活选区一律不碰：弹窗「手动全选复制」退路、聊天文本选中、输入框改字
+  // 全靠它，按下即清会把光标和选中态打没＝制造新 bug（且这是机型相关的行为差异）。
+  const SELECTION_EDITABLE_SEL = 'input,textarea,select,[contenteditable],.ce-box';
+  function reapDeadSelection() {
+    let s = null;
+    try { s = window.getSelection && window.getSelection(); } catch (e) { return false; }
+    if (!s || !s.rangeCount) return false;
+    let host = null;
+    try {
+      const node = s.getRangeAt(0).commonAncestorContainer;
+      host = node && node.nodeType === 3 ? node.parentElement : node;
+    } catch (e) { return false; }
+    const alive = !!(host && document.documentElement.contains(host));
+    if (alive) {
+      const editable = !!(host.closest && host.closest(SELECTION_EDITABLE_SEL));
+      const desk = document.getElementById('page-phone');
+      if (editable || !desk || !desk.contains(host)) return false;
+    }
+    try { s.removeAllRanges(); } catch (e) { return false; }
+    return true;
+  }
+  window.__mochiReapSelection = reapDeadSelection;   // 只读探针（诊断/verify 断言入口）
+  function reapSoon() { try { reapDeadSelection(); } catch (e) {} }
+  document.addEventListener('pointerdown', reapSoon, true);
+  document.addEventListener('touchstart', reapSoon, true);
+  document.addEventListener('selectionchange', reapSoon);
+  // 从后台切回前台时补收一次——「退出重进」正是用户试过而没消掉的路径
+  document.addEventListener('visibilitychange', reapSoon);
+
   // v3.5.128：contenteditable 输入框转换器（手机端统一启用）——
   // Chrome 移动端对 <input>/<textarea> 聚焦必弹「自动填充」条（该版本无视
   // autocomplete=off / readonly / 关闭浏览器设置），聊天输入框已验证
@@ -1437,6 +1481,15 @@
         // 探测的基准（返回键/手势收键盘时焦点保留、focusout 不来，#89 的 _aClosing
         // 闸门挂不上，收起动画每帧仍跑强制布局读取致灰块几秒才收，见 syncAndroidKb）
         var _aPrevH = 0;
+        // FIX 2026-09-10 #267：浏览器「平移/滚动露焦点」量的实测值。荣耀 X50 自带浏览器
+        //（HonorBrowser/Chrome116，多机型同族）键盘弹出时把视觉视口【平移】让焦点露出，
+        // 而 visualViewport.height 不缩（同一会话诊断现场 664 与 254 两种读数交替出现）→
+        // 按收缩判定的主链路检测不到键盘 → 只剩 58% 盲猜保底停靠。该机 IME 实占约 62%
+        //（664→254），停靠到 58%=385 后输入栏整行仍在键盘下方＝看不见、打不出；IME 偏小时
+        // 58% 又多缩出一大片空白。浏览器只会平移到「焦点刚好露出键盘上沿」，这个量就是键盘
+        // 高度的直接证据：记下最大值给 _aProvDock 当尺子，有实测按实测停靠、无实测才回退
+        // 58% 猜（纯悬浮又不平移的 X5/旧夸克内核走原 58% 路径，零行为变化）。
+        var _aPanSeen = 0, _aPanSeenAt = 0;
         // v3.16.x：focusin 后短时高频补偿宽限期——此期间 _aPinPan 即使 _aKb/_aProv 都
         // false 也执行，归零浏览器为露焦点提前平移的视口残留（红米 K80 Chrome 首次
         // 点击输入栏键盘弹出动画期间 vv.offsetTop 先起、vv.height 后缩，_aKb 未置位时
@@ -1460,6 +1513,29 @@
         setInterval(function () {
           try {
             if (document.visibilityState !== 'visible') return;
+            // FIX 2026-09-10 #267：键盘态卡死自愈（焦点侧证据，与下面 #236/#209 的视口侧
+            // 证据互补）。安卓软键盘必然依附一个聚焦的可编辑元素，而本模块的触摸/按键/
+            // focusin 全都会续期 _aLastAct——「活焦点不在文本框 + 静默 >2.2s + vv 读数已稳
+            // 1.2s（避开收起动画中途）」= 键盘必已不在场，此时 .phone 的任何内联收缩高
+            // 都只能是停靠残留（用户报「点开输入框会出现一部分空白」）。
+            // 覆盖 _aKb 与 _aProv 两个旗标：① focusout 漏派时 _aTextFocused 必然滞留、
+            // 轮询继续跑，_aProvCheck 的 !tgt 清理进不去；② vv 读数停在收缩值（荣耀 X50
+            // 现场 664↔254 交替）时主链路 `!open && _aKb && h>=_aH-12` 复原同样进不去，
+            // 而 #209 清扫被 `if (_aKb || _aProv) return` 挡在门外——四条复原路全断。
+            // 闸门只看 document.activeElement（活焦点），不看滞留的 _aTextFocused：拿它
+            // 当闸门等于把修复挡在门外。真在打字时焦点在框内且 _aBump 持续续期，双保险。
+            if ((_aKb || _aProv) && !_aIsText(document.activeElement) && Date.now() - _aLastAct > 2200 && Date.now() - _aVvChgAt > 1200) {
+              var _vvStillSaysKb = _aVV && _aVV.height > 0 && _aVV.height < _aH - 60;
+              _aKb = false; _aClosing = false; _aProvClear();
+              // 读数自身仍称有键盘＝壳残留读数：置 #236 闩抑制纯 vv 再触发，防 254↔664
+              // 抖动把 .phone 来回抽；触摸/聚焦（_aBump）或 vv 回基准即解除。
+              if (_vvStillSaysKb) _aVvStale = true;
+              _aPhone.style.height = '';
+              _aPhone.style.alignSelf = '';
+              _aPanComp();
+              kbUndockPanels();
+              return;
+            }
             // FIX 2026-09-07 #236：键盘会话卡死自愈。该壳收键盘后 vv.height 恒停在
             // 652=inner(720)−底栏(68)：open=h<_aH-60 恒真 → _aKb 卡真（含无聚焦被纯
             // vv 读数置位的会话），.phone 内联高锁死 652=底部 108px 空白+tabbar 悬空；
@@ -1475,7 +1551,25 @@
               var _iN = window.innerHeight || 0;
               var _dK = _aH - _vN;
               var _kbFloor = Math.round(Math.min(_aIH || _aH, _aH || _aIH) * 0.22);
-              if (_vN > 0 && _dK >= 13 && _dK < _kbFloor && _iN >= _aIH - 12
+              // FIX 2026-09-10 #267：卡死停靠的第二种卡法（与 #236 那种「缩幅落在残留带」
+              // 互斥、且更常见）——_aKb 真而 vv 与 innerHeight 都已【回到无键盘基准】：
+              // 缩幅 _dK≤12 不满足 #236 的 `_dK >= 13` 判定，而本分支判完就 return、
+              // 下面的 #209 清扫又被 `_aKb` 挡在门外，四条复原路全断 → .phone 内联收缩高
+              // 永久停在键盘期数值 = 输入栏下方一整块空白（用户报「点开输入框会出现一部分
+              // 空白」，诊断现场签名 kb=1 / vv=664=基线 / gap=274 即此态）。成因：这类内核
+              // 收起键盘不再派 visualViewport.resize（荣耀自带浏览器/部分国产内核），焦点也
+              // 丢了 → 250ms 轮询停表，收缩态没人再复检。判据与主链路同口径（syncAndroidKb
+              // 的 `!open && _aKb && h >= _aH-12` 复原分支就认定 vv 回基准＝无键盘）。在用量
+              // 闸门只看活焦点 document.activeElement：真键盘在用焦点必在输入框里；而
+              // _aTextFocused 在 focusout 漏派的内核上必然滞留＝本 bug 的成因本身，拿它当
+              // 闸门等于把修复挡在门外（与 #209「完全不看焦点」同口径，这里比它多一条活焦点保险）。
+              if (_vN > 0 && _vN >= _aH - 12 && _iN >= _aIH - 12 && !_aIsText(document.activeElement)) {
+                _aKb = false; _aClosing = false; _aVvStale = false;
+                _aPhone.style.height = '';
+                _aPhone.style.alignSelf = '';
+                _aPanComp();
+                kbUndockPanels();
+              } else if (_vN > 0 && _dK >= 13 && _dK < _kbFloor && _iN >= _aIH - 12
                   && Date.now() - _aKbAt > 1500 && Date.now() - _aVvChgAt > 1200) {
                 _aKb = false; _aClosing = false; _aVvStale = true;
                 _aPhone.style.height = '';
@@ -1512,6 +1606,8 @@
             fullVv: Math.round(_aH),
             vvNow: Math.round(_aVV.height),
             offsetTop: Math.round(_aVV.offsetTop || 0),
+            panSeen: Math.round(_aPanSeen), // #267：本会话实测到的浏览器最大平移量＝保底停靠的尺子
+            panSeenAgo: _aPanSeenAt ? Date.now() - _aPanSeenAt : -1, // 该读数距今多久（>1500ms 不再采信）
             burstLeft: Math.max(0, _aBurstUntil - Date.now()),
             focusTag: _aTextFocused ? String(_aTextFocused.tagName || '').toLowerCase() : '',
             watching: !!_aWatch,
@@ -1570,6 +1666,18 @@
             // 1) 先尝试把视觉视口平移 / 文档滚动归零（能归零的内核 offsetTop 会归 0）
             var offT = _aVV.offsetTop || 0;
             var winY = _aWinY();
+            // FIX 2026-09-10 #267：先把「浏览器为露焦点平移了多少」记下来再归零——本函数在
+            // 每次键盘会话都被调（focusin burst / 250ms 轮询 / vv.resize），是唯一稳定读得到
+            // 这个量的位置，而归零（下面 vv.scrollTo/window.scrollTo）会当场把它抹掉，不留档
+            // 就永远量不到键盘高度。仅在 _aKb/_aProv 都还没接管几何时记账＝那时平移是键盘
+            // 遮挡的直接证据；已接管时的平移纯属残留（v3.15/v3.16 归零语义不变）。
+            if (!_aKb && !_aProv) {
+              var _panPx = offT > winY ? offT : winY;
+              if (_panPx > 8) {
+                if (_panPx > _aPanSeen) _aPanSeen = _panPx;
+                _aPanSeenAt = Date.now();
+              }
+            }
             if (offT > 0 && _aVV.scrollTo) { try { _aVV.scrollTo(0, 0); } catch (e4) {} }
             if (winY > 0) {
               try { window.scrollTo(0, 0); } catch (e2) {}
@@ -1638,7 +1746,7 @@
           _aPrevH = h;
           var open = (!_aVvStale && h < _aH - 60); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁）
           if (!open && h > _aH) _aH = h; // 无键盘时更新基准，地址栏变化不误判
-          if (open && !_aKb) { _aClosing = false; _aKb = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); }
+          if (open && !_aKb) { _aClosing = false; _aKb = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); }
           if (!open && _aKb) {
             // v3.27.x：键盘收起——动画期 visualViewport 还没回到无键盘基准（_aH）时，
             // 不要提前把 .phone 撑回全高 + 面板摘停靠。否则键盘收起动画中途就恢复：
@@ -1761,7 +1869,19 @@
         // 接管恢复，正常设备永远不会触发本兜底。
         function _aProvDock() {
           var base = Math.min(_aH, _aIH);
+          // FIX 2026-09-10 #267：有实测平移量时按实测停靠，不再猜 58%——浏览器把视觉视口
+          // 平移 P 像素只为让焦点露出键盘上沿，故键盘上沿就在 base−P 处，.phone 停到这里
+          // 输入栏正好压在键盘上方。一次改动同时修掉两个方向的老毛病：① IME 高过 42%
+          //（荣耀 X50 自带浏览器实测 IME 占约 62%，58% 停靠后整行仍在键盘下面＝看不见、
+          // 打不出、发不了）；② IME 矮于 42% 时 58% 多缩，输入栏下方露出一大片空白。
+          // 门槛：平移量 ≥80px 且 1.5s 内新鲜（几十 px 多为 caret 微滚/地址栏抖动，不足以
+          // 当尺子）；结果钳在 [240, base−40]。无实测（纯悬浮且不平移的 X5/旧夸克内核）
+          // 仍走原 58% 保底，那批机型行为零变化。
           var ph = Math.max(240, Math.round(base * 0.58));
+          if (_aPanSeen >= 80 && Date.now() - _aPanSeenAt < 1500) {
+            var _meas = Math.round(base - _aPanSeen);
+            if (_meas >= 240 && _meas <= base - 40) ph = _meas;
+          }
           _aProv = true;
           _aPhone.style.alignSelf = 'flex-start';
           if (_aPhone.style.height !== ph + 'px') _aPhone.style.height = ph + 'px';
@@ -1840,7 +1960,7 @@
         document.addEventListener('focusin', function (e) {
           try {
             _aClosing = false; _aVvStale = false; // v3.28.x：聚焦=弹键盘（或保持），退出收起态；#236 解除 vv 残留闩
-            if (_aIsText(e.target)) { _aTextFocused = e.target; _aFocusAt = Date.now(); _aBump(); }
+            if (_aIsText(e.target)) { _aTextFocused = e.target; _aFocusAt = Date.now(); _aBump(); _aPanSeen = 0; } // #267：新键盘会话重新量平移
             if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
               try { syncAndroidKb(); } catch (e3) {}
               setTimeout(syncAndroidKb, 120);

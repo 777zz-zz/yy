@@ -112,10 +112,10 @@ const INIT_SCRIPT = `
   window.fetch = function (input, opts) {
     var url = typeof input === 'string' ? input : (input && input.url) || '';
     window.__fetched.push(String(url).slice(0, 140));
-    if (url.indexOf('/meting/?type=playlist') >= 0) {
+    if (url.indexOf('meting') >= 0 && url.indexOf('type=playlist') >= 0) {
       return Promise.resolve(new Response(${JSON.stringify(METING_JSON)}, { status: 200, headers: { 'Content-Type': 'application/json' } }));
     }
-    if (url.indexOf('music.163.com/api/v6/playlist/detail') >= 0) {
+    if (url.indexOf('music.163.com/api/v6/playlist/detail') >= 0 || url.indexOf('music.163.com%2Fapi%2Fv6%2Fplaylist%2Fdetail') >= 0) {
       return Promise.resolve(new Response(${JSON.stringify(V6_JSON)}, { status: 200, headers: { 'Content-Type': 'application/json' } }));
     }
     return origFetch ? origFetch(input, opts) : Promise.reject(new Error('no-fetch'));

@@ -3761,7 +3761,9 @@
         hydrateLibScopes(['public', 'own']);
       }).observe(libPage, { attributes: true, attributeFilter: ['hidden'] });
     }
-  });
+    // #266 修复标记：本块必须立即调用（结尾 `})();`）。漏掉调用括号＝语法仍合法、
+    // node --check 与哨兵都查不出，但整段兜底取回变死代码 → iOS 回填被打断后字卡库永久空载。
+  })();
 
   // v3.26.x：字卡/回复/收藏 存储明细诊断——报障「该分类 583MB 是否正常」一眼定位
   // 哪个键大、是否有 LS 残留大键（双倍计算）、旧 my-emoji-groups 各桌面遗留（应清未清）。

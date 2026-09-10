@@ -8958,9 +8958,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789014069087">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.535</b></span>
-        <span class="sv-deploy">部署于 2026-09-10 12:21<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789037994889">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.536</b></span>
+        <span class="sv-deploy">部署于 2026-09-10 18:59<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10134,7 +10134,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.535</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.536</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10425,7 +10425,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.535</span>
+              <span class="lic-ver">v3.26.536</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -11120,7 +11120,7 @@ transition-duration: .01ms !important;
       <div class="gs-scroll">
         <div class="gs-title">通话概率</div>
         <div class="set-group glass">
-          <div class="gs-row"><span>来电概率</span><div class="stepper" data-k="call-incoming" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="call-incoming-val" readonly><button class="stp-max">+</button></div></div>
+          <div class="gs-row"><span>来电概率</span><div class="stepper" data-k="call-incoming" data-min="0" data-max="100" data-step="0.01"><button class="stp-min">−</button><input class="stp-val" id="call-incoming-val" readonly><button class="stp-max">+</button></div></div>
           <div class="gs-row"><span>接听概率</span><div class="stepper" data-k="call-pickup" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="call-pickup-val" readonly><button class="stp-max">+</button></div></div>
           <div class="gs-row"><span>忙线概率</span><div class="stepper" data-k="call-busy" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="call-busy-val" readonly><button class="stp-max">+</button></div></div>
           <div class="gs-row"><span>拒接概率</span><div class="stepper" data-k="call-reject" data-min="0" data-max="100" data-step="5"><button class="stp-min">−</button><input class="stp-val" id="call-reject-val" readonly><button class="stp-max">+</button></div></div>
@@ -14055,6 +14055,19 @@ fsMode: fsMode,
 kb: null
 };
 if (pr && vv) out.gapBottom = Math.round(vv.height - pr.bottom);
+try {
+const ae = document.activeElement;
+const isTxt = ae && ((ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+? (ae.type !== 'checkbox' && ae.type !== 'range' && ae.type !== 'file' && ae.type !== 'color' && !ae.readOnly)
+: ae.isContentEditable === true);
+out.focusCovered = null;
+out.focusBottom = null;
+if (isTxt && vv && ae.getBoundingClientRect) {
+const ar = ae.getBoundingClientRect();
+out.focusBottom = Math.round(ar.bottom);
+out.focusCovered = ar.bottom > (vv.offsetTop || 0) + vv.height + 2 ? 1 : 0;
+}
+} catch (e5) {}
 try { if (typeof window.__mochiIosKb === 'function') out.kb = window.__mochiIosKb(); } catch (e2) {}
 try { if (!out.kb && typeof window.__mochiAndroidKb === 'function') out.kb = window.__mochiAndroidKb(); } catch (e4) {}
 try { if (typeof window.scrollLockInfo === 'function') out.lock = window.scrollLockInfo(); } catch (e3) {}
@@ -14116,7 +14129,10 @@ ent.vp = 'fs=' + (FSM[g.fsMode] || String(g.fsMode || '?').slice(0, 4))
 + ' gap=' + (g.gapBottom == null ? '?' : g.gapBottom)
 + ' 平移=' + (g.vvOffsetTop == null ? '?' : g.vvOffsetTop)
 + ' s=' + (g.vvScale == null ? '?' : g.vvScale)
-+ ' kb=' + (g.kb && g.kb.kbActive ? 1 : 0);
++ ' kb=' + (g.kb && g.kb.kbActive ? 1 : 0)
++ ' i=' + (g.innerH == null ? '?' : Math.round(g.innerH))
++ ' p=' + (g.kb && g.kb.prov ? 1 : 0)
++ ' cov=' + (g.focusCovered == null ? '-' : g.focusCovered);
 }
 }
 } catch (e2) {}
@@ -14538,6 +14554,8 @@ L.push('键盘/锁残留：kbActive=' + (vg.kb ? vg.kb.kbActive : 'n/a')
 + '  body.scroll-lock=' + vg.bodyScrollLock
 + '  .phone内联高=' + (vg.phoneInlineH || '(空)') + ' align-self=' + (vg.phoneAlignSelf || '(空)')
 + '  平移 vv.offsetTop=' + vg.vvOffsetTop + ' docY=' + vg.docScrollY
++ (vg.kb && vg.kb.panSeen !== undefined ? '  本键盘会话实测平移=' + vg.kb.panSeen + '(' + vg.kb.panSeenAgo + 'ms前)' : '')
++ '  焦点框被挡=' + (vg.focusCovered === undefined || vg.focusCovered === null ? '-' : vg.focusCovered)
 + (vg.kb && vg.kb.closing !== undefined ? '  收起动画期=' + vg.kb.closing : '')
 + (vg.kb && vg.kb.vvNow !== undefined ? '  当前vv=' + vg.kb.vvNow : '')
 + (vg.kb && vg.kb.watching !== undefined ? '  轮询=' + (vg.kb.watching ? '跑' : '停') + ' 宽限剩=' + vg.kb.burstLeft + 'ms' : '')
@@ -14587,6 +14605,29 @@ L.push('serviceWorker=不支持');
 L.push('storage.persist=' + !!(navigator.storage && navigator.storage.persist));
 L.push('CSS dvh=' + cssSupports('height: 1dvh') + '  svh=' + cssSupports('height: 1svh') + '  env(safe-area)=' + cssSupports('padding-top: env(safe-area-inset-top)'));
 L.push('安卓输入框已转 ce-box=' + !!document.querySelector('.ce-box'));
+try {
+if (typeof window.__kaProbe === 'function') {
+const kp = window.__kaProbe();
+const kpParts = ['保活=' + (kp.keep ? '开' : '关'),
+'通知=' + (kp.notify ? '开' : '关') + '/' + kp.perm];
+if (kp.audio) kpParts.push('音频=' + (kp.audio.paused ? '暂停' : '播放') + ' vol=' + kp.audio.volume);
+else kpParts.push('音频=无（保活未起）');
+if (kp.ms) kpParts.push('媒体条=' + (kp.ms.metadata ? '有' : '无') + ' ' + kp.ms.state);
+kpParts.push('WebRTC=' + kp.pc);
+if (kp.hb) {
+const tr = kp.hb.trail || [];
+let gap = 0;
+for (let i = 1; i < tr.length; i++) gap = Math.max(gap, tr[i] - tr[i - 1]);
+if (kp.hb.resumed) gap = Math.max(gap, kp.hb.resumed - kp.hb.ts);
+kpParts.push('心跳=' + kp.hb.n + '拍/最后' + Math.round((Date.now() - kp.hb.ts) / 1000) + 's前');
+if (gap > 90000) kpParts.push('冻结证据：心跳断流' + Math.round(gap / 1000) + 's（保活豁免失效，页面曾被冻结）');
+else if (kp.hb.n >= 2) kpParts.push('后台心跳连续=未被冻结');
+} else {
+kpParts.push('心跳=本会话未切过后台（无记录）');
+}
+L.push('【保活现场】' + kpParts.join(' · '));
+}
+} catch (e) {}
 L.push('');
 let fpsIdx = -1;
 L.push('【性能】');
@@ -14862,6 +14903,16 @@ finish();
 });
 }));
 } catch (e) { try { L.push('桌面归属体检：读取失败'); } catch (e2) {} }
+try {
+const ip = window.__mochiIncomingProbe && window.__mochiIncomingProbe();
+if (!ip) L.push('跨桌面来消息体检：探针缺失（incoming-requests 未加载）');
+else {
+L.push('跨桌面来消息体检：轮询 ' + ip.ticks + ' 次 闸门=' + ip.gate + ' 前台=' + (ip.hidden ? '否' : '是') +
+' 档位=' + ip.mode + '(' + ip.prob + '%/' + ip.cool + 'min) pending=' + ip.pending + ' 活弹窗=' + ip.live);
+L.push('· 下次可掷：' + ((ip.next || []).join(' / ') || '无其他桌面'));
+if ((ip.releases || []).length) L.push('· 近期释放：' + ip.releases.join('；'));
+}
+} catch (e) { try { L.push('跨桌面来消息体检：读取失败'); } catch (e2) {} }
 let quotaIdx = -1, persistedIdx = -1;
 try { L.push('存储配额：读取中…'); quotaIdx = L.length - 1; } catch (e) {}
 try { L.push('navigator.onLine=' + navigator.onLine); } catch (e) {}
@@ -15038,6 +15089,11 @@ try { tick = setInterval(function () { if (given) fire(); }, 600); } catch (e) {
 try { setTimeout(function () { if (tick) { clearInterval(tick); tick = null; } }, 30000); } catch (e) {}
 });
 }
+window.mochiKillCopySelection = function (ta) {
+try { if (ta && ta.setSelectionRange) ta.setSelectionRange(0, 0); } catch (e) {}
+try { if (ta && document.activeElement === ta) ta.blur(); } catch (e2) {}
+try { const s = window.getSelection && window.getSelection(); if (s && s.removeAllRanges) s.removeAllRanges(); } catch (e3) {}
+};
 function copyText(t) {
 return new Promise(function (resolve) {
 let done = false;
@@ -15058,6 +15114,7 @@ document.body.appendChild(ta);
 try { ta.select(); } catch (e) {}
 let ok = false;
 try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+window.mochiKillCopySelection && window.mochiKillCopySelection(ta);   // #261：全选选区当场收掉，别留给 800ms 后的 removeChild 变孤儿
 setTimeout(function () { try { document.body.removeChild(ta); } catch (e2) {} }, 800);
 if (ok) { finish(true); return; }
 fallbackClipboard();
@@ -15502,6 +15559,7 @@ document.body.appendChild(ta);
 try { ta.select(); } catch (e1) {}
 let ok = false;
 try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+window.mochiKillCopySelection && window.mochiKillCopySelection(ta);   // #261：见 copyText 同款说明（防孤儿选区卡住原生全选条）
 setTimeout(function () { try { document.body.removeChild(ta); } catch (e3) {} }, 800);
 if (ok) { fin(true); return; }
 try {
@@ -16000,6 +16058,7 @@ document.body.appendChild(ta);
 try { ta.select(); } catch (e1) {}
 let ok = false;
 try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+window.mochiKillCopySelection && window.mochiKillCopySelection(ta);   // #261：见 copyText 同款说明（防孤儿选区卡住原生全选条）
 setTimeout(function () { try { document.body.removeChild(ta); } catch (e3) {} }, 800);
 if (ok) { fin(true); return; }
 try {
@@ -16960,6 +17019,7 @@ const EXCLUDE = ['contacts', 'active-contact', 'feed-posts', 'migrated-v1', 'js-
 'gift-wallet', 'wallet-global-migrated',
 'gc-profiles', 'gc-beauty', 'group-chat-enabled',
 '__last-backup', '__last-backup-remind', '__onboard-done', '__edge-backup-hint-done', '__auto-backup-snapshot',
+'__ka-hb',
 'period-records', 'period-cfg', 'period-daily', 'period-notify', 'period-migrated',
 'cc-groups-public', 'cc-groups-public-off', 'cc-scope-migrated',
 'cc-scope-notice-done',
@@ -19652,6 +19712,7 @@ try { syncFishUI(); } catch (e) {}
 try { if (!gStore.get('fish-log-global-migrated')) migrateFishLogGlobal(true); } catch (e) {}
 try { updateFishDays(); } catch (e) {}
 try { restoreAppIcons(); } catch (e) {}
+try { restoreAppIconOrder(); } catch (e) {}
 try { applyBgVisibility(); } catch (e) {}
 try { refreshDeskVisuals(); } catch (e) {}
 try { rescueDeskVisuals(); } catch (e) {}
@@ -20376,14 +20437,17 @@ else app.style.display = '';
 applyHiddenIcons();
 try {
 if (window.idbGetAllKeys) {
+const iconPfx = window.activePrefix() + ':';
 window.idbGetAllKeys().then(keys => {
-const iconKeys = (keys || []).filter(k => k.indexOf(window.activePrefix() + ':app-icon-') === 0);
+const iconKeys = (keys || []).filter(k => k.indexOf(iconPfx + 'app-icon-') === 0);
 if (!iconKeys.length) return;
 return Promise.all(iconKeys.map(k =>
 window.idbGet(k).then(v => {
-if (v && typeof v === 'string' && v.length > 2) store.set(k.slice(window.activePrefix().length + 1), v);
+const rel = k.slice(iconPfx.length);
+if (store.get(rel) !== null) return;
+if (v && typeof v === 'string' && v.length > 2) store.set(rel, v);
 }).catch(function () {})
-)).then(() => restoreAppIcons());
+)).then(() => { restoreAppIcons(); restoreAppIconOrder(); });
 }).catch(function () {});
 }
 } catch (e) {}
@@ -23691,6 +23755,7 @@ toast('已恢复');
 });
 }
 document.addEventListener('contact-switched', applyHiddenIcons);
+document.addEventListener('contact-switched', restoreAppIconOrder);
 const tabbar = document.querySelector('.tabbar');
 if (tabbar && grids.length) {
 tabbar.addEventListener('click', () => {
@@ -27235,6 +27300,49 @@ if (!t || t.tagName !== 'IMG') return;
 if (!chatPinnedBottom || batchRendering || !chatVisible()) return;
 requestAnimationFrame(scrollChatBottom);
 }, true);
+const EMPTY_SNIFF_MAX_B64 = 96 * 1024;
+function alphaSampleEmpty(im) {
+try {
+const S = 24;
+const c = document.createElement('canvas');
+c.width = S; c.height = S;
+const x = c.getContext('2d');
+if (!x) return false;
+x.drawImage(im, 0, 0, S, S);
+const d = x.getImageData(0, 0, S, S).data;
+for (let i = 3; i < d.length; i += 4) { if (d[i] !== 0) return false; } // 有任一非透明像素=有画面
+return true;
+} catch (e) { return false; } // 跨域污染/取不到像素=不可判，按有画面放行
+}
+function alphaCheckable(src) {
+if (typeof src !== 'string' || src.indexOf('data:image/') !== 0) return false;
+const comma = src.indexOf(',');
+if (comma < 0 || src.indexOf(';base64') < 0) return false;
+const b64 = src.slice(comma + 1);
+if (!b64.length || b64.length > EMPTY_SNIFF_MAX_B64) return false;
+let bin;
+try { bin = atob(b64); } catch (e) { return false; }
+if (!bin || bin.length < 8) return false;
+const o = (i) => bin.charCodeAt(i);
+if (bin.slice(0, 3) === 'GIF') {
+let n = 0, i = bin.indexOf('\x21\xF9\x04');
+while (i >= 0) { n++; if (n >= 2) return false; i = bin.indexOf('\x21\xF9\x04', i + 3); }
+return true;
+}
+if (o(0) === 137 && o(1) === 80 && o(2) === 78 && o(3) === 71) {
+let p = 8;
+while (p + 8 <= bin.length) {
+const len = ((o(p) << 24) >>> 0) + (o(p + 1) << 16) + (o(p + 2) << 8) + o(p + 3);
+const type = bin.slice(p + 4, p + 8);
+if (type === 'acTL') return false;
+if (type === 'IDAT' || type === 'IEND') return true;
+if (!/^[A-Za-z]{4}$/.test(type) || len < 0 || p + 12 + len > bin.length) return false; // 结构异常=不判
+p += 12 + len;
+}
+return false;
+}
+return false; // JPEG 无透明通道（永远采不出全 0）；webp/svg/未知格式不冒险
+}
 function bindMediaFailPlaceholder(b) {
 b.querySelectorAll('.msg-img').forEach(im => {
 if (im.dataset.errBound) return;
@@ -27254,22 +27362,31 @@ im.replaceWith(ph);
 });
 im.addEventListener('load', () => {
 if (im.dataset.alphaChecked) return;
+if (!alphaCheckable(im.getAttribute('src') || '')) return;
 im.dataset.alphaChecked = '1';
 if (!im.complete || !im.naturalWidth) return;
-try {
-const S = 24;
-const c = document.createElement('canvas');
-c.width = S; c.height = S;
-const x = c.getContext('2d');
-if (!x) return;
-x.drawImage(im, 0, 0, S, S);
-const d = x.getImageData(0, 0, S, S).data;
-for (let i = 3; i < d.length; i += 4) { if (d[i] !== 0) return; } // 有任一非透明像素=有画面
+if (!alphaSampleEmpty(im)) return;
+setTimeout(() => {
+if (!im.isConnected || !im.complete || !im.naturalWidth) return;
+if (!alphaSampleEmpty(im)) return; // 复采有画面＝首采遇解码未就绪，撤销判定
 const ph = document.createElement('span');
 ph.style.cssText = 'opacity:.5;font-size:12px';
-ph.textContent = '（表情内容为空：这张字卡图本身没有画面，可长按撤回或到字卡库清理该分组）';
+const lb = document.createElement('span');
+lb.textContent = '（这张表情图没有画面：空白图/全透明图，可长按撤回；要根治请到字卡库或「我的表情包」删掉这张）';
+const undo = document.createElement('span');
+undo.textContent = '点此恢复显示';
+undo.style.cssText = 'text-decoration:underline;margin-left:4px';
+const tap = (e) => {
+e.stopPropagation(); // 不吃到气泡 click（否则点恢复反而弹出操作面板）
+im.dataset.alphaChecked = '1'; // 用户已判定=不再复判，误判也有永久出口
+ph.replaceWith(im);
+};
+ph.style.cursor = 'pointer';
+ph.addEventListener('click', tap);
+ph.appendChild(lb);
+ph.appendChild(undo);
 im.replaceWith(ph);
-} catch (e) {}
+}, 350);
 });
 });
 }
@@ -31492,9 +31609,16 @@ return -1;
 }
 function jumpToMsg(idx) {
 let target = body.querySelector('.msg[data-idx="' + idx + '"]');
-if (!target && idx < renderStart) {
+if (!target) {
+if (idx < renderStart) {
 renderStart = Math.max(0, idx - JUMP_VIEW);
 renderWindow(true, false);
+} else if (idx >= renderEnd && idx < msgs.length) {
+const limit = msgs.length;
+while (renderEnd <= idx && renderEnd < limit) {
+loadNewerIncremental(Math.min(idx + JUMP_VIEW + 1, limit));
+}
+}
 target = body.querySelector('.msg[data-idx="' + idx + '"]');
 }
 if (!target) return false;
@@ -39219,7 +39343,7 @@ try { toast('字卡较多，正在加载…'); } catch (e) {}
 hydrateLibScopes(['public', 'own']);
 }).observe(libPage, { attributes: true, attributeFilter: ['hidden'] });
 }
-});
+})();
 window.__ccStorageDiag = function () {
 const PRE = 'xy-home-v2:';
 const BIG = 200 * 1024;
@@ -40720,6 +40844,13 @@ const el = document.getElementById(k);
 if (el) el.checked = cfg[k] === 1;
 });
 }
+let callIncomingToastTimer = null;
+function toastCallIncoming(v) {
+clearTimeout(callIncomingToastTimer);
+callIncomingToastTimer = setTimeout(() => {
+try { toastReply('来电概率已保存：' + v + '%'); } catch (e) {}
+}, 250);
+}
 document.querySelectorAll('#page-reply-settings .stepper, #page-call-settings .stepper').forEach(st => {
 const k = st.dataset.k;
 const intAttr = (name, def) => { const v = parseInt(st.getAttribute(name), 10); return Number.isNaN(v) ? def : v; };
@@ -40732,11 +40863,13 @@ st.querySelector('.stp-min').addEventListener('click', () => {
 const cur = parseFloat(val.value);
 const nv = Math.max(min, cur - step);
 val.value = fmt(nv); window.saveReplyCfg(k, val.value);
+if (k === 'call-incoming') toastCallIncoming(fmt(nv));
 });
 st.querySelector('.stp-max').addEventListener('click', () => {
 const cur = parseFloat(val.value);
 const nv = Math.min(max, cur + step);
 val.value = fmt(nv); window.saveReplyCfg(k, val.value);
+if (k === 'call-incoming') toastCallIncoming(fmt(nv));
 });
 });
 document.querySelectorAll('#page-reply-settings .stepper .stp-val, #page-call-settings .stepper .stp-val').forEach(val => {
@@ -40777,6 +40910,7 @@ if (step < 1) v = Math.round(v / step) * step;
 else v = Math.round(v);
 val.value = fmt(v);
 window.saveReplyCfg(k, val.value);
+if (k === 'call-incoming') toastCallIncoming(fmt(v));
 };
 val.addEventListener('change', commit);
 val.addEventListener('blur', commit);
@@ -43359,7 +43493,7 @@ cb(info && info.pic ? normNeteaseCoverUrl(info.pic) : null);
 function extractPlaylistId(line) {
 if (!line || typeof line !== 'string') return '';
 if (/\.mp3/i.test(line)) return '';
-const m = line.match(/playlist[\/?#]*(?:id=)?(\d+)/i);
+const m = line.match(/playlist[\/?#&!\s]*(?:id=)?(\d+)/i);
 return m ? m[1] : '';
 }
 function extractNeteaseSongId(line) {
@@ -43374,91 +43508,107 @@ m = s.match(/\/(\d{5,})(?:\.mp3)?(?:\?|#|$)/);
 if (m) return m[1];
 return '';
 }
-function fetchNeteasePlaylist(id, cb) {
-const apiUrl = 'https://music.163.com/api/v6/playlist/detail?id=' + encodeURIComponent(String(id)) + '&n=1000&s=8';
-const sources = [
-{ url: 'https://api.injahow.cn/meting/?type=playlist&id=' + encodeURIComponent(String(id)), parse(txt) {
+function canonicalMetingPicUrl(pic) {
+const s = String(pic || '');
+if (!s) return '';
+const idm = /[?&]type=pic\b/i.test(s) && s.match(/[?&]id=(\d+)/);
+if (idm) return 'https://api.injahow.cn/meting/?server=netease&type=pic&id=' + idm[1];
+return s.replace(/^http:\/\//i, 'https://');
+}
+function parseMetingPlaylist(txt) {
 let j; try { j = JSON.parse(txt); } catch (e) { return null; }
 if (!Array.isArray(j) || !j.length) return null;
-return j.map(t => {
-const mid = (t.url || '').match(/type=url&id=(\d+)/);
-return {
+const list = [];
+j.forEach(t => {
+if (!t) return;
+const mid = String(t.url || '').match(/type=url&id=(\d+)/);
+const url = mid ? neteaseMetingUrl(mid[1]) : (t.url || '');
+if (!url) return;
+list.push({
 neteaseId: mid ? mid[1] : '',
-name: t.name || '',
-artist: t.artist || '',
-cover: String(t.pic || '').replace(/^http:\/\//i, 'https://'),
-url: mid ? neteaseMetingUrl(mid[1]) : (t.url || ''),
+name: t.name || t.title || '',
+artist: t.artist || t.author || '',
+cover: canonicalMetingPicUrl(t.pic),
+url: url,
 duration: 0
-};
-}).filter(t => t.url);
-} },
-{ url: 'https://api.i-meto.com/meting/api?server=netease&type=playlist&id=' + encodeURIComponent(String(id)), parse(txt) {
-let j; try { j = JSON.parse(txt); } catch (e) { return null; }
-if (!Array.isArray(j) || !j.length) return null;
-return j.map(t => {
-const mid = (t.url || '').match(/type=url&id=(\d+)/);
-return {
-neteaseId: mid ? mid[1] : '',
-name: t.title || t.name || '',
-artist: t.author || t.artist || '',
-cover: String(t.pic || '').replace(/^http:\/\//i, 'https://'),
-url: mid ? neteaseMetingUrl(mid[1]) : (t.url || ''),
-duration: 0
-};
-}).filter(t => t.url);
-} },
-{ url: 'https://proxy.cors.sh/' + apiUrl, parse(txt) {
+});
+});
+return list.length ? { list: list } : null;
+}
+function parseOfficialPlaylist(txt) {
 let j; try { j = JSON.parse(txt); } catch (e) { return null; }
 const pl = j && j.playlist;
 if (!pl || !Array.isArray(pl.tracks) || !pl.tracks.length) return null;
-return pl.tracks.map(s => ({
-neteaseId: String(s.id || ''),
+const list = [];
+pl.tracks.forEach(s => {
+if (!s || !s.id) return;
+list.push({
+neteaseId: String(s.id),
 name: s.name || '',
 artist: ((s.ar || []).map(a => a.name).filter(Boolean).join('/')),
 cover: String((s.al && s.al.picUrl) || '').replace(/^http:\/\//i, 'https://'),
-url: s.id ? neteaseMetingUrl(s.id) : '',
-duration: s.dt ? Math.round(s.dt / 1000) : 0,
-fee: s.fee // v3.10.x：1=VIP 专属 4=购买专辑——导入时过滤
-})).filter(t => t.url);
-} },
-{ url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl), parse(txt) {
-let j; try { j = JSON.parse(txt); } catch (e) { return null; }
-const pl = j && j.playlist;
-if (!pl || !Array.isArray(pl.tracks) || !pl.tracks.length) return null;
-return pl.tracks.map(s => ({
-neteaseId: String(s.id || ''),
-name: s.name || '',
-artist: ((s.ar || []).map(a => a.name).filter(Boolean).join('/')),
-cover: String((s.al && s.al.picUrl) || '').replace(/^http:\/\//i, 'https://'),
-url: s.id ? neteaseMetingUrl(s.id) : '',
+url: neteaseMetingUrl(s.id),
 duration: s.dt ? Math.round(s.dt / 1000) : 0,
 fee: s.fee
-})).filter(t => t.url);
-} },
+});
+});
+return list.length ? { list: list, total: parseInt(pl.trackCount, 10) || 0 } : null;
+}
+var NETEASE_TRACKS_TRUNC = 10;
+function fetchNeteasePlaylist(id, cb) {
+const apiUrl = 'https://music.163.com/api/v6/playlist/detail?id=' + encodeURIComponent(String(id)) + '&n=1000&s=8';
+const pid = encodeURIComponent(String(id));
+const sources = [
+{ url: 'https://api.qijieya.cn/meting/?server=netease&type=playlist&id=' + pid, parse: parseMetingPlaylist },
+{ url: 'https://api.injahow.cn/meting/?type=playlist&id=' + pid, parse: parseMetingPlaylist },
+{ url: 'https://api.i-meto.com/meting/api?server=netease&type=playlist&id=' + pid, parse: parseMetingPlaylist },
+{ url: 'https://proxy.cors.sh/' + apiUrl, parse: parseOfficialPlaylist },
+{ url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl), parse: parseOfficialPlaylist }
 ];
-let idx = 0;
-function tryNext() {
-if (idx >= sources.length) { cb(null); return; }
-const src = sources[idx++];
-const srcLabel = src.url.substring(0, 60);
+const results = [];
+let pending = sources.length, knownTotal = 0, settled = false, graceTimer = 0, hardTimer = 0;
+function bestList() {
+let best = null;
+results.forEach(r => {
+if (!best || r.list.length > best.list.length ||
+(r.list.length === best.list.length && r.pri < best.pri)) best = r;
+});
+return best && best.list;
+}
+function finish() {
+if (settled) return;
+settled = true;
+clearTimeout(hardTimer); clearTimeout(graceTimer);
+const best = bestList();
+cb(best && best.length ? best : null, knownTotal);
+}
+hardTimer = setTimeout(finish, 8000);
+sources.forEach((src, pri) => {
 let controller;
 try { controller = new AbortController(); } catch (e) { controller = null; }
 const timer = setTimeout(() => { try { controller && controller.abort(); } catch (e) {} }, 7000);
+let called = false;
+const done = () => { if (called) return; called = true; clearTimeout(timer); if (--pending <= 0) finish(); };
 fetch(src.url, controller ? { signal: controller.signal } : undefined)
 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
 .then(txt => {
-clearTimeout(timer);
-try {
-const res = src.parse(txt);
-if (res && res.length) cb(res); else tryNext();
-} catch (e) { tryNext(); }
-})
-.catch((err) => { clearTimeout(timer); tryNext(); });
+let res = null;
+try { res = src.parse(txt); } catch (e) { res = null; }
+if (res && res.list && res.list.length) {
+res.pri = pri;
+results.push(res);
+if (res.total) knownTotal = Math.max(knownTotal, res.total);
+const n = bestList().length;
+if (knownTotal && n >= knownTotal) { done(); finish(); return; }
+if (n !== NETEASE_TRACKS_TRUNC && !graceTimer) graceTimer = setTimeout(finish, 1500);
 }
-tryNext();
+done();
+})
+.catch(() => { done(); });
+});
 }
 function importNeteasePlaylist(id, done, targetPl) {
-fetchNeteasePlaylist(id, function (tracks) {
+fetchNeteasePlaylist(id, function (tracks, totalKnown) {
 if (!tracks || !tracks.length) { done({ ok: false }); return; }
 let added = 0, skipped = 0, vip = 0;
 const now = Date.now();
@@ -43472,7 +43622,8 @@ library.push({ id: nid, neteaseId: t.neteaseId, name: t.name || '网易云音乐
 addedIds.push(nid);
 added++;
 });
-done({ ok: true, added: added, skipped: skipped, vip: vip });
+const miss = Math.max(0, (totalKnown || 0) - tracks.length);
+done({ ok: true, added: added, skipped: skipped, vip: vip, miss: miss });
 if (addedIds.length) enrichImportedDurations(id, addedIds);
 });
 }
@@ -43765,11 +43916,11 @@ tl.forEach(x => { if (x && x.id === sid && x.cover && COVER_PROXY_RE.test(x.cove
 if (tch) saveTaFavList(tl);
 }
 function importPlaylistIds(ids, cb, targetPl) {
-let total = 0, plOk = 0, plFail = 0, skipped = 0, vip = 0;
+let total = 0, plOk = 0, plFail = 0, skipped = 0, vip = 0, miss = 0;
 const next = (i) => {
-if (i >= ids.length) { cb({ total: total, plOk: plOk, plFail: plFail, skipped: skipped, vip: vip }); return; }
+if (i >= ids.length) { cb({ total: total, plOk: plOk, plFail: plFail, skipped: skipped, vip: vip, miss: miss }); return; }
 importNeteasePlaylist(ids[i], (res) => {
-if (res.ok) { plOk++; total += res.added; skipped += res.skipped; vip += res.vip || 0; }
+if (res.ok) { plOk++; total += res.added; skipped += res.skipped; vip += res.vip || 0; miss += res.miss || 0; }
 else plFail++;
 next(i + 1);
 }, targetPl);
@@ -44029,6 +44180,7 @@ let msg = res.total
 ? '已导入 ' + res.plOk + ' 个歌单 / ' + res.total + ' 首' + (res.skipped ? '（跳过已有 ' + res.skipped + ' 首）' : '')
 : '歌单导入失败';
 if (res.vip) msg += '（VIP 歌曲 ' + res.vip + ' 首未导入）';
+if (res.miss) msg += '（数据源受限，另有 ' + res.miss + ' 首未取到，稍后重导同一链接可补齐）';
 if (res.plFail) {
 if (!res.total) {
 msg += '：可能为私密歌单、已失效或被浏览器拦截';
@@ -44138,6 +44290,7 @@ msg += '）';
 }
 if (res.skipped) msg += '（跳过已有 ' + res.skipped + ' 首）';
 if (res.vip) msg += '（VIP 歌曲 ' + res.vip + ' 首未导入）';
+if (res.miss) msg += '（数据源受限，另有 ' + res.miss + ' 首未取到，稍后重导同一链接可补齐）';
 if (res.plFail && res.total) msg += '；' + res.plFail + ' 个歌单失败（可能私密/已失效/被拦截）';
 toast(msg);
 }, targetPl);
@@ -52137,6 +52290,9 @@ const CHECK_MS = 60 * 1000;           // 轮询间隔
 const chatCoolMs = 3 * 60 * 60 * 1000; // 求聊天冷却（3 小时，比查岗久）
 const seenKeepMs = 24 * 60 * 60 * 1000; // seen 记录保留 24h 后清理
 const POKE_MSGS = ['在干嘛呢？', '忙完了吗？', '想我了没有？', '我来看看你。'];
+const SESSION_ID = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+const PENDING_TTL_MS = 10 * 60 * 1000;
+const BUSY_ESCAPE = 3;                // 软互斥最多让路 3 轮（3 分钟），之后照投——防别的弹窗长期占屏变成新的永不触发
 function deskCheckinEn() {
 try {
 const v = window.xyStore(ROOT).get(EN_KEY);
@@ -52237,7 +52393,7 @@ ico: '<svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" s
 title: '联系人跨桌面打电话',
 subTag: '功能说明',
 tagTitle: '联系人跨桌面打电话',
-detail: '开启后，其他桌面的联系人会按各自的来电概率（默认约 2%，可在 设置→回复速度→跨桌面来电概率 里逐联系人调整）主动给你打语音电话；同一联系人触发后会有 30 分钟冷却、不重复来电。你接听后即可正常通话，接听会自动挂断当前通话、且不会跳到对方的桌面。关闭后不再有跨桌面来电。',
+detail: '开启后，其他桌面的联系人会主动给你打语音电话；概率与冷却由下方「跨桌面查岗频率」三档全局统一生效（频繁 6%/15min、标准 2%/30min、安静 1%/3h，对所有桌面联系人同时生效），不再逐个联系人在回复设置里单独调。你接听后即可正常通话，接听会自动挂断当前通话、且不会跳到对方的桌面。关闭后不再有跨桌面来电。',
 get: deskCallEn,
 set: window.setDeskCallEn,
 toast: function (en) { return en ? '已开启：其他桌面的TA会主动给你打电话' : '已关闭：其他桌面的TA不再主动来电'; }
@@ -52321,12 +52477,54 @@ document.addEventListener('mochi-restore-done', syncFreqPills);
 }
 function rootGet(k) { try { return window.xyStore(ROOT).get(k); } catch (e) { return null; } }
 function rootSet(k, v) { try { window.xyStore(ROOT).set(k, v); } catch (e) {} }
+var ticks = 0;                         // 本会话轮询次数（诊断：定时器活着吗）
+var busyTicks = 0;                     // 连续让路轮数（软互斥逃逸计数）
+var releaseLog = [];                   // 最近释放事件（环形 3 条，供诊断回看）
+var liveModals = {};                   // 本会话已投出的前台弹窗：cid -> 当时的弹窗标题
+function noteRelease(msg) {
+releaseLog.push(msg + '@' + new Date().toLocaleTimeString('zh-CN', { hour12: false }));
+if (releaseLog.length > 3) releaseLog.shift();
+}
+function hardLocked() {
+const el = document.getElementById('applock-mask');
+return !!(el && !el.hidden);
+}
+function layerBusy() {
+return ['modal-mask', 'tc-mask', 'qa-mask', 'call-mask'].some(function (id) {
+const el = document.getElementById(id);
+return el && !el.hidden;
+});
+}
+function typingBusy() {
+const ae = document.activeElement;
+if (!ae || ae === document.body) return false;
+const ci = document.getElementById('chat-input');
+if (ci && ae === ci) return true;
+return ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable === true;
+}
+function reconcileLiveModals() {
+const mask = document.getElementById('modal-mask');
+const titleEl = document.getElementById('modal-title');
+Object.keys(liveModals).forEach(function (cid) {
+const ours = !!(mask && !mask.hidden && titleEl && titleEl.textContent === liveModals[cid]);
+if (ours) return;
+delete liveModals[cid];
+if (setStatus(cid, 'seen')) noteRelease('弹窗消失未应答，释放 ' + cName(cid));
+});
+}
 function queue() {
 let q = [];
 try { const v = rootGet(KEY); if (v) { const a = JSON.parse(v); if (Array.isArray(a)) q = a; } } catch (e) {}
 const now = Date.now();
+let healed = 0;
+q.forEach(function (x) {
+if (x.status === 'pending' && x.sid !== SESSION_ID && now - (x.ts || 0) > PENDING_TTL_MS) {
+x.status = 'seen'; x.ts = now; healed++;
+}
+});
 const filtered = q.filter(x => x.status !== 'seen' || now - (x.ts || 0) < seenKeepMs);
-if (filtered.length !== q.length) { rootSet(KEY, JSON.stringify(filtered)); q = filtered; }
+if (healed || filtered.length !== q.length) { rootSet(KEY, JSON.stringify(filtered)); q = filtered; }
+if (healed) noteRelease('跨会话孤儿 pending 释放 ' + healed + ' 条');
 return q;
 }
 function saveQ(q) { rootSet(KEY, JSON.stringify(q.slice(-MAX))); }
@@ -52390,9 +52588,12 @@ q.forEach(x => { if (x.cid === cid && x.status === 'pending') { x.status = statu
 if (hit) saveQ(q);
 return hit;
 }
-function deliver(req) {
+function deliver(req, force) {
 const q = queue();
 if (q.some(x => x.cid === req.cid && x.status === 'pending')) return false; // 未处理不重复
+if (!document.hidden && (hardLocked() || typingBusy())) return false;
+if (!force && !document.hidden && layerBusy()) return false;
+req.sid = SESSION_ID;   // v3.26.x #264：弹窗只活在本页面会话，标记归属才能识别跨会话孤儿
 q.push(req);
 saveQ(q);
 markLast(req.cid, req.kind);
@@ -52430,6 +52631,7 @@ try { if (modalCtl && modalCtl.stay) modalCtl.stay(); } catch (e) {}
 try { if (typeof window.toast === 'function') window.toast('请先选择「' + okText + '」或「稍后」'); } catch (e) {}
 return;
 }
+delete liveModals[req.cid]; // 已应答（无论选哪边）→ 不再需要对账
 if (v === 'later') {
 if (req.kind === 'checkin' && !deskQSeenRecently(req.cid, req.text)) {
 try { if (window.chatAppendDeskCkTo) window.chatAppendDeskCkTo(req.cid, req.q); } catch (e) {}
@@ -52446,6 +52648,7 @@ staticText: staticText,
 pills: [{ label: '稍后', value: 'later' }, { label: okText, value: 'reply' }]
 });
 try { if (modalCtl && modalCtl.okText) modalCtl.okText('确认'); } catch (e) {}
+liveModals[req.cid] = title; // v3.26.x #264：登记活弹窗，弹窗被顶掉/关闭时对账释放 pending
 return true;
 }
 function goReply(req) {
@@ -52517,6 +52720,16 @@ if (window.showTyping) { try { window.showTyping(); } catch (e) {} }
 }
 function maybeIncoming() {
 try {
+ticks++;
+reconcileLiveModals();
+if (hardLocked()) return;
+var escape = false; // 本轮一次性额度：只授权顶掉一次屏幕，投成功即收回
+if (typingBusy()) return;
+if (layerBusy()) {
+busyTicks++;
+if (busyTicks <= BUSY_ESCAPE) return;
+busyTicks = 0; escape = true; // 照投后重新计票，避免长期占屏时每一轮都去顶它
+} else busyTicks = 0;
 const cur = window.__activeCid || 'default';
 const list = window.getContacts() || [];
 if (list.length < 2) return; // 只有当前桌面：无需跨桌面打扰
@@ -52530,7 +52743,7 @@ const dm = deskDMode();
 const callCool = dm.cool;
 const callProb = dm.prob;
 if (Date.now() - lastAt(cid, 'call') >= callCool * 60000 && Math.random() * 100 < callProb) {
-deliver({ cid: cid, kind: 'call', text: '', ts: Date.now(), status: 'pending' });
+if (deliver({ cid: cid, kind: 'call', text: '', ts: Date.now(), status: 'pending' }, escape)) escape = false;
 return;
 }
 }
@@ -52542,7 +52755,7 @@ if (Date.now() - lastAt(cid, 'checkin') >= cool * 60000 && Math.random() * 100 <
 const q = window.ckQuestionPickFor ? window.ckQuestionPickFor(cid) : null;
 if (q && q.text) {
 const showText = q.type === 'action' ? (q.taToMe || q.text) : q.text;
-deliver({ cid: cid, kind: 'checkin', text: showText, q: q, ts: Date.now(), status: 'pending' });
+if (deliver({ cid: cid, kind: 'checkin', text: showText, q: q, ts: Date.now(), status: 'pending' }, escape)) escape = false;
 return;
 }
 }
@@ -52550,7 +52763,7 @@ return;
 if (deskCheckinEn() && num(cfg, 'as-en', 0) === 1) {
 const prob = num(cfg, 'as-prob', 30);
 if (Date.now() - lastAt(cid, 'chat') >= chatCoolMs && Math.random() * 100 < prob) {
-deliver({ cid: cid, kind: 'chat', text: '想和你聊聊天，你有空吗？', ts: Date.now(), status: 'pending' });
+if (deliver({ cid: cid, kind: 'chat', text: '想和你聊聊天，你有空吗？', ts: Date.now(), status: 'pending' }, escape)) escape = false;
 }
 }
 });
@@ -52560,16 +52773,49 @@ window.triggerIncomingCheckin = function (cid) {
 if (!deskCheckinEn()) { try { if (window.toast) window.toast('联系人跨桌面查岗已关闭（可在设置里开启）'); } catch (e) {} return false; }
 const q = window.ckQuestionPickFor ? window.ckQuestionPickFor(cid || 'default') : null;
 if (!q || !q.text) return false;
-return deliver({ cid: cid || 'default', kind: 'checkin', text: q.text, q: q, ts: Date.now(), status: 'pending' });
+return deliver({ cid: cid || 'default', kind: 'checkin', text: q.text, q: q, ts: Date.now(), status: 'pending' }, true);
 };
 window.triggerIncomingCallReq = function (cid) {
 if (!deskCallEn()) { try { if (window.toast) window.toast('联系人跨桌面打电话已关闭（可在设置里开启）'); } catch (e) {} return false; }
-return deliver({ cid: cid || 'default', kind: 'call', text: '', ts: Date.now(), status: 'pending' });
+return deliver({ cid: cid || 'default', kind: 'call', text: '', ts: Date.now(), status: 'pending' }, true);
 };
-setTimeout(function () {
+window.__mochiIncomingProbe = function () {
+try {
+const dm = deskDMode();
+const cur = window.__activeCid || 'default';
+const now = Date.now();
+const q = queue();
+const next = (window.getContacts() || []).filter(c => c.id !== cur).slice(0, 6).map(function (c) {
+const wCall = dm.cool * 60000 - (now - lastAt(c.id, 'call'));
+const wCk = dm.cool * 60000 - (now - lastAt(c.id, 'checkin'));
+return c.name + ' 来电' + (wCall > 0 ? Math.ceil(wCall / 60000) + 'min' : '可掷') +
+'·查岗' + (wCk > 0 ? Math.ceil(wCk / 60000) + 'min' : '可掷');
+});
+return {
+ticks: ticks,
+mode: deskFreqMode(), prob: dm.prob, cool: dm.cool,
+pending: q.filter(function (x) { return x.status === 'pending'; }).length,
+live: Object.keys(liveModals).length,
+gate: hardLocked() ? '锁屏中' : (typingBusy() ? '输入中暂停' : (layerBusy() ? ('浮层占用让路' + busyTicks + '/' + BUSY_ESCAPE) : '空闲')),
+hidden: !!document.hidden,
+next: next,
+releases: releaseLog.slice(-2)
+};
+} catch (e) { return null; }
+};
+var started = false;
+function startIncomingTick() {
+if (started) return;
+started = true;
 maybeIncoming();
 setInterval(maybeIncoming, CHECK_MS);
-}, (30 + Math.random() * 60) * 1000);
+}
+setTimeout(startIncomingTick, 12000);
+document.addEventListener('visibilitychange', function () {
+if (document.hidden || !started) return;
+reconcileLiveModals();
+setTimeout(maybeIncoming, 3000);
+});
 })();
 } catch (__e) { try { console.error("[JS] incoming-requests.js", __e && __e.message || __e); } catch (x) {} if (window.__jsErrors) window.__jsErrors.push(String(__e && __e.message || __e)); } })();
 (function () { try {
@@ -53315,7 +53561,7 @@ function ensureKeepAudioDataUrl() {
 if (KEEP_AUDIO_DATAURL) return KEEP_AUDIO_DATAURL;
 try {
 const sr = 44100, sec = 1, n = sr * sec;
-const amp = kaIsIOS() ? 0.002 : 0.006;
+const amp = kaIsIOS() ? 0.002 : 0.02;
 const freq = kaIsIOS() ? 220 : 18000;
 const buf = new ArrayBuffer(44 + n * 2);
 const dv = new DataView(buf);
@@ -53353,6 +53599,94 @@ navigator.mediaSession.setActionHandler('pause', function () {});
 } catch (e) {}
 } catch (e) {}
 }
+let kaPc1 = null, kaPc2 = null, kaWebrtcTimer = null;
+let kaCand1 = [], kaCand2 = [];
+function kaWebrtcStart() {
+if (kaPc1 || kaPc2) return;
+if (kaWebrtcTimer) { clearTimeout(kaWebrtcTimer); kaWebrtcTimer = null; }
+if (typeof RTCPeerConnection === 'undefined') return;
+try {
+const p1 = new RTCPeerConnection(), p2 = new RTCPeerConnection();
+p1.onicecandidate = function (e) { if (e.candidate) kaCand1.push(e.candidate); };
+p2.onicecandidate = function (e) { if (e.candidate) kaCand2.push(e.candidate); };
+p1.createDataChannel('mochi-ka');
+const wire = function (a, b) {
+return a.createOffer()
+.then(function (o) { return a.setLocalDescription(o); })
+.then(function () { return b.setRemoteDescription(a.localDescription); })
+.then(function () { return b.createAnswer(); })
+.then(function (ans) { return b.setLocalDescription(ans); })
+.then(function () { return a.setRemoteDescription(b.localDescription); });
+};
+wire(p1, p2).then(function () {
+try { for (let i = 0; i < kaCand2.length; i++) p1.addIceCandidate(kaCand2[i]); } catch (e) {}
+try { for (let i = 0; i < kaCand1.length; i++) p2.addIceCandidate(kaCand1[i]); } catch (e) {}
+}).catch(function () { kaWebrtcStop(); });
+p1.onconnectionstatechange = function () {
+const st = p1.connectionState;
+if (st === 'failed' || st === 'disconnected' || st === 'closed') {
+kaWebrtcStop();
+if (keepEnabled && !kaWebrtcTimer) kaWebrtcTimer = setTimeout(function () {
+kaWebrtcTimer = null;
+kaWebrtcStart();
+}, 30000);
+}
+};
+kaPc1 = p1; kaPc2 = p2;
+} catch (e) {}
+}
+function kaWebrtcStop() {
+if (kaWebrtcTimer) { clearTimeout(kaWebrtcTimer); kaWebrtcTimer = null; }
+try { if (kaPc1) kaPc1.close(); } catch (e) {}
+try { if (kaPc2) kaPc2.close(); } catch (e) {}
+kaPc1 = kaPc2 = null;
+kaCand1 = []; kaCand2 = [];
+}
+const KA_HB_KEY = 'xy-home-v2:__ka-hb';
+let kaHbTimer = null;
+let kaHb = null;
+function kaHbTick() {
+if (!kaHb) return;
+kaHb.n++;
+kaHb.ts = Date.now();
+try { kaHb.trail.push(kaHb.ts); if (kaHb.trail.length > 8) kaHb.trail.shift(); } catch (e) {}
+try { if (window.idbSet) window.idbSet(KA_HB_KEY, kaHb); } catch (e) {}
+}
+function kaHbStart() {
+if (kaHbTimer) return;
+kaHb = { n: 0, hid: Date.now(), ts: Date.now(), resumed: 0, trail: [] };
+kaHbTick();
+kaHbTimer = setInterval(kaHbTick, 30000);
+}
+function kaHbStop() {
+if (kaHbTimer) { clearInterval(kaHbTimer); kaHbTimer = null; }
+}
+document.addEventListener('visibilitychange', function () {
+if (document.visibilityState === 'hidden') {
+if (!keepEnabled) return;
+kaHbStart();
+} else {
+if (kaHb) {
+kaHb.resumed = Date.now();
+try { if (window.idbSet) window.idbSet(KA_HB_KEY, kaHb); } catch (e) {}
+}
+kaHbStop();
+}
+});
+window.__kaProbe = function () {
+let audio = null, ms = null;
+try { audio = keepAudio && keepAudio.el ? { paused: !!keepAudio.el.paused, volume: keepAudio.el.volume, loop: !!keepAudio.el.loop } : null; } catch (e) {}
+try { ms = ('mediaSession' in navigator && navigator.mediaSession) ? { metadata: !!navigator.mediaSession.metadata, state: navigator.mediaSession.playbackState } : null; } catch (e) {}
+return {
+keep: keepEnabled,
+notify: notifyEnabled,
+perm: ('Notification' in window) ? Notification.permission : 'unsupported',
+audio: audio,
+ms: ms,
+pc: kaPc1 ? (kaPc1.connectionState || 'new') : 'off',
+hb: kaHb ? { n: kaHb.n, hid: kaHb.hid, ts: kaHb.ts, resumed: kaHb.resumed, trail: (kaHb.trail || []).slice() } : null
+};
+};
 function startKeepAlive(showToast) {
 if (keepAudio) return;
 try {
@@ -53377,6 +53711,7 @@ if (p && p.catch) p.catch(function () {});
 playIt();
 keepAudio = { el: keepEl };
 setKeepMediaSession();
+kaWebrtcStart();
 const resumeOnInteraction = function () {
 if (musicNowPlaying()) return; // v3.10.x：音乐在播，让位
 if (keepAudio && keepAudio.el && keepAudio.el.paused) {
@@ -53447,6 +53782,7 @@ wakeSentinel = null;
 kaStopTimer();
 kaPauseStreak = 0;
 kaPlayFailStreak = 0;
+kaWebrtcStop();
 clearInterval(keepInterval);
 keepAudio = null;
 keepInterval = null;
@@ -53455,6 +53791,7 @@ if (showToast) toast('后台保活已关闭');
 function healKeepAlive() {
 if (!keepEnabled) return;
 kaResetBackoff();
+if (!kaPc1) kaWebrtcStart();
 if (!musicNowPlaying() && keepAudio && keepAudio.el && keepAudio.el.paused) {
 const p = keepAudio.el.play();
 if (p && p.catch) p.catch(function () {});
@@ -81067,6 +81404,31 @@ m.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=
 }
 document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
 document.addEventListener('dblclick', function (e) { e.preventDefault(); });
+const SELECTION_EDITABLE_SEL = 'input,textarea,select,[contenteditable],.ce-box';
+function reapDeadSelection() {
+let s = null;
+try { s = window.getSelection && window.getSelection(); } catch (e) { return false; }
+if (!s || !s.rangeCount) return false;
+let host = null;
+try {
+const node = s.getRangeAt(0).commonAncestorContainer;
+host = node && node.nodeType === 3 ? node.parentElement : node;
+} catch (e) { return false; }
+const alive = !!(host && document.documentElement.contains(host));
+if (alive) {
+const editable = !!(host.closest && host.closest(SELECTION_EDITABLE_SEL));
+const desk = document.getElementById('page-phone');
+if (editable || !desk || !desk.contains(host)) return false;
+}
+try { s.removeAllRanges(); } catch (e) { return false; }
+return true;
+}
+window.__mochiReapSelection = reapDeadSelection;   // 只读探针（诊断/verify 断言入口）
+function reapSoon() { try { reapDeadSelection(); } catch (e) {} }
+document.addEventListener('pointerdown', reapSoon, true);
+document.addEventListener('touchstart', reapSoon, true);
+document.addEventListener('selectionchange', reapSoon);
+document.addEventListener('visibilitychange', reapSoon);
 var ceInited = false;
 function ceMultiText(box) {
 var out = '';
@@ -81904,16 +82266,33 @@ var _aFocusAt = 0, _aProv = false, _aIH = window.innerHeight;
 var _aLastAct = Date.now();
 var _aLastVVH = 0;
 var _aPrevH = 0;
+var _aPanSeen = 0, _aPanSeenAt = 0;
 var _aBurstUntil = 0;
 setInterval(function () {
 try {
 if (document.visibilityState !== 'visible') return;
+if ((_aKb || _aProv) && !_aIsText(document.activeElement) && Date.now() - _aLastAct > 2200 && Date.now() - _aVvChgAt > 1200) {
+var _vvStillSaysKb = _aVV && _aVV.height > 0 && _aVV.height < _aH - 60;
+_aKb = false; _aClosing = false; _aProvClear();
+if (_vvStillSaysKb) _aVvStale = true;
+_aPhone.style.height = '';
+_aPhone.style.alignSelf = '';
+_aPanComp();
+kbUndockPanels();
+return;
+}
 if (_aKb && !_aProv) {
 var _vN = Math.round(_aVV.height || 0);
 var _iN = window.innerHeight || 0;
 var _dK = _aH - _vN;
 var _kbFloor = Math.round(Math.min(_aIH || _aH, _aH || _aIH) * 0.22);
-if (_vN > 0 && _dK >= 13 && _dK < _kbFloor && _iN >= _aIH - 12
+if (_vN > 0 && _vN >= _aH - 12 && _iN >= _aIH - 12 && !_aIsText(document.activeElement)) {
+_aKb = false; _aClosing = false; _aVvStale = false;
+_aPhone.style.height = '';
+_aPhone.style.alignSelf = '';
+_aPanComp();
+kbUndockPanels();
+} else if (_vN > 0 && _dK >= 13 && _dK < _kbFloor && _iN >= _aIH - 12
 && Date.now() - _aKbAt > 1500 && Date.now() - _aVvChgAt > 1200) {
 _aKb = false; _aClosing = false; _aVvStale = true;
 _aPhone.style.height = '';
@@ -81945,6 +82324,8 @@ fullInner: Math.round(_aIH),
 fullVv: Math.round(_aH),
 vvNow: Math.round(_aVV.height),
 offsetTop: Math.round(_aVV.offsetTop || 0),
+panSeen: Math.round(_aPanSeen), // #267：本会话实测到的浏览器最大平移量＝保底停靠的尺子
+panSeenAgo: _aPanSeenAt ? Date.now() - _aPanSeenAt : -1, // 该读数距今多久（>1500ms 不再采信）
 burstLeft: Math.max(0, _aBurstUntil - Date.now()),
 focusTag: _aTextFocused ? String(_aTextFocused.tagName || '').toLowerCase() : '',
 watching: !!_aWatch,
@@ -81971,6 +82352,13 @@ function _aPinPan() {
 try {
 var offT = _aVV.offsetTop || 0;
 var winY = _aWinY();
+if (!_aKb && !_aProv) {
+var _panPx = offT > winY ? offT : winY;
+if (_panPx > 8) {
+if (_panPx > _aPanSeen) _aPanSeen = _panPx;
+_aPanSeenAt = Date.now();
+}
+}
 if (offT > 0 && _aVV.scrollTo) { try { _aVV.scrollTo(0, 0); } catch (e4) {} }
 if (winY > 0) {
 try { window.scrollTo(0, 0); } catch (e2) {}
@@ -82026,7 +82414,7 @@ _aClosing = true;
 _aPrevH = h;
 var open = (!_aVvStale && h < _aH - 60); // 可视高度明显变小 = 键盘弹出（#236：残留读数闩抑制纯 vv 信号；真键盘不受影响——inner 同缩走原判/交互与回基准解锁）
 if (!open && h > _aH) _aH = h; // 无键盘时更新基准，地址栏变化不误判
-if (open && !_aKb) { _aClosing = false; _aKb = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); }
+if (open && !_aKb) { _aClosing = false; _aKb = true; _aKbAt = Date.now(); _aPhone.style.alignSelf = 'flex-start'; kbDockPanels(); _aProvClear(); }
 if (!open && _aKb) {
 if (h < _aH - 12) {
 _aClosing = true;
@@ -82093,6 +82481,10 @@ if (_aWatch) { clearInterval(_aWatch); _aWatch = null; }
 function _aProvDock() {
 var base = Math.min(_aH, _aIH);
 var ph = Math.max(240, Math.round(base * 0.58));
+if (_aPanSeen >= 80 && Date.now() - _aPanSeenAt < 1500) {
+var _meas = Math.round(base - _aPanSeen);
+if (_meas >= 240 && _meas <= base - 40) ph = _meas;
+}
 _aProv = true;
 _aPhone.style.alignSelf = 'flex-start';
 if (_aPhone.style.height !== ph + 'px') _aPhone.style.height = ph + 'px';
@@ -82157,7 +82549,7 @@ window.addEventListener('resize', _aSchedCe);
 document.addEventListener('focusin', function (e) {
 try {
 _aClosing = false; _aVvStale = false; // v3.28.x：聚焦=弹键盘（或保持），退出收起态；#236 解除 vv 残留闩
-if (_aIsText(e.target)) { _aTextFocused = e.target; _aFocusAt = Date.now(); _aBump(); }
+if (_aIsText(e.target)) { _aTextFocused = e.target; _aFocusAt = Date.now(); _aBump(); _aPanSeen = 0; } // #267：新键盘会话重新量平移
 if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) {
 try { syncAndroidKb(); } catch (e3) {}
 setTimeout(syncAndroidKb, 120);
@@ -82520,4 +82912,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtv0sacf -->
+<!-- __MOCHI_EOF__ mtvf13m1 -->

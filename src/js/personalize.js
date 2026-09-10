@@ -196,6 +196,11 @@ try {
         // v3.5.116：回填完成后一并重绘桌面图标 + 壁纸——
         //   自定义图标/壁纸大键可能只存 IDB，回填完成前桌面显示的是默认/空白
         try { restoreAppIcons(); } catch (e) {}
+        // FIX 2026-09-10 #265：图标【顺序】同款——app-icon-order-* 的 LS 副本与写日志都可能
+        //   读不到（配额清理 / 日志 40 条预算把该键挤掉），脚本加载期那次同步应用只能拿到空值，
+        //   回填把值送进存储层后却没人再排一次 → 用户装修的图标顺序整会话不生效（看起来就是
+        //   「布局还原成初始」）。重排幂等（节点移动不重建），多跑一次无副作用。
+        try { restoreAppIconOrder(); } catch (e) {}
         try { applyBgVisibility(); } catch (e) {}
         // v3.10.x：修复「退出重进后桌面卡片背景/页面背景/头像丢失变白板」——
         //   卡片背景(card-bg-*)、页面背景(page-bg-*)、图片组件(desk-image-src-*)都是
@@ -1096,16 +1101,30 @@ try {
   // 慢 IDB 机器（更新后首启网络/主线程忙时更甚）窗口拉长到数秒以上，用户看到「上传的桌面
   // 图标图片消失，刷新才回来」。改为 Promise.all 并行一次读完，全部写回后统一重绘一次；
   // 单键失败只跳过该键不影响其余（原串行链一键 reject 会中断后续所有键且不再重绘）。
+  // FIX 2026-09-10 #265（小米13+Edge「手动改完桌面布局，退出浏览器后还原初始布局」，
+  // 多机型同症状）：本块原实现对 IDB 里所有 app-icon-* 键【无条件】store.set 回写，把
+  // idb.js 的优先级规则反过来——idbSet 是异步 fire-and-forget，Edge/真我/荣耀杀进程或事务
+  // 挂起时 IDB 落后于 localStorage（retainValue 判据同源）。用户在装修模式排好新顺序后
+  // 关浏览器，若那一次 IDB 写丢了，下次启动本块就把「陈旧 IDB 顺序」写进内存缓存 + LS，
+  // 覆盖掉刚保存的新值；本会话 DOM 早已按新值排好（当场看不出问题），再下次启动屏幕就
+  // 回到旧排布 = 用户看到的「退出浏览器后还原初始布局」。这里改成【只补空、不覆盖】：
+  // 现有值（LS/内存缓存，即最新一次成功写入）一律不动，新鲜度裁决交回 idbRestore 的
+  // retainValue + 写日志（#40/#226/#229）那条既有链路。前缀同样只取一次，防 #88 启动校正
+  // 在 filter 与 slice 之间换桌面，把别人的图标值写进当前桌面。
   try {
     if (window.idbGetAllKeys) {
+      const iconPfx = window.activePrefix() + ':';
       window.idbGetAllKeys().then(keys => {
-        const iconKeys = (keys || []).filter(k => k.indexOf(window.activePrefix() + ':app-icon-') === 0);
+        const iconKeys = (keys || []).filter(k => k.indexOf(iconPfx + 'app-icon-') === 0);
         if (!iconKeys.length) return;
         return Promise.all(iconKeys.map(k =>
           window.idbGet(k).then(v => {
-            if (v && typeof v === 'string' && v.length > 2) store.set(k.slice(window.activePrefix().length + 1), v);
+            const rel = k.slice(iconPfx.length);
+            // 只填「现在读不到」的键（大图键 >200KB 不进 LS 属正常补读场景）
+            if (store.get(rel) !== null) return;
+            if (v && typeof v === 'string' && v.length > 2) store.set(rel, v);
           }).catch(function () {})
-        )).then(() => restoreAppIcons());
+        )).then(() => { restoreAppIcons(); restoreAppIconOrder(); });
       }).catch(function () {});
     }
   } catch (e) {}
@@ -4877,6 +4896,9 @@ try {
   }
   // contact-switched 时重应用隐藏状态
   document.addEventListener('contact-switched', applyHiddenIcons);
+  // FIX 2026-09-10 #265：图标【顺序】同为 per-cid 键（app-icon-order-<grid>），此前切桌面只重排
+  //   图标图片和显隐、没重排顺序 → 网格留着上一个桌面的排布（与 #151 同族串桌面）。
+  document.addEventListener('contact-switched', restoreAppIconOrder);
 
   // 点击底部 tab 切换页面时退出图标编辑模式
   const tabbar = document.querySelector('.tabbar');

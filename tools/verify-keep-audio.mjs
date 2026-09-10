@@ -1,7 +1,9 @@
 // verify-keep-audio：后台保活音频「听感无害 + 保活有效」行为断言（#207）
-// 背景：保活音频三代演进——v3.15.x iPhone 报「嘟嘟嘟」→ iOS 幅度 0.002；#190 OPPO Find X9
+// 背景：保活音频四代演进——v3.15.x iPhone 报「嘟嘟嘟」→ iOS 幅度 0.002；#190 OPPO Find X9
 // 报「底噪/电流声」→ 安卓幅度 0.006；#207 OPPO R15 自带浏览器等多机型仍报电流声 →
-// 安卓频率 220Hz → 18000Hz。同族已三连报，按 BUGS 规则配行为断言防「名字保留逻辑改坏」。
+// 安卓频率 220Hz → 18000Hz；#260 vivo X200s Edge 152 报「后台保活失败」→ 安卓幅度
+// 0.006 恢复 0.02（底噪根因在 220Hz 频率不在幅度；0.0003 电平距 audible 线仅 20% 余量，
+// 内核收紧判定即丢冻结豁免）。同族已四连报，按 BUGS 规则配行为断言防「名字保留逻辑改坏」。
 // 方法：从 src/js/bg-keep.js 抽取真实的 kaIsIOS/ensureKeepAudioDataUrl 函数体在 Node 内
 // 执行（不是复刻实现），解码 WAV dataURL 后断言：
 //   保活有效侧（动不得）：样本非零、数字电平 amp×volume 高于 Chromium audible 量级、
@@ -87,14 +89,14 @@ console.log('【安卓路径】（OPPO R15 HeyTapBrowser 真实 UA）');
   // 用生成代码同款公式算延续相位参考值，与实测样本比对（差 ≤2 LSB）
   ok('循环接缝相位连续（s[n+i] ≡ s[i]，整周期无接缝咔哒）', (() => {
     for (let i = 0; i < 8; i++) {
-      const ref = Math.round(Math.sin(2 * Math.PI * 18000 * ((w.s.length + i) / w.sr)) * 0.006 * 32767);
+      const ref = Math.round(Math.sin(2 * Math.PI * 18000 * ((w.s.length + i) / w.sr)) * 0.02 * 32767);
       if (Math.abs(ref - w.s[i]) > 2) return false;
     }
     return true;
   })());
   ok('首样本 = 0（sin(0)，循环起点干净）', w.s[0] === 0, 's[0]=' + w.s[0]);
-  ok('峰值幅度 ≈ 0.006（#190 安卓幅度未被顺手改）', Math.abs(a.peakAmp - 0.006) < 0.0005, 'peak=' + a.peakAmp.toFixed(5));
-  ok('数字电平 amp×volume=0.05 > 0.00025（Chromium audible 安全线，跌破即后台冻结=保活失效）', a.peakAmp * 0.05 > 0.00025, (a.peakAmp * 0.05).toFixed(6));
+  ok('峰值幅度 ≈ 0.02（#260 恢复值，#190 降幅语义已由 18kHz 频率承接）', Math.abs(a.peakAmp - 0.02) < 0.0005, 'peak=' + a.peakAmp.toFixed(5));
+  ok('数字电平 amp×volume=0.001 > 0.00025（4 倍余量：跌破即后台冻结=保活失效，#260 根因）', a.peakAmp * 0.05 > 0.00025, (a.peakAmp * 0.05).toFixed(6));
   // 零样本只出现在波形过零附近（占比由幅度决定：安卓 ≈2%、iOS ≈0.5%，220Hz 旧版时代即如此）。
   // 本断言防的是「全零/大面积零=数字静音」形态，不是零样本归零
   ok('非零样本比例 > 95%（防「全零=数字静音」形态）', (() => { let nz = 0; for (let i = 0; i < w.s.length; i++) if (w.s[i] !== 0) nz++; return nz / w.s.length; })() > 0.95);
@@ -106,6 +108,17 @@ console.log('【iOS 路径】（220Hz@0.002，v3.15.x 已收敛，bit 级防回�
   const a = analyze(w.s, w.sr);
   ok('频率 = 220Hz（±2，iOS 分支未被换频波及）', Math.abs(a.freq - 220) <= 2, '估频 ' + a.freq.toFixed(1) + 'Hz');
   ok('峰值幅度 ≈ 0.002（iOS 幅度未被顺手改）', Math.abs(a.peakAmp - 0.002) < 0.0003, 'peak=' + a.peakAmp.toFixed(5));
+}
+console.log('【#260 双锚与取证】（WebRTC 第二冻结豁免锚 + 后台心跳 + 诊断出口，防「锚点整块被删」）');
+{
+  ok('WebRTC 回环数据通道仍在（createDataChannel mochi-ka）', src.includes("createDataChannel('mochi-ka')"));
+  ok('WebRTC 断线 30s 静默重建仍在', /kaWebrtcTimer = setTimeout/.test(src));
+  ok('后台心跳 30s 节拍仍在（setInterval kaHbTick）', /setInterval\(kaHbTick, 30000\)/.test(src));
+  ok('心跳写 IDB 根键 __ka-hb 仍在', src.includes("KA_HB_KEY = 'xy-home-v2:__ka-hb'"));
+  ok('__kaProbe 诊断出口仍在（「保活现场」数据源）', /window\.__kaProbe = function/.test(src));
+  const dev = readFileSync(join(root, 'src', 'js', 'device.js'), 'utf8');
+  ok('device.js「保活现场」消费 __kaProbe 仍在', dev.includes("window.__kaProbe === 'function'"));
+  ok('device.js 心跳断流判决仍在（>90s=冻结证据）', dev.includes('冻结证据：心跳断流'));
 }
 console.log('【播放元素】（保活机制载体，防文本级回归）');
 {

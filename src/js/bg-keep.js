@@ -164,7 +164,13 @@
     try {
       const sr = 44100, sec = 1, n = sr * sec;
       // #190：安卓 0.02 → 0.006（原值实听底噪，见上方注释；iOS 维持 0.002）
-      const amp = kaIsIOS() ? 0.002 : 0.006;
+      // #260：0.006 恢复回 0.02——#190/#207 的底噪根因在 220Hz 频率（#207 已换 18kHz：
+      // 人耳对 18kHz 基本无感 + 手机外放高频天然滚降 20~40dB，幅度回调不触发底噪回潮），
+      // 而 0.006×0.05=0.0003 距 Chromium audible 判定线仅 20% 余量，Edge/Chromium 152
+      // 起判定一收紧（按响度/频带）豁免即丢=后台 1 分钟冻结（vivo X200s Edge 152 实报，
+      // 「以前可以」时代正是 0.02×0.05=0.001）。18kHz@0.02 恢复 4 倍电平余量，听感语义
+      // 不变（18kHz 上线后无底噪投诉）；iOS 220Hz@0.002 维持 bit 级不动。
+      const amp = kaIsIOS() ? 0.002 : 0.02;
       // #207：安卓频率 220Hz → 18000Hz——#190 降幅度后 OPPO R15 自带浏览器（HeyTapBrowser）
       // 等多机型仍报「后台保活有电流声，不是静音音频」：220Hz 落在人耳最敏感低频段，
       // -70dBFS 数字电平在老机型功放底噪/夜间安静环境实听仍是持续嗡声，降幅度已到头
@@ -224,6 +230,115 @@
     } catch (e) {}
   }
 
+  // ================= #260：WebRTC 保活锚点（第二冻结豁免信号） =================
+  // 保活音频只押「正在播放音频」这一个冻结豁免信号：0.006×0.05=0.0003 距 audible
+  // 判定线仅 20% 余量，内核一收紧（vivo X200s Edge/Chromium 152 实报，「以前可以」）
+  // 豁免即丢 → 页面 1 分钟冻结、后台消息/通知全停（#153 的补播钳制只能保证「音频被
+  // 认定在播时」有效，豁免本身丢了它救不回）。页面生命周期规范的冻结豁免条件里
+  // WebRTC 是与音频并列的另一条——这里建一对页内回环 RTCPeerConnection + 数据通道：
+  // 全程本机回环（host candidate，无需 STUN/TURN、无外发流量）、无音频焦点、无声
+  // 可听，与保活音频互为双锚（任一失效另一个仍在）。环境不支持则静默跳过，保活
+  // 音频照旧；不做机型白名单。
+  let kaPc1 = null, kaPc2 = null, kaWebrtcTimer = null;
+  let kaCand1 = [], kaCand2 = [];
+  function kaWebrtcStart() {
+    if (kaPc1 || kaPc2) return;
+    if (kaWebrtcTimer) { clearTimeout(kaWebrtcTimer); kaWebrtcTimer = null; }
+    if (typeof RTCPeerConnection === 'undefined') return;
+    try {
+      const p1 = new RTCPeerConnection(), p2 = new RTCPeerConnection();
+      p1.onicecandidate = function (e) { if (e.candidate) kaCand1.push(e.candidate); };
+      p2.onicecandidate = function (e) { if (e.candidate) kaCand2.push(e.candidate); };
+      p1.createDataChannel('mochi-ka');
+      const wire = function (a, b) {
+        return a.createOffer()
+          .then(function (o) { return a.setLocalDescription(o); })
+          .then(function () { return b.setRemoteDescription(a.localDescription); })
+          .then(function () { return b.createAnswer(); })
+          .then(function (ans) { return b.setLocalDescription(ans); })
+          .then(function () { return a.setRemoteDescription(b.localDescription); });
+      };
+      wire(p1, p2).then(function () {
+        // SDP 交换完成后统一 flush 缓存的 ICE 候选
+        try { for (let i = 0; i < kaCand2.length; i++) p1.addIceCandidate(kaCand2[i]); } catch (e) {}
+        try { for (let i = 0; i < kaCand1.length; i++) p2.addIceCandidate(kaCand1[i]); } catch (e) {}
+      }).catch(function () { kaWebrtcStop(); });
+      p1.onconnectionstatechange = function () {
+        const st = p1.connectionState;
+        if (st === 'failed' || st === 'disconnected' || st === 'closed') {
+          kaWebrtcStop();
+          // 挂后台被系统回收是常态：断了 30s 后静默重建，不在冻结边缘空转
+          if (keepEnabled && !kaWebrtcTimer) kaWebrtcTimer = setTimeout(function () {
+            kaWebrtcTimer = null;
+            kaWebrtcStart();
+          }, 30000);
+        }
+      };
+      kaPc1 = p1; kaPc2 = p2;
+    } catch (e) {}
+  }
+  function kaWebrtcStop() {
+    if (kaWebrtcTimer) { clearTimeout(kaWebrtcTimer); kaWebrtcTimer = null; }
+    try { if (kaPc1) kaPc1.close(); } catch (e) {}
+    try { if (kaPc2) kaPc2.close(); } catch (e) {}
+    kaPc1 = kaPc2 = null;
+    kaCand1 = []; kaCand2 = [];
+  }
+
+  // ================= #260：后台心跳（冻结取证） =================
+  // 「保活到底有没有生效」不再靠用户口述猜：页面隐藏期间每 30s 往 IDB 写一笔心跳
+  // （次数 + 最近 8 拍时间戳），回前台补记 resumed。device.js 诊断的【保活现场】直接
+  // 读 window.__kaProbe()：相邻拍间隔 >90s=心跳断流=页面真被冻结的实锤，修复有没有
+  // 效下次诊断见分晓。心跳只在开保活的本会话切过后台时才有记录（回前台即停表）。
+  const KA_HB_KEY = 'xy-home-v2:__ka-hb';
+  let kaHbTimer = null;
+  let kaHb = null;
+  function kaHbTick() {
+    if (!kaHb) return;
+    kaHb.n++;
+    kaHb.ts = Date.now();
+    try { kaHb.trail.push(kaHb.ts); if (kaHb.trail.length > 8) kaHb.trail.shift(); } catch (e) {}
+    try { if (window.idbSet) window.idbSet(KA_HB_KEY, kaHb); } catch (e) {}
+  }
+  function kaHbStart() {
+    if (kaHbTimer) return;
+    kaHb = { n: 0, hid: Date.now(), ts: Date.now(), resumed: 0, trail: [] };
+    kaHbTick();
+    kaHbTimer = setInterval(kaHbTick, 30000);
+  }
+  function kaHbStop() {
+    if (kaHbTimer) { clearInterval(kaHbTimer); kaHbTimer = null; }
+  }
+  // 独立监听器（#153 的 hidden 监听器在音频播放中会提前 return，语义不同不共用）
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') {
+      if (!keepEnabled) return;
+      kaHbStart();
+    } else {
+      if (kaHb) {
+        kaHb.resumed = Date.now();
+        try { if (window.idbSet) window.idbSet(KA_HB_KEY, kaHb); } catch (e) {}
+      }
+      kaHbStop();
+    }
+  });
+
+  // #260：诊断出口——device.js「保活现场」行消费（诊断在用户操作时生成，与加载顺序无关）
+  window.__kaProbe = function () {
+    let audio = null, ms = null;
+    try { audio = keepAudio && keepAudio.el ? { paused: !!keepAudio.el.paused, volume: keepAudio.el.volume, loop: !!keepAudio.el.loop } : null; } catch (e) {}
+    try { ms = ('mediaSession' in navigator && navigator.mediaSession) ? { metadata: !!navigator.mediaSession.metadata, state: navigator.mediaSession.playbackState } : null; } catch (e) {}
+    return {
+      keep: keepEnabled,
+      notify: notifyEnabled,
+      perm: ('Notification' in window) ? Notification.permission : 'unsupported',
+      audio: audio,
+      ms: ms,
+      pc: kaPc1 ? (kaPc1.connectionState || 'new') : 'off',
+      hb: kaHb ? { n: kaHb.n, hid: kaHb.hid, ts: kaHb.ts, resumed: kaHb.resumed, trail: (kaHb.trail || []).slice() } : null
+    };
+  };
+
   function startKeepAlive(showToast) {
     if (keepAudio) return;
     try {
@@ -259,6 +374,8 @@
       // v3.9.x：音乐播放时让位——music-player 已设置歌曲 metadata + 控制 handler，
       // 这里不覆盖（否则通知栏变成"后台保活"且按钮空响应，无法控制音乐）
       setKeepMediaSession();
+      // #260：WebRTC 第二冻结豁免锚点同步建立
+      kaWebrtcStart();
 
       // 用户首次交互时恢复播放（浏览器自动播放策略要求）
       const resumeOnInteraction = function () {
@@ -355,6 +472,8 @@
     kaStopTimer();
     kaPauseStreak = 0;
     kaPlayFailStreak = 0;
+    // #260：WebRTC 锚点一并拆除
+    kaWebrtcStop();
     clearInterval(keepInterval);
     keepAudio = null;
     keepInterval = null;
@@ -369,6 +488,8 @@
     if (!keepEnabled) return;
     // v3.13.x：回前台立即清零退避轨道——用户切回来了，补播不再退避，马上恢复
     kaResetBackoff();
+    // #260：后台冻结/挂起后 WebRTC 通道可能已断——回前台补建（kaWebrtcStart 幂等）
+    if (!kaPc1) kaWebrtcStart();
     // 1) 恢复被挂起的保活音频（回前台瞬间可能仍被浏览器阻塞，延迟再试几次）
     //    v3.10.x：音乐在播时跳过——保活音频让位中，不抢音频
     if (!musicNowPlaying() && keepAudio && keepAudio.el && keepAudio.el.paused) {

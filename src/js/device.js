@@ -296,6 +296,25 @@
       };
       // 底部空隙实测：可视区底边到 .phone 底边的差（>8px 即用户说的「下面空一块」）
       if (pr && vv) out.gapBottom = Math.round(vv.height - pr.bottom);
+      // FIX 2026-09-10 #267：聚焦输入框此刻到底可不可见——「点开键盘输入栏不见了」这类
+      // 报障，等用户点开诊断时现场早已被自愈洗掉（.phone 复原、焦点已丢），事后静态采集
+      // 永远看不到。报错瞬间直接量「焦点框底边 vs 可视带底边」，配合 kbActive/prov/innerH
+      // 三个字段可把三种机理一次分开：① cov=1 且 vv=基线＝键盘纯遮挡（该内核不缩 vv，只能
+      // 靠实测平移量停靠）；② cov=1 且 vv 已缩＝收缩信号到了却没接管（漏 resize/轮询停表）；
+      // ③ cov=0 而 gap 很大＝停靠过头（缩多了的那「一片空白」）。判据与 _aPinPan 同口径。
+      try {
+        const ae = document.activeElement;
+        const isTxt = ae && ((ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')
+          ? (ae.type !== 'checkbox' && ae.type !== 'range' && ae.type !== 'file' && ae.type !== 'color' && !ae.readOnly)
+          : ae.isContentEditable === true);
+        out.focusCovered = null;
+        out.focusBottom = null;
+        if (isTxt && vv && ae.getBoundingClientRect) {
+          const ar = ae.getBoundingClientRect();
+          out.focusBottom = Math.round(ar.bottom);
+          out.focusCovered = ar.bottom > (vv.offsetTop || 0) + vv.height + 2 ? 1 : 0;
+        }
+      } catch (e5) {}
       try { if (typeof window.__mochiIosKb === 'function') out.kb = window.__mochiIosKb(); } catch (e2) {}
       // v3.26.x：安卓分支同样导出键盘内部状态（mobile-adapt.js __mochiAndroidKb，
       // 字段名与 iOS 对齐）。此前只有 iOS 探针，安卓下 out.kb 恒 null →
@@ -396,7 +415,13 @@
             + ' gap=' + (g.gapBottom == null ? '?' : g.gapBottom)
             + ' 平移=' + (g.vvOffsetTop == null ? '?' : g.vvOffsetTop)
             + ' s=' + (g.vvScale == null ? '?' : g.vvScale)
-            + ' kb=' + (g.kb && g.kb.kbActive ? 1 : 0);
+            + ' kb=' + (g.kb && g.kb.kbActive ? 1 : 0)
+            // FIX 2026-09-10 #267：键盘类报障三个分案字段——i=innerHeight（与 vv 对照即知
+            // 该内核弹键盘时到底缩不缩布局视口）、p=保底停靠是否生效、cov=此刻聚焦输入框有
+            // 没有被子挡住（-=无聚焦）。缺一个就得再让用户复现一轮。
+            + ' i=' + (g.innerH == null ? '?' : Math.round(g.innerH))
+            + ' p=' + (g.kb && g.kb.prov ? 1 : 0)
+            + ' cov=' + (g.focusCovered == null ? '-' : g.focusCovered);
         }
       }
     } catch (e2) {}
@@ -896,6 +921,11 @@
           + '  body.scroll-lock=' + vg.bodyScrollLock
           + '  .phone内联高=' + (vg.phoneInlineH || '(空)') + ' align-self=' + (vg.phoneAlignSelf || '(空)')
           + '  平移 vv.offsetTop=' + vg.vvOffsetTop + ' docY=' + vg.docScrollY
+          // v3.26.x #267：两个键盘分案字段。实测平移 = 本次键盘会话在被清零前量到的最大
+          // vv 平移量（0 = 该内核不靠平移露焦点，只能走收缩/保底判定）；焦点框被挡 =
+          // 此刻聚焦输入框是否已被视觉视口底边裁掉（1/0，-=无聚焦输入）。
+          + (vg.kb && vg.kb.panSeen !== undefined ? '  本键盘会话实测平移=' + vg.kb.panSeen + '(' + vg.kb.panSeenAgo + 'ms前)' : '')
+          + '  焦点框被挡=' + (vg.focusCovered === undefined || vg.focusCovered === null ? '-' : vg.focusCovered)
           + (vg.kb && vg.kb.closing !== undefined ? '  收起动画期=' + vg.kb.closing : '')
           + (vg.kb && vg.kb.vvNow !== undefined ? '  当前vv=' + vg.kb.vvNow : '')
           + (vg.kb && vg.kb.watching !== undefined ? '  轮询=' + (vg.kb.watching ? '跑' : '停') + ' 宽限剩=' + vg.kb.burstLeft + 'ms' : '')
@@ -951,6 +981,32 @@
     L.push('storage.persist=' + !!(navigator.storage && navigator.storage.persist));
     L.push('CSS dvh=' + cssSupports('height: 1dvh') + '  svh=' + cssSupports('height: 1svh') + '  env(safe-area)=' + cssSupports('padding-top: env(safe-area-inset-top)'));
     L.push('安卓输入框已转 ce-box=' + !!document.querySelector('.ce-box'));
+    // #260：保活现场——「后台保活失败/收不到通知」类报障直接出证据，不再靠口述猜。
+    // 心跳 = bg-keep.js 在页面隐藏期每 30s 写 IDB 的计数/时间戳轨迹：相邻拍间隔
+    // >90s = 心跳断流 = 页面被冻结的实锤（保活豁免失效）；30s 连续节奏 = 后台未被冻结。
+    try {
+      if (typeof window.__kaProbe === 'function') {
+        const kp = window.__kaProbe();
+        const kpParts = ['保活=' + (kp.keep ? '开' : '关'),
+          '通知=' + (kp.notify ? '开' : '关') + '/' + kp.perm];
+        if (kp.audio) kpParts.push('音频=' + (kp.audio.paused ? '暂停' : '播放') + ' vol=' + kp.audio.volume);
+        else kpParts.push('音频=无（保活未起）');
+        if (kp.ms) kpParts.push('媒体条=' + (kp.ms.metadata ? '有' : '无') + ' ' + kp.ms.state);
+        kpParts.push('WebRTC=' + kp.pc);
+        if (kp.hb) {
+          const tr = kp.hb.trail || [];
+          let gap = 0;
+          for (let i = 1; i < tr.length; i++) gap = Math.max(gap, tr[i] - tr[i - 1]);
+          if (kp.hb.resumed) gap = Math.max(gap, kp.hb.resumed - kp.hb.ts);
+          kpParts.push('心跳=' + kp.hb.n + '拍/最后' + Math.round((Date.now() - kp.hb.ts) / 1000) + 's前');
+          if (gap > 90000) kpParts.push('冻结证据：心跳断流' + Math.round(gap / 1000) + 's（保活豁免失效，页面曾被冻结）');
+          else if (kp.hb.n >= 2) kpParts.push('后台心跳连续=未被冻结');
+        } else {
+          kpParts.push('心跳=本会话未切过后台（无记录）');
+        }
+        L.push('【保活现场】' + kpParts.join(' · '));
+      }
+    } catch (e) {}
     L.push('');
     // v3.25.x：【性能】——「卡顿」类报障的实测线索。帧率是打开诊断那一刻的
     // 现场采样（静态设置页满帧 ≠ 无卡顿，但静态页都掉帧说明系统性问题）；
@@ -1265,6 +1321,19 @@
         });
       }));
     } catch (e) { try { L.push('桌面归属体检：读取失败'); } catch (e2) {} }
+    // v3.26.x #264：跨桌面来消息体检——「查岗/来电开了好几天一次都没触发」的第一手现场：
+    // 定时器活着吗、被什么闸门挡住、各联系人还要等多久、有没有从未应答的 pending 卡住队列。
+    // 探针缺失＝incoming-requests.js 整体没跑起来（另一种根因），所以这一行本身就有诊断价值。
+    try {
+      const ip = window.__mochiIncomingProbe && window.__mochiIncomingProbe();
+      if (!ip) L.push('跨桌面来消息体检：探针缺失（incoming-requests 未加载）');
+      else {
+        L.push('跨桌面来消息体检：轮询 ' + ip.ticks + ' 次 闸门=' + ip.gate + ' 前台=' + (ip.hidden ? '否' : '是') +
+          ' 档位=' + ip.mode + '(' + ip.prob + '%/' + ip.cool + 'min) pending=' + ip.pending + ' 活弹窗=' + ip.live);
+        L.push('· 下次可掷：' + ((ip.next || []).join(' / ') || '无其他桌面'));
+        if ((ip.releases || []).length) L.push('· 近期释放：' + ip.releases.join('；'));
+      }
+    } catch (e) { try { L.push('跨桌面来消息体检：读取失败'); } catch (e2) {} }
     // v3.16.x：存储配额/持久化/在线状态——「数据写不进去/丢失」类报障的关键字段：
     // 配额满写失败曾是本项目真实根因（localStorage setItem 静默失败）。
     // v3.25.x：改用 jobs + 占位行下标替换（原 L.indexOf 找占位串有误配风险，
@@ -1481,6 +1550,19 @@
     try { setTimeout(function () { if (tick) { clearInterval(tick); tick = null; } }, 30000); } catch (e) {}
     });
   }
+  // v3.32.x #261：复制兜底路径共用的「当场收选区」器（三处 ta.select() 分属不同 IIFE，挂 window 共享）。
+  // 隐藏 textarea 全选 → execCommand('copy') 之后，那条全选还留在文档里；节点随后被 removeChild。
+  // 实测（verify-copy-selection B3a）Blink 不会留下「指向已脱离节点」的孤儿，而是把选区**重挂到
+  // document.body 且仍然活着**——那种状态全局回收器按设计不敢碰（与正当的整页全选同形），
+  // 所以必须在这里当场塌掉：安卓系内核的原生文字选择工具条（黑色「全选/复制」浮层）以选区为
+  // 宿主，选区不收它就不退，且浮层归浏览器所有 → 永久卡在屏幕原位（荣耀畅玩40 Plus/夸克实证：
+  // 桌面「今日情话」右边一个消不掉的【全选】，切后台重进仍在；多机型同族）。
+  // execCommand 同步完成，收选区不动复制结果。
+  window.mochiKillCopySelection = function (ta) {
+    try { if (ta && ta.setSelectionRange) ta.setSelectionRange(0, 0); } catch (e) {}
+    try { if (ta && document.activeElement === ta) ta.blur(); } catch (e2) {}
+    try { const s = window.getSelection && window.getSelection(); if (s && s.removeAllRanges) s.removeAllRanges(); } catch (e3) {}
+  };
   function copyText(t) {
     // v3.16.x：clipboard.writeText 在权限被拒/WebView 剪贴板不可用时可能永不 settle
     //（headless、部分 IAB 实测 Promise 悬空），会导致「复制诊断信息」弹窗永远不弹。
@@ -1515,6 +1597,7 @@
         try { ta.select(); } catch (e) {}
         let ok = false;
         try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        window.mochiKillCopySelection && window.mochiKillCopySelection(ta);   // #261：全选选区当场收掉，别留给 800ms 后的 removeChild 变孤儿
         setTimeout(function () { try { document.body.removeChild(ta); } catch (e2) {} }, 800);
         if (ok) { finish(true); return; }
         fallbackClipboard();
@@ -2089,6 +2172,7 @@ window.mochiViewportForm = function (sig) {
         try { ta.select(); } catch (e1) {}
         let ok = false;
         try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+        window.mochiKillCopySelection && window.mochiKillCopySelection(ta);   // #261：见 copyText 同款说明（防孤儿选区卡住原生全选条）
         setTimeout(function () { try { document.body.removeChild(ta); } catch (e3) {} }, 800);
         if (ok) { fin(true); return; }
         try {
@@ -2709,6 +2793,7 @@ window.mochiViewportForm = function (sig) {
         try { ta.select(); } catch (e1) {}
         let ok = false;
         try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+        window.mochiKillCopySelection && window.mochiKillCopySelection(ta);   // #261：见 copyText 同款说明（防孤儿选区卡住原生全选条）
         setTimeout(function () { try { document.body.removeChild(ta); } catch (e3) {} }, 800);
         if (ok) { fin(true); return; }
         try {

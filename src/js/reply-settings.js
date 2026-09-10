@@ -193,6 +193,16 @@
     });
   }
 
+  // v3.33.x：来电概率（call-incoming）支持 0.01 粒度（可输入 0.05 等 0.0X 小数），
+  // 保存时给出轻提示；用短防抖避免 ± 连点弹出一串 toast
+  let callIncomingToastTimer = null;
+  function toastCallIncoming(v) {
+    clearTimeout(callIncomingToastTimer);
+    callIncomingToastTimer = setTimeout(() => {
+      try { toastReply('来电概率已保存：' + v + '%'); } catch (e) {}
+    }, 250);
+  }
+
   // stepper 交互
   document.querySelectorAll('#page-reply-settings .stepper, #page-call-settings .stepper').forEach(st => {
     const k = st.dataset.k;
@@ -208,11 +218,13 @@
       const cur = parseFloat(val.value);
       const nv = Math.max(min, cur - step);
       val.value = fmt(nv); window.saveReplyCfg(k, val.value);
+      if (k === 'call-incoming') toastCallIncoming(fmt(nv));
     });
     st.querySelector('.stp-max').addEventListener('click', () => {
       const cur = parseFloat(val.value);
       const nv = Math.min(max, cur + step);
       val.value = fmt(nv); window.saveReplyCfg(k, val.value);
+      if (k === 'call-incoming') toastCallIncoming(fmt(nv));
     });
   });
   // v3.6.x：数值可直接点击输入——点击 stepper 数值框直接编辑数字，
@@ -262,6 +274,7 @@
       else v = Math.round(v);
       val.value = fmt(v);
       window.saveReplyCfg(k, val.value);
+      if (k === 'call-incoming') toastCallIncoming(fmt(v));
     };
     val.addEventListener('change', commit);
     val.addEventListener('blur', commit);

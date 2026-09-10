@@ -80,15 +80,22 @@ function check(desc, ok, detail) { if (ok) { pass++; console.log('PASS  ' + desc
 
 // vv 高度可写垫片（实例属性遮蔽原型 getter，身份不变）+ __setVvHeight 驱动 resize，
 // 模拟「正常 vv 内核」的键盘收缩信号（布局视口不动、只有 vv 缩）。
+// 关键：document-start 时 viewport meta 尚未生效，vv.height 读到的是 980px 布局视口换算
+// 值（本例 2121 而非 emulate 的 844）→ 直接冻结它会把 mobile-adapt 的 _aH 基线整体带偏
+// （保底停靠判据 |vv−_aH|≤2 永远不成立，A1/C 就此假红）。未显式设置前透传真实读数。
 await cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
 (() => {
   const vv = window.visualViewport;
   if (!vv) return;
-  let h = vv.height;
+  const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(vv), 'height');
+  let h = null;
   try {
-    Object.defineProperty(vv, 'height', { get: () => h, configurable: true });
+    Object.defineProperty(vv, 'height', { get: () => (h === null ? (d && d.get ? d.get.call(vv) : 0) : h), configurable: true });
     window.__setVvHeight = (v) => { h = v; vv.dispatchEvent(new Event('resize')); };
   } catch (e) {}
+  // 前置状态（不是被测逻辑）：本机已永久跳过开屏问答门，否则遮罩盖住输入栏 → CDP 触摸
+  // 命中的是遮罩 → 键盘链路的触摸武装条件永不成立
+  try { localStorage.setItem('xy-home-v2:applock-qaskip', '1'); } catch (e2) {}
 })();
 ` });
 
@@ -98,26 +105,36 @@ async function loadApp() {
   await cdp('Page.navigate', { url: baseUrl + '/index.html' });
   await sleep(2200);
   for (let i = 0; i < 40; i++) { if (await evalJs('!!window.__mochiDataReady')) break; await sleep(300); }
-  await evalJs("(function(){var s=document.getElementById('splash');if(s&&!s.classList.contains('hide'))s.click();return true;})()");
-  await sleep(400);
-  await evalJs("(function(){var c=document.getElementById('splash-confirm-ok');if(c&&!c.hidden)c.click();return true;})()");
-  await sleep(600);
+  // 开屏（v3.26.x 起只能滑到底点【我已阅读并知晓】进入，点整屏无效、二次确认层已删）：
+  // 按钮没滑到底时挂 .is-disabled、点了不生效 → #splash 一直挡整屏，触摸武装不了
+  let entered = false;
+  for (let i = 0; i < 24 && !entered; i++) {
+    await evalJs("(function(){var b=document.getElementById('splash-box');if(b)b.scrollTop=b.scrollHeight;return true;})()");
+    await sleep(250);
+    if (!(await evalJs("(function(){var e=document.getElementById('splash-enter');return !!(e&&!e.hidden&&!e.classList.contains('is-disabled'));})()"))) continue;
+    await evalJs("(function(){var e=document.getElementById('splash-enter');if(e)e.click();return true;})()");
+    await sleep(600);
+    entered = !(await evalJs("(function(){var s=document.getElementById('splash');return !!(s&&!s.hidden);})()"));
+  }
+  if (!entered) console.log('WARN  开屏未能进入 → 触摸前置条件不成立');
   await evalJs("(function(){document.querySelectorAll('.page').forEach(function(p){p.hidden=(p.id!=='page-chat');});return true;})()");
   await sleep(250);
+  await evalJs("(function(){var ids=['qa-mask','applock-mask','modal-mask','tc-mask','call-mask'];ids.forEach(function(id){var e=document.getElementById(id);if(e&&!e.hidden)e.hidden=true;});return true;})()");
 }
 
 // 真实触摸点按聊天输入栏（走输入管线 → touchstart → 武装手势条件 → 原生聚焦）
 async function tapChatInput() {
   const pos = JSON.parse(await evalJs(`(function(){var el=document.getElementById('chat-input')||document.querySelector('.chat-input-row');if(!el)return '{}';var r=el.getBoundingClientRect();return JSON.stringify({x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)});})()`) || '{}');
   if (pos.x === undefined) return false;
+  // 先做命中测试：被遮罩/开屏挡住时触摸落在遮罩上，kbTouchArmed 永远不成立（旧脚本就此假红）
+  const hit = await evalJs(`(function(){var el=document.getElementById('chat-input');var t=document.elementFromPoint(${pos.x},${pos.y});return JSON.stringify({hit:t?String(t.tagName)+'#'+String(t.id):'null',inside:!!(t&&el&&el.contains(t))});})()`);
+  if (!(hit && JSON.parse(hit).inside)) { console.log('  · 触摸未命中输入框：' + (hit || 'null')); return false; }
   await cdp('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: pos.x, y: pos.y }] });
   await sleep(60);
   await cdp('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await sleep(150);
-  // 极少数无头内核不因触摸聚焦 contenteditable → 补一次同点 click 兜底（同样先触发 touchstart）
-  const foc = await evalJs(`(function(){var i=document.getElementById('chat-input');return !!(i&&document.activeElement===i);})()`);
-  if (!foc) await evalJs(`(function(){var i=document.getElementById('chat-input');if(i)i.focus();return true;})()`);
-  return true;
+  // 不做程序化 focus 兜底——自动聚焦本来就过不了手势闸门，兜底只会把前置条件糊过去
+  return !!(await evalJs(`(function(){var i=document.getElementById('chat-input');return !!(i&&document.activeElement===i);})()`));
 }
 
 const phoneH = `String(document.querySelector('.phone').style.height || '')`;

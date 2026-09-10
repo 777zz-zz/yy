@@ -2196,6 +2196,64 @@ requestAnimationFrame(scrollChatBottom);
 // 同样渲染成无声空白气泡（iQOO12 Chrome 断网时联系人发表情空白实证）。error 后延时 1.5s
 // 复核 naturalWidth 仍为 0 才把 img 换成占位——给池观察器改写 src（#186 竞态）和慢网加载
 // 留窗口，不误伤正在加载或已被观察器救回的图；只替换 img 节点，不动引用块/情绪 chip。
+// FIX 2026-09-10 #262 「表情内容为空」误报（iPhone 17 Safari 反馈：消息提示内容为空，
+// 按提示去字卡库却无可清理表情包）。根因不在阈值而在「判空对象」：canvas 画动画图只画得出
+// 第一帧，而表情包 GIF 的首帧经常就是全透明清屏帧（字卡库 GIF 直存原图保留动画，
+// chatcard.js v3.7.x）→ 正在正常播放的动图被整块换成占位文案。无头 Chrome 与 WebKit 实测
+// 同果＝与机型无关的通用误报（iQOO/红米等同款字卡库设备一起中招）。三道防线：
+//   ①alphaCheckable 先证「这是静态图」才采样：多帧 GIF / APNG / 远程图 / webp·svg·未知格式 /
+//     超阈值文件一律不判（真空白图压完必然极小，故只嗅探小文件字节头，零成本避开所有动图）；
+//   ②两次独立采样都为全 0 才下结论，兜未知引擎「解码未就绪画成空」的时序差；
+//   ③占位带「点此恢复显示」出口 + 文案不再把用户单方面指向字卡库。
+// 口径同 #186/#247：宁可不报，绝不误报——漏判只是回到 #205 之前的空白气泡，误判却把坏图
+// 的帽子扣在正常表情上，还引导用户去清理根本不存在的坏分组。
+const EMPTY_SNIFF_MAX_B64 = 96 * 1024;
+function alphaSampleEmpty(im) {
+try {
+const S = 24;
+const c = document.createElement('canvas');
+c.width = S; c.height = S;
+const x = c.getContext('2d');
+if (!x) return false;
+x.drawImage(im, 0, 0, S, S);
+const d = x.getImageData(0, 0, S, S).data;
+for (let i = 3; i < d.length; i += 4) { if (d[i] !== 0) return false; } // 有任一非透明像素=有画面
+return true;
+} catch (e) { return false; } // 跨域污染/取不到像素=不可判，按有画面放行
+}
+// true=已确证静态位图（才允许判空）；false=可能是动图或无法确证，一律不出占位
+function alphaCheckable(src) {
+if (typeof src !== 'string' || src.indexOf('data:image/') !== 0) return false;
+const comma = src.indexOf(',');
+if (comma < 0 || src.indexOf(';base64') < 0) return false;
+const b64 = src.slice(comma + 1);
+if (!b64.length || b64.length > EMPTY_SNIFF_MAX_B64) return false;
+let bin;
+try { bin = atob(b64); } catch (e) { return false; }
+if (!bin || bin.length < 8) return false;
+const o = (i) => bin.charCodeAt(i);
+if (bin.slice(0, 3) === 'GIF') {
+// 单帧 GIF 至多 1 个图形控制扩展（21 F9 04），≥2＝多帧动图。LZW 流里偶然撞出该序列只会
+// 把它误判成动图＝放行，方向安全
+let n = 0, i = bin.indexOf('\x21\xF9\x04');
+while (i >= 0) { n++; if (n >= 2) return false; i = bin.indexOf('\x21\xF9\x04', i + 3); }
+return true;
+}
+if (o(0) === 137 && o(1) === 80 && o(2) === 78 && o(3) === 71) {
+// PNG 块表从第 8 字节起；APNG 的 acTL 按规范必在首个 IDAT 之前 → 先走到 IDAT 即静态图
+let p = 8;
+while (p + 8 <= bin.length) {
+const len = ((o(p) << 24) >>> 0) + (o(p + 1) << 16) + (o(p + 2) << 8) + o(p + 3);
+const type = bin.slice(p + 4, p + 8);
+if (type === 'acTL') return false;
+if (type === 'IDAT' || type === 'IEND') return true;
+if (!/^[A-Za-z]{4}$/.test(type) || len < 0 || p + 12 + len > bin.length) return false; // 结构异常=不判
+p += 12 + len;
+}
+return false;
+}
+return false; // JPEG 无透明通道（永远采不出全 0）；webp/svg/未知格式不冒险
+}
 function bindMediaFailPlaceholder(b) {
 b.querySelectorAll('.msg-img').forEach(im => {
 if (im.dataset.errBound) return;
@@ -2215,26 +2273,36 @@ im.replaceWith(ph);
 });
 // FIX 2026-09-06 #205 全透明空图检测：图片「加载成功但内容本身没有画面」（导入字卡包里的
 // 全透明图/空白图——多设备共用同一批字卡库时会同时表现为空气泡，且不产生任何加载错误）
-// 是加载失败之外最后一类真空白。load 后 24×24 采样 alpha，全 0 才判空（有字/有内容即放行，
-// GIF 取当前帧；跨域图 canvas 污染 getImageData 会抛错，catch 放行不误伤）。
+// 是加载失败之外最后一类真空白。24×24 采样 alpha，全 0 才判空（有字/有内容即放行）。
+// 同批 #262：判空前必过静态图门禁 + 二次采样确认 + 可恢复出口（见上方 FIX 注释）。
 im.addEventListener('load', () => {
 if (im.dataset.alphaChecked) return;
+if (!alphaCheckable(im.getAttribute('src') || '')) return;
 im.dataset.alphaChecked = '1';
 if (!im.complete || !im.naturalWidth) return;
-try {
-const S = 24;
-const c = document.createElement('canvas');
-c.width = S; c.height = S;
-const x = c.getContext('2d');
-if (!x) return;
-x.drawImage(im, 0, 0, S, S);
-const d = x.getImageData(0, 0, S, S).data;
-for (let i = 3; i < d.length; i += 4) { if (d[i] !== 0) return; } // 有任一非透明像素=有画面
+if (!alphaSampleEmpty(im)) return;
+setTimeout(() => {
+if (!im.isConnected || !im.complete || !im.naturalWidth) return;
+if (!alphaSampleEmpty(im)) return; // 复采有画面＝首采遇解码未就绪，撤销判定
 const ph = document.createElement('span');
 ph.style.cssText = 'opacity:.5;font-size:12px';
-ph.textContent = '（表情内容为空：这张字卡图本身没有画面，可长按撤回或到字卡库清理该分组）';
+const lb = document.createElement('span');
+lb.textContent = '（这张表情图没有画面：空白图/全透明图，可长按撤回；要根治请到字卡库或「我的表情包」删掉这张）';
+const undo = document.createElement('span');
+undo.textContent = '点此恢复显示';
+undo.style.cssText = 'text-decoration:underline;margin-left:4px';
+const tap = (e) => {
+e.stopPropagation(); // 不吃到气泡 click（否则点恢复反而弹出操作面板）
+im.dataset.alphaChecked = '1'; // 用户已判定=不再复判，误判也有永久出口
+ph.replaceWith(im);
+};
+// 整行可点：手机端文字提示本身就窄，只把 4 个字做成按钮容易点不中
+ph.style.cursor = 'pointer';
+ph.addEventListener('click', tap);
+ph.appendChild(lb);
+ph.appendChild(undo);
 im.replaceWith(ph);
-} catch (e) {}
+}, 350);
 });
 });
 }
@@ -6689,9 +6757,19 @@ return -1;
 }
 function jumpToMsg(idx) {
 let target = body.querySelector('.msg[data-idx="' + idx + '"]');
-if (!target && idx < renderStart) {
+if (!target) {
+if (idx < renderStart) {
 renderStart = Math.max(0, idx - JUMP_VIEW);
 renderWindow(true, false);
+} else if (idx >= renderEnd && idx < msgs.length) {
+// #268：目标落在裁剪区（窗口下界之外，常见于用户上翻裁剪后搜索老/新消息）。
+// 向下增量展开到包含目标（内部按 LOAD_STEP 分批，循环补够）。增量会触发
+// pruneWindowTop 顶上裁剪，只要目标位于展开后窗口内即可居中定位。
+const limit = msgs.length;
+while (renderEnd <= idx && renderEnd < limit) {
+loadNewerIncremental(Math.min(idx + JUMP_VIEW + 1, limit));
+}
+}
 target = body.querySelector('.msg[data-idx="' + idx + '"]');
 }
 if (!target) return false;
