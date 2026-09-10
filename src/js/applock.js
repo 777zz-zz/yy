@@ -3,8 +3,10 @@
    入口：设置页「应用锁」组（template.html #applock-en / #applock-sub）。
    数据：全局根键 xy-home-v2:applock-en / applock-pin / applock-qa（已进 contacts.js EXCLUDE，
    绝不被 migrateLegacy 当旧顶层键迁进 default 并删根键）。
-   解锁态：sessionStorage 'mochi-applock-ok'——本会话解过一次即可，刷新同一标签不重锁；
+   解锁态：sessionStorage 'mochi-applock-ok'——数字密码锁本会话解过一次即可，刷新同一标签不重锁；
    冷启动/新开标签页/新窗口需重新输密码（对应「仅打开时锁」，切后台不锁）。
+   开屏问答门（v3.32.x）：不吃上述会话豁免——未输暗号（applock-qaskip≠1）时每次页面加载都重答全部题目，
+   无取消入口，只能答对或输暗号（暗号不上屏，见 QA_SKIP_CODE）。
    忘记密码：靠设密码时绑定的安全问答重设；无问答时只能清除本站数据（锁屏内已说明）。
    安全边界：纯前端本地锁，挡日常偷看；懂技术者可直读本机 localStorage/IndexedDB，
    无服务端不可能绝对防御。密码/答案仅存 cyrb53 摘要（防一眼读出，非加密）。
@@ -485,7 +487,7 @@
       title: '开屏问答 ' + (i + 1) + '/' + items.length,
       sub: it.q,
       placeholder: '输入答案', okLabel: (i + 1 >= items.length ? '进入' : '下一题'), cancel: false,
-      links: [{ act: 'skipqa', label: '输暗号 990915，本机永久跳过问答' }],
+      links: [{ act: 'skipqa', label: '输暗号跳过问答（本机永久）' }],
       onSubmit: function (v) {
         if (qaAnswerOk(v, it.h)) { qaAsk(items, i + 1, afterAll); }
         else {
@@ -521,15 +523,18 @@
     const needPin = enabled() && !!pinHash();
     const needQa = qaEnabled() && !qaSkipped();
     if (!needPin && !needQa) return;
-    if (sessOk()) return;               // 本会话已解过锁
+    // v3.32.x 需求：问答门不吃「本会话已解锁」豁免——只要没输暗号（qaskip≠1），
+    // 每次页面加载（冷启动/新标签/同标签刷新/PWA 更新自动 reload）都要重答全部题目；
+    // 会话标记 sessOk 仅供数字密码锁使用（保持「同标签刷新不重锁」原行为）。
     if (needQa) {
       qaStart(function () {
-        if (needPin) showLock();
+        if (needPin && !sessOk()) showLock();
         else { sessMark(); maskEl().hidden = true; }
       });
-    } else {
-      showLock();
+      return;
     }
+    if (sessOk()) return;               // 数字密码锁：本会话已解过 → 同标签刷新不重锁
+    showLock();
   }
 
   // ---------- 设置页 ----------
@@ -702,10 +707,10 @@
       if (qaSkipped()) acts.push({ act: 'qa-unskip', label: '恢复本机问答' });
       html = '<span>已开启：每次打开本站需先答对 <b>' + n + '</b> 道问答题' +
         (enabled() && !!pinHash() ? '，再输入数字密码' : '') + '。' +
-        (qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号 990915」可让本机永久跳过问答层。') +
+        (qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号」可让本机永久跳过问答层。') +
         '</span>' + actsHtml(acts);
     } else {
-      html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时输暗号 <b>990915</b> 可让本机永久跳过问答层。</span>' +
+      html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时可输暗号让本机永久跳过问答层。</span>' +
         (raw ? actsHtml([{ act: 'qa-manage', label: '编辑问答题' }]) : '');
     }
     s.innerHTML = html;

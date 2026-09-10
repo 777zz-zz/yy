@@ -1,9 +1,11 @@
 // ===== 应用锁（隐私防护）专项回归 =====
 // 用法：node build.mjs && node tools/verify-applock.mjs
 // 需要：Node 21+（fetch/WebSocket）+ 本机 Chrome/Edge（可用 CHROME_PATH 指定）
-// 覆盖：A 冷启动锁屏出现  B 错误密码  C 正确密码解锁+会话标记  D 刷新不重锁
+// 覆盖：A 冷启动锁屏出现  B 错误密码  C 正确密码解锁+会话标记  D 刷新不重锁（仅密码锁）
 //       E 会话清除后重锁  F 异常态(en=1 无密码)自愈关闭  G 忘密码问答重置全流程
 //       H 静态防线（EXCLUDE/模板/产物接线）
+//       I 开屏问答门（未输暗号时每次加载必问/答对放行/暗号 990915 永久跳过）
+//       J 问答门+数字密码双重验证  K/M 静态防线  L 题目管理面板  N 默认开启（模拟真机）
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFileSync, statSync } from 'node:fs';
@@ -275,11 +277,13 @@ await clickSubmit();
 st = JSON.parse(await lockState() || '{}');
 check('I4 全部答对解锁进入', st.shown === false, JSON.stringify(st));
 
-// 会话保留刷新不再问（同标签不重锁）
+// v3.32.x 需求：问答门不吃本会话豁免 —— 同标签刷新必须重新答两道题
+// （对比 D1：数字密码锁仍是「同标签刷新不重锁」）
 await cdp('Page.reload');
 await sleep(1200);
 st = JSON.parse(await lockState() || '{}');
-check('I5 同标签刷新不再问答', st.shown === false, JSON.stringify(st));
+check('I5 同标签刷新仍问答（问答门每次加载都问）', st.shown === true && st.title.indexOf('开屏问答 1/2') === 0, JSON.stringify(st));
+check('I5b 会话标记不影响问答门（sess=1 仍问）', st.sess === '1', st.sess);
 
 // 新会话（等效新开标签）→ 再问；输入暗号 990915 永久跳过
 await clearSessAndReload();

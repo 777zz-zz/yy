@@ -8958,9 +8958,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1788933842417">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.534</b></span>
-        <span class="sv-deploy">部署于 2026-09-09 14:04<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789014069087">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.535</b></span>
+        <span class="sv-deploy">部署于 2026-09-10 12:21<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10024,7 +10024,7 @@ transition-duration: .01ms !important;
           <div class="txt">开屏问答门<span class="sub">答对问题才放行，可不设数字密码</span></div>
           <label class="toggle"><input type="checkbox" id="applock-qa-en"><span class="tk"></span></label>
         </div>
-        <div class="gs-sub" id="applock-qa-sub">纯本地功能：<b>默认开启</b>——每次打开本站（含换浏览器/新设备）先答对问答题才放行，可单独使用；关掉即本机不再询问。锁屏时输暗号 990915 可让本机永久跳过问答层。</div>
+        <div class="gs-sub" id="applock-qa-sub">纯本地功能：<b>默认开启</b>——每次打开本站（含换浏览器/新设备）先答对问答题才放行，可单独使用；关掉即本机不再询问。锁屏时可输暗号让本机永久跳过问答层。</div>
       </div>
       <div class="set-group glass">
         <div class="set-row" id="row-general">
@@ -10134,7 +10134,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.534</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.535</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10425,7 +10425,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.534</span>
+              <span class="lic-ver">v3.26.535</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -17551,8 +17551,10 @@ document.addEventListener('contact-switched', refreshContactsVal);
 入口：设置页「应用锁」组（template.html #applock-en / #applock-sub）。
 数据：全局根键 xy-home-v2:applock-en / applock-pin / applock-qa（已进 contacts.js EXCLUDE，
 绝不被 migrateLegacy 当旧顶层键迁进 default 并删根键）。
-解锁态：sessionStorage 'mochi-applock-ok'——本会话解过一次即可，刷新同一标签不重锁；
+解锁态：sessionStorage 'mochi-applock-ok'——数字密码锁本会话解过一次即可，刷新同一标签不重锁；
 冷启动/新开标签页/新窗口需重新输密码（对应「仅打开时锁」，切后台不锁）。
+开屏问答门（v3.32.x）：不吃上述会话豁免——未输暗号（applock-qaskip≠1）时每次页面加载都重答全部题目，
+无取消入口，只能答对或输暗号（暗号不上屏，见 QA_SKIP_CODE）。
 忘记密码：靠设密码时绑定的安全问答重设；无问答时只能清除本站数据（锁屏内已说明）。
 安全边界：纯前端本地锁，挡日常偷看；懂技术者可直读本机 localStorage/IndexedDB，
 无服务端不可能绝对防御。密码/答案仅存 cyrb53 摘要（防一眼读出，非加密）。
@@ -17990,7 +17992,7 @@ textAsk({
 title: '开屏问答 ' + (i + 1) + '/' + items.length,
 sub: it.q,
 placeholder: '输入答案', okLabel: (i + 1 >= items.length ? '进入' : '下一题'), cancel: false,
-links: [{ act: 'skipqa', label: '输暗号 990915，本机永久跳过问答' }],
+links: [{ act: 'skipqa', label: '输暗号跳过问答（本机永久）' }],
 onSubmit: function (v) {
 if (qaAnswerOk(v, it.h)) { qaAsk(items, i + 1, afterAll); }
 else {
@@ -18024,15 +18026,15 @@ if (enabled() && !pinHash()) setEn(false);  // 异常态自愈（原逻辑保留
 const needPin = enabled() && !!pinHash();
 const needQa = qaEnabled() && !qaSkipped();
 if (!needPin && !needQa) return;
-if (sessOk()) return;               // 本会话已解过锁
 if (needQa) {
 qaStart(function () {
-if (needPin) showLock();
+if (needPin && !sessOk()) showLock();
 else { sessMark(); maskEl().hidden = true; }
 });
-} else {
-showLock();
+return;
 }
+if (sessOk()) return;               // 数字密码锁：本会话已解过 → 同标签刷新不重锁
+showLock();
 }
 function enEl() { return document.getElementById('applock-en'); }
 function subEl() { return document.getElementById('applock-sub'); }
@@ -18196,10 +18198,10 @@ const acts = [{ act: 'qa-manage', label: '编辑问答题' }];
 if (qaSkipped()) acts.push({ act: 'qa-unskip', label: '恢复本机问答' });
 html = '<span>已开启：每次打开本站需先答对 <b>' + n + '</b> 道问答题' +
 (enabled() && !!pinHash() ? '，再输入数字密码' : '') + '。' +
-(qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号 990915」可让本机永久跳过问答层。') +
+(qaSkipped() ? '本机已输暗号跳过问答（当前不再询问）。' : '锁屏时点「输暗号」可让本机永久跳过问答层。') +
 '</span>' + actsHtml(acts);
 } else {
-html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时输暗号 <b>990915</b> 可让本机永久跳过问答层。</span>' +
+html = '<span>未开启。开启后每次打开本站需先答对问答题才放行；可不设上方数字密码锁单独使用。锁屏时可输暗号让本机永久跳过问答层。</span>' +
 (raw ? actsHtml([{ act: 'qa-manage', label: '编辑问答题' }]) : '');
 }
 s.innerHTML = html;
@@ -82518,4 +82520,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mttp0r1t -->
+<!-- __MOCHI_EOF__ mtv0sacf -->
