@@ -1,9 +1,50 @@
+### 2026-09-11（#296 回复设置补「联系人主动写信/联系人主动发朋友圈」两个总开关——用户需求「【回复设置】里缺少关闭联系人写信/关闭联系人发布朋友圈的设置按钮」——本次构建者：非本会话，src 已改待收口）
+- [AI-A 域 src/js/reply-settings.js + src/js/mail.js + src/js/feed.js + src/template.html + 跨域 build.mjs（哨兵+2=636，仅 FIX_SENTINELS 数组尾部追加，理由：新功能防并行覆盖登记）/FIX-REGRESSION.md（+296 一行）/WORKLOG.md]（**构建状态：未构建**；树上 #289/#290/#292/#293/#294/#295 等多批在途，收口前请先核对 git status）。
+- 现状/根因：写信概率 ml-write-prob 走 mailCfg 的 prob() 兜底——存 0 会被回退默认 30（防旧坏数据的保护反而堵死「概率=0 关闭」的路）；朋友圈概率虽支持 0 但无一键总开关。
+- 方案：①新增 `ml-write-en` / `fd-post-en` 总开关（默认开，per-cid 桌面隔离，DEFAULTS 登记）；②设置页信箱面板「联系人主动写信」组首行、朋友圈面板「TA 发朋友圈设置」组首行各加开关行（复用既有 .toggle 壳）；③两键进 syncUI/开关监听/saveCurrentReplyPage 三处清单（「保存全部桌面联系人设置」自动带上）；④闸门在触发链首行——mail.js maybeIncomingLetterFor `if (!cfg.writeEn) return;`（writeEn 走 mailCfg 裸读不过 prob() 兜底，mailCfgFor per-cid 覆盖表补该对），feed.js maybeAutoPostFor `if (!cfg.postEn) return;`（postEn 走 feedCfgFor 键表+num 出口）。回信（ml-reply-*）、每周摸鱼小结、朋友圈点赞/评论互动均不受影响。
+- 验证：node --check 四文件过；`node build.mjs --check-sentinels` 636 全绿哑 0（#296 两锚各自文件唯一逻辑锚）。
+- 待对方处理：构建者收口构建+提交；notice.json 功能公告未补（收口时可顺带或下一批补，不阻塞）。【真机:待验证】①回复设置-信箱关「联系人主动写信」保存→TA 不再主动来信，重新打开恢复；②回复设置-朋友圈关「联系人主动发朋友圈」→TA 不再自动发动态；③开关默认开，存量用户升级后行为不变；④「保存全部桌面联系人设置」能把两开关同步到所有桌面。
+
+### 2026-09-11（#295 帮我决定/群聊决定「自定义选项」键盘弹出期整卡无法上滑——用户报障「输入法弹窗打开时自定义选项页面无法上滑」——本次构建者：非本会话，src 已改待收口）
+- [AI-A 域 src/css/chat-main.css + 跨域 build.mjs（哨兵+2=634，理由：#295 防覆盖登记，仅数组尾部追加）/FIX-REGRESSION.md（+295）/WORKLOG.md]（**改动文件：如列；构建状态：未构建**；git status 另有 #289~#294 等多批在途未收口，收口前请先核对）。
+- 根因（同族第三次：v3.23 modal-textarea → v3.25 选项框高度上限 → 本次）：安卓 textarea 被 mobile-adapt 转成 contenteditable .ce-box（dec-opts/gd-opts 带 max-height:176px + overflow-y:auto 自成滚动容器）后，`overscroll-behavior:contain` 把「框内无内容可滚/已到边界」的滚动链也一并拦断；键盘弹出期 kbDockPanels 把面板重锚到输入栏上方、可用高度骤减最需要滑动，而手指自然落在正聚焦的选项框上——手势被 ce-box 吃掉，外层 .poke-card-scroll 收不到滚动＝整卡无法上滑。
+- 修复（两处一行改动）：`overscroll-behavior:contain → auto`——框内有溢出仍先在框内滚（v3.25 高度上限修复不回退），无溢出/到边界时滚动链放行给面板。.modal-textarea.ce-box 的 contain 不动（其拦的是穿透到背景，语义不同）。
+- 验证：`node build.mjs --check-sentinels` 634 条全绿哑 0（含 #295 两条新锚点，css/chat-main.css 内各自唯一）。三犯家族（modal-textarea/dec-opts/键盘期面板），如真机复发按熔断补 tools/verify-*.mjs。
+- 待对方处理：请构建者收口构建+提交；【真机:待验证】安卓任一机型：帮我决定/群聊决定→自定义选项→点选项输入框弹键盘→手指在输入框上滑动，整卡应能滚动；选项多于框高时仍先框内滚。
+
+### 2026-09-11（#293 后台来电点开通知不弹通话面板 + #294 后台通知右侧头像全黑——用户连报「马上打开浏览器也没有电话弹窗，接不到」「朋友圈通知最右头像显示全黑」——本次构建者：非本会话，src 已改待收口）
+- [AI-B 域 src/js/call.js + src/js/bg-keep.js + build.mjs（哨兵+2=632）/FIX-REGRESSION.md（+293/+294）/WORKLOG.md]（**改动文件：如列；构建状态：未构建**；只追加未触碰他批块，git status 另有 personalize.js/#289/#290、ta-ask.js/#292、home.css/#291 等在途批次未查明收口状态，收口前请先核对）。
+- **#293 不弹通话面板**：根因＝resumeHeldCall 重响条件 `h.cid === __activeCid` 要求回到应用时恰好停在来电归属桌面——跨桌面来电（#204 查岗队列路径）落别的桌面永不成立；冷启动时 __activeCid 还在等 IDB 回填校正（bootCallResume 在 restore-done 后 1.2s，correctCidFromIdb 异步可能更晚）同样不成立→两条路都静默补「未接听」。修复＝cid 不匹配时若归属 cid 在名册内（同 applyCidCorrection 口径防切空命名空间）先 `setActiveContact(h.cid)` 切到归属桌面再 `incomingCall(true)` 重响；超时/已在通话/名册不含仍走原补未接。
+- **#294 头像全黑**：根因＝makeAvatarThumb canvas 缩放后直接 `toDataURL('image/jpeg')`——JPEG 无透明通道且 canvas 未铺底色，带透明区域的头像透明像素落成纯黑＝通知右侧大图标全黑方块；顺带零固有尺寸图回退原图防 1×1。修复＝drawImage 前 `fillRect` 铺白底（`ctx.fillStyle='#ffffff'`），降级链全不动。
+- 验证：node --check call.js/bg-keep.js 过；`node build.mjs --check-sentinels` 632 条全绿哑 0（含 #293/#294 新锚点，各自文件唯一）。verify 脚本未新增（两条均首犯，无复发史；如复发再按熔断补 tools/verify-*.mjs）。
+- 待对方处理：请构建者收口构建+提交；【真机:待验证】①后台来电通知弹出后点开浏览器（无论停在哪个桌面/冷启动）→ 应自动切到来电联系人桌面并弹来电面板可接听，超 3 分钟仍正常补未接不误弹；②带透明区域的头像触发后台通知 → 右侧头像正常不再全黑。
+
+### 2026-09-11（#292 问问ta新增「批量导入单选题」+「问卷答题结束时间」——用户需求：批量导入时【】里为问题、其后每行一个选项，批量问联系人问题，并可设置问卷答题截止时间——本次构建者：非本会话，src 已改待收口）
+- [AI-A 域 ta-ask.js + template.html + 跨域 build.mjs]（**改动文件：src/js/ta-ask.js（批量导入解析 + deadline 设置/闸门）、src/template.html（设置行 + 批量导入占位文案）、build.mjs（跨域：哨兵+2=630，理由：新功能防并行覆盖登记，仅数组尾部追加）、WORKLOG.md；构建状态：未构建**；本次构建者：非本会话，树上 #289/#290（personalize.js）等在途批未收口，收口前请先核对 git status）。
+- **批量导入单选题**：批量导入解析改为状态机——`【问题】`开头行开一道单选题，其后到下一个【】之间的每行为选项；普通行仍按「一行一个问题」导入（完全向后兼容）。选项 ≥2 才落 type:'single'+options（不足 2 个按文字题导入，只取问题行），空【】跳过。导入 toast 改「已导入 N 个问题（含 M 道单选题）到…」。单选题落库后走既有 pushAsk 单选链路（进聊天卡片就地点选，无弹窗），无需改 chat.js。
+- **问卷答题结束时间**：设置区新增 `datetime-local` 行（#ta-ask-deadline + 清除按钮 #ta-ask-deadline-clear），存 `settings.deadline`（毫秒时间戳，0=未设置）。过点后三处闸门：①maybeTriggerTAAsk 自动触发直接 return；②triggerTaAskNow 手动提问 toast 拦截；③作答统一拦截——openAskReply（文字题弹窗）入口 + chatAskReply 包装层（单选点选/聊天内联两条路径都经此）toast「已过问卷答题结束时间，不能再作答」。deskCk 查岗卡豁免（其本就不属于问卷）。渲染回显走 renderAskSettings（fmtDeadlineLocal 本地格式）。
+- 跨域改动 build.mjs：FIX_SENTINELS 尾部追加 #292 两条（解析锚点 + 作答闸门锚点，均在自己 file 内唯一，--check-sentinels 哑哨兵 0）。
+- **追加（同批，用户补需求「单选题输入栏最右没有和帮我决定一样的 ❌ 快捷清除」）**：①单题添加表单（askAddFormHtml）的问题输入框与选项 textarea、②批量导入 textarea（template.html）三处输入栏包 `.dec-inp-wrap` + `.dec-inp-clear` ✕（复用帮我决定全局 CSS/暗色款）；chat-pages.css 补 3 行包装层 flex 接管（.ta-inp-flex/.ta-opts-flex + 框内 padding-right:38px）；清空逻辑同 decision.js（含安卓 contenteditable 幽灵框 textContent 清空 + toast「已清空」）；ta-type 切换显隐的 ce-box 兜底从 nextElementSibling 改按父容器扫（textarea 旁边现在是清空按钮不是 ce-box）。改动文件补：src/css/chat-pages.css（AI-A 域）。
+- 验证：node --check ta-ask.js/build.mjs 过；`node build.mjs --check-sentinels` 630 全绿哑 0。【真机:待验证】①批量导入「【今晚想吃什么？】/火锅/烧烤/寿司」→ 我的添加出现「单选·3选项」行，聊天发出后卡片可就地点选；②混合普通行仍按一行一题导入；③设置结束时间为过去时间后「让TA现在问一次」被拦、点旧询问卡不能再答；④清除后恢复。
+- 待对方处理：构建者收口构建+提交；notice.json 功能公告未补（收口时可顺带或在下一批补，不阻塞）。
+- 编号说明：#291 已被并行批（经期卡防重叠）占用，本批顺延 **#292**。
+
+### 2026-09-11（#289 摸鱼打卡刷新后要求重打 + #290 摸鱼天数自动修正——用户报障「桌面组件【摸鱼打卡】有人手机总是刷新重进后需要重新打卡」并追问「天数错了怎么自动修正」——本次构建者：非本会话，src 已改待收口）
+- [AI-B 域 personalize.js + build.mjs/FIX-REGRESSION.md]（**改动文件：src/js/personalize.js（每日打卡初始化段 + 摸鱼天数段）、build.mjs（哨兵+2=628）、FIX-REGRESSION.md（+289/+290 两行）、WORKLOG.md；构建状态：未构建**；本次构建者：非本会话，git status 另有 chat.js/device.js/music-player.js/sw.js 等在途改动未查明归属，收口前请先核对）。
+- 根因：打卡按钮「已打卡」状态只在 personalize.js 模块初始化读一次 `store.get('checkin')`，早于启动回填（idbRestore）完成——LS 写失败/配额满/IDB 为主机型此刻键未进内存缓存，按钮渲染成未打卡，之后数据补齐也没人回头刷新（AGENTS.md 已知坑「回填完成前读到的键可能为空」）。健康机型 LS 直读命中所以只有「有人手机」复现。数据层无害：logFish 按自然日去重，天数不虚增。
+- 方案：按钮同步抽成 `syncCheckinBtn()`（双向：已打卡置 done/跨天复位），初始化一次 + `mochi-restore-done` / `mochi-wrj-heal` 各再同步按钮与 `updateFishDays()`（摸鱼天数同族时序）。contact-switched 既有重判断与点击去重语义不动。
+- **#290 天数自动修正**（同段实现）：①`normalizeFishLog()`——fish-log 只留合法 YYYY-MM-DD + Set 去重，有变化才写回（防回填前空读 blind-wipe）；logFish/updateFishDays 走规范化出口；②restore-done/wrj-heal 后再跑 `migrateFishLogGlobal(false)`+规范化+刷显示（治「各桌面旧副本只存 IDB、模块加载时合并扑空＝永久漏算」）。IDB 旧快照遮蔽不重复设防（retainValue/wrj 既有兜底）。
+- 验证：node --check personalize.js/build.mjs 过；`node build.mjs --check-sentinels` 全绿哑 0（627 条，含 #289/#290 新锚点）。
+- 待对方处理：请构建者收口构建+提交；真机验证＝打卡后刷新重进按钮应直接「✓ 已打卡」、摸鱼天数不回退。
+
+
 ### 2026-09-11（#287 群聊点头像拍一拍 + #288 群聊美化视图卡片化重设计——用户连报「群聊里我无法点击联系人的头像对联系人使用拍一拍」「群聊的美化设置不完整，和聊天里的美化设置不一样（ui可以重新设计）」——本次构建者：本会话（收口），已构建 sw mochi-mtvstgaz）
 - [AI-A 域 group-chat.js/group-chat.css/template.html + 跨域 mobile-adapt.js + build.mjs/FIX-REGRESSION.md/WORKLOG.md]（**改动文件：src/js/group-chat.js、src/css/group-chat.css、src/template.html、src/js/mobile-adapt.js（跨域）、build.mjs（哨兵+2=627）、FIX-REGRESSION.md（+287/+288 两行）、tools/verify-poke-map.mjs（新增 17 断言）、tools/verify-poke-gc.mjs（新增 10 断言）、WORKLOG.md + 产物 index.html/sw.js/version.json**；构建状态：**已构建·sw mochi-mtvstgaz**。⚠️ 编号交接备注：本批 build.mjs 哨兵两行先于并行批 #283 收口（74e5a00）落在树上，被该批选择性提交随 build.mjs 一并带入历史（当时产物未含本批 src，未误发）；本批收口构建补齐产物与本台账，哨兵/台账/src/产物就此对齐）。
 - **#287 拍一拍**：需求/反馈＝单聊点头像即拍（chat.js av click→openPokeCard），群聊从未实现（git -S 全史无）＝功能缺口。根因＝group-chat.js renderMsg 头像 fillAv 后无点击绑定、群聊页无拍一拍面板（#poke-card 属聊天页）。方案＝①template 群聊页内加 #gc-poke-card（复用 .poke-card 壳样式）；②成员消息（side in 且有 cid）头像 click→gcOpenPokeCard(cid)，cursor/title 同单聊；③字卡＝预设6 + getPokeCards 公用 + 当前桌面「我的拍一拍」（poke-groups-mine/存量 poke-user-mine，activeStore 读，去重平铺）；④发送文本 gcPokeTextOf 与 sendPoke 人称映射同构（含「句首我+句中有你」整句保留分支），落库定稿（同 gcPokeText 口径）；⑤拍后 memberReply 反应链（拍回/回复走群聊回复设置概率）；⑥开面板先收气泡菜单+input.blur，点外/✕ 关闭。验证＝行为等价性 tools/verify-poke-map.mjs：16 种字卡形态 单聊渲染 vs 群聊定稿全等（17/17）；端到端 tools/verify-poke-gc.mjs：真实 UI 全链路 **10/10**（发消息→成员回复→点头像弹「拍一拍·成员名」→选字卡→special=poke 落库+居中渲染+面板关→被拍成员反应→零未捕获错误）。跨域改动 mobile-adapt.js：FLOAT_SELECTORS + FLOAT_PANEL_SELECTORS 各加 '#gc-poke-card'（背景滚动锁/键盘停靠登记，同 #poke-card 家族，跨域一词登记请知悉）。【真机:待验证】群聊点成员头像→弹面板→选卡→居中「我的昵称 XX成员」→被拍成员按概率拍回/回复；「我的拍一拍」自定义字卡出现在面板。
 - **#288 美化视图重设计**：需求＝群聊美化 UI 与聊天设置页落差（实测截图：聊天侧整页卡片+图标，群聊侧半框纯文字行）＝纯渲染层落后，选项覆盖两侧本已齐（群聊 v3.28.x 起还多 时间轴颜色/正在输入颜色/发送按钮组）。方案＝renderBeautyView 重写为 gs-title 分组 + set-group.glass 卡片 + set-row gc-set-row 图标行（17 个线性 SVG 图标同聊天设置风格，.val 值回显），低对比警告条收进卡片；**兼容点全保留**：行类含 gc-set-row、.txt 仅行名（verify-gc-color 按文本精确点行）、全部行标签/弹窗调用不变、beautyRow 保留给主视图成员昵称行；group-chat.css 增 .gc-set-body 内布局 CSS + 暗色 active（.glass 走变量暗色自动适配）。验证＝截图预览（临时脚本，已删）六组卡片/图标/值回显/警告条与聊天设置页同观感；构建后复跑 verify-gc-settings **34/34** + verify-gc-color **14/14**（R1/R2 即按新行标记点行，兼容实测有效）。【真机:待验证】群聊设置→美化聊天 六组卡片渲染+暗色+每行弹窗与重设计前一致。
 - 编号说明：#280~#286 已被并行批占用（cf605fe #280/#281、#282 viewport、#283 语音池、#284 音乐 abort、#285 开关体检、#286 核实），本批顺延 **#287/#288**。
 - 验证汇总：node --check 过；构建哨兵 **625/625 全绿哑 0**、sw 15/15；verify-gc-settings **34/34**、verify-gc-color **14/14**、verify-poke-map **17/17**、verify-poke-gc **10/10**。
+- 全量套件基线（本批收口后首跑，供后续批对照）：verify:all @ 3e82516＝**185 通过 / 72 断言失败 / 0 环境 / 0 撞车 / 1 超时（258 项）**。本批改动半径定向复跑（gc/poke/group/beauty 过滤 18 项）红项 4 个经对照全为存量：gc-more(3)/gc-pool-scope(1)/gc-send(1)＝#130 在册口径；verify-poke-emoji-tabs 6/15 在基线 74e5a00 worktree 红绿对照**逐字同红**＝存量，本批零新增回归。72 项全量红为长期在库积压（含 pong-balance 694s/avatar-ta-change 超时等长跑型），按套件指引逐批对照台账清理，不属本批。
 - 待对方处理：无。 【真机:待验证】见上两条。
 
 ### 2026-09-11（#286 用户报障 iPhone16P/Safari「歌曲复制出来听不了、歌单复制只复制出一首」+「字卡批量导入页面固定最顶无法滑动」——本会话只核实零改动：报障全部出自 9/7 旧版，修复均已上线）
