@@ -6146,7 +6146,7 @@ padding-bottom:max(var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)), 8
 .gk-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
 .lk-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
 .lk-info { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:12px; color:var(--muted); }
-.lk-stage { position:relative; width:100%; display:flex; justify-content:center; }
+.lk-stage { position:relative; width:100%; min-height:190px; display:flex; justify-content:center; align-items:center; }
 .lk-board { display:grid; gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
 .lk-tile { display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg,#ffffff,#eef1f6); border:1px solid rgba(0,0,0,.1); border-radius:9px; box-shadow:0 1px 2px rgba(0,0,0,.08); cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:opacity .18s, transform .18s; }
 [data-theme="dark"] .lk-tile { background:linear-gradient(180deg,#3a4048,#2c3138); border-color:rgba(255,255,255,.12); }
@@ -6157,8 +6157,7 @@ padding-bottom:max(var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)), 8
 .lk-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
 .m3-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
 .m3-info { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:12px; color:var(--muted); }
-.m3-stage { position:relative; width:100%; display:flex; justify-content:center; }
-.m3-board { display:grid; grid-template-columns:repeat(8,1fr); gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+.m3-stage { position:relative; width:100%; min-height:190px; display:flex; justify-content:center; align-items:center; } .m3-board { display:grid; grid-template-columns:repeat(8,1fr); gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
 .m3-tile { display:flex; align-items:center; justify-content:center; background:rgba(127,127,127,.09); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:transform .12s; }
 [data-theme="dark"] .m3-tile { background:rgba(255,255,255,.08); }
 .m3-tile.m3-sel { outline:2px solid #5b8ff9; transform:scale(1.1); }
@@ -9070,9 +9069,9 @@ transition-duration: .01ms !important;
     <!-- v3.8.y：底部统一装进一个卡片框（版本/加载/提示/按钮成一整体，与顶部品牌卡片呼应） -->
     <div class="splash-footcard">
       <!-- v3.8.y：底部版本块——两行：名称+版本 / 部署时间+实时秒数（实时秒写入 #splash-ver-live） -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1789092876112">
-        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.551</b></span>
-        <span class="sv-deploy">部署于 2026-09-11 10:14<span id="splash-ver-live"></span></span>
+      <div class="splash-ver" id="splash-ver" data-build-ts="1789093184966">
+        <span class="sv-app">Mochi 字卡传讯 <b>v3.26.554</b></span>
+        <span class="sv-deploy">部署于 2026-09-11 10:19<span id="splash-ver-live"></span></span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
            只显示加载提示；就绪后按钮才出现（clock.js 控制显隐） -->
@@ -10252,7 +10251,7 @@ transition-duration: .01ms !important;
           <div class="txt">清除本地数据</div>
         </div>
       </div>
-      <div class="ver">Mochi 字卡传讯 v3.26.551</div>
+      <div class="ver">Mochi 字卡传讯 v3.26.554</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -10547,7 +10546,7 @@ transition-duration: .01ms !important;
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v3.26.551</span>
+              <span class="lic-ver">v3.26.554</span>
             </div>
             <div class="lic-p">原创极简风情侣聊天模拟器：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <div class="lic-pills">
@@ -88031,4 +88030,4 @@ lastHeal: his
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mtwbpe8g -->
+<!-- __MOCHI_EOF__ mtwbw0jq -->
