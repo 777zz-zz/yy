@@ -136,6 +136,12 @@ const openGame = async (btnId) => {
 };
 
 // ================= B 组：运行时 =================
+// B0 #308：未开局时棋盘为空，stage 必须有最小高度——否则「开始对局」覆盖层被压成一条横线＝面板像打不开
+await openGame('more-linkup');
+await sleep(250);
+r = J(await evalJs("(function(){var s=document.getElementById('lk-stage'),b=document.getElementById('lk-btn-start');if(!s||!b)return 'missing';var br=b.getBoundingClientRect();return JSON.stringify({stageH:Math.round(s.getBoundingClientRect().height),btnH:Math.round(br.height)});})()"));
+check('B0 未开局舞台≥150px 且开始按钮≥30px（不被压成横线）', r !== 'missing' && r.stageH >= 150 && r.btnH >= 30, JSON.stringify(r));
+await evalJs("(function(){var p=document.getElementById('chat-linkup-panel');if(p)p.hidden=true;return true;})()");
 // B1 五子棋：开面板 → 11×11 棋盘 + 下一手 + 悔棋
 await openGame('more-gomoku');
 let r = J(await evalJs("(function(){var p=document.getElementById('chat-gomoku-panel');return JSON.stringify({open:!p.hidden});})()"));
