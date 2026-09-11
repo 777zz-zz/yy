@@ -116,7 +116,16 @@ w.DEFAULT_CARD_DATA.dict = presetDictBak;
 w.quoteSpellResetDict();
 ok(split('蹦蹦跳跳跳')[0] !== '蹦蹦跳跳跳', 'F2 词典缓存重置生效（恢复后不再切出该词）');
 ok(split('今天天气很好').includes('天气'), 'F3 扩展词库参与切分：今天天气很好 → 含「天气」', JSON.stringify(split('今天天气很好')));
-ok(split('我想去北京吃火锅').includes('北京') && split('我想去北京吃火锅').includes('火锅'), 'F4 扩展词库参与切分：北京/火锅', JSON.stringify(split('我想去北京吃火锅')));
+ok(split('我想去北京吃火锅').includes('火锅') && !split('我想去北京吃火锅').includes('北京'), 'F4 普通词「火锅」整词切分，地名「北京」已剔除', JSON.stringify(split('我想去北京吃火锅')));
+// —— G #301 v4：专名过滤（情侣场景，词典不含地名/机构/人名）——
+const extAll = new Set();
+(D.dict_ext || []).forEach(g => { if (String(g[0]).indexOf('词库') === 0) (g[1] || []).forEach(x => extAll.add(x)); });
+const baseAll = new Set();
+((D.dict || []).filter(g => String(g[0]).indexOf('词库') === 0)).forEach(g => (g[1] || []).forEach(x => baseAll.add(x)));
+const placeWords = ['中国', '北京', '上海', '天安门', '人民政府', '国务院', '鄂州', '鄂州市', '广东', '深圳', '解放军', '共产党'];
+const leaked = placeWords.filter(x => extAll.has(x) || baseAll.has(x));
+ok(leaked.length === 0, 'G1 地名/机构词不在词典（基础+扩展）', leaked.join(','));
+ok(extAll.has('天气') && baseAll.has('火锅') && baseAll.has('旅行'), 'G2 剔除专名后普通常用词仍在（天气/火锅/旅行，基础或扩展任一）');
 
 console.log('\n== verify-quote-spell: ' + pass + ' 通过 / ' + fail + ' 失败 ==');
 process.exit(fail ? 1 : 0);

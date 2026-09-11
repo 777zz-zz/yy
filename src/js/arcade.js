@@ -179,6 +179,8 @@
     try { render(); } catch (e) {}
   };
   function closePanel() { if (panel) panel.hidden = true; }
+  // FIX 2026-09-11 #308 游乐室 × 关不掉：closeBtn 取到后从未绑 click（全文件唯一挂点在这，别处不代调 closeArcadePanel），任何机型都关不掉＝设备无关的漏绑；stopPropagation 同 chat.js rpCloseBtn 模式（防冒泡触发 more-arcade/more 面板委托）
+  if (closeBtn) closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
   window.closeArcadePanel = closePanel;
   document.addEventListener('contact-switched', () => { try { closePanel(); } catch (e) {} });
 
