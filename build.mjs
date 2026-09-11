@@ -89,6 +89,21 @@ const cssFiles = ['base.css', 'home.css', 'chat-main.css', 'chat-pages.css', 'ma
 const jsFiles = ['device.js', 'idb.js', 'contacts.js', 'applock.js', 'media-pool.js', 'storage-slim.js', 'clock.js', 'tabs.js', 'desktop-slider.js', 'quote-cards.js', 'personalize.js', 'chat.js', 'group-chat.js', 'chatcard.js', 'chat-settings.js', 'reply-settings.js', 'fav-settings.js', 'default-cards-data.js', 'dict-ext-data.js', 'default-cards.js', 'quote-spell.js', 'mood-followup-data.js', 'mood-reply-cards.js', 'ta-mood-data.js', 'ta-mood.js', 'music-player.js', 'calendar.js', 'divination.js', 'avatar-lib.js', 'ta-ask.js', 'ck-question.js', 'incoming-requests.js', 'ta-invite.js', 'bg-keep.js', 'records.js', 'call.js', 'mail.js', 'feed.js', 'loc-lib.js', 'p2-features.js', 'gift-shop.js', 'memo-app.js', 'memo-arc.js', 'my-arc.js', 'period.js', 'accounting.js', 'garden.js', 'room.js', 'drift-bottle.js', 'decision.js', 'group-decision.js', 'pong.js', 'snake-game.js', 'breakout.js', 'connect-four.js', 'coop-mine.js', 'fishing.js', 'memory-game.js', 'gomoku.js', 'linkup.js', 'match3.js', 'auction.js', 'arcade.js', 'mood-diary.js', 'sfx.js', 'fullscreen.js', 'data-backup.js', 'pwa.js', 'cjian.js', 'feature-hub.js', 'mobile-adapt.js'];
 
 let html = read('template.html');
+// v3.26.x #301：模板 HTML 注释配平守卫——开屏批 07a6cab 曾在红包注释行漏写 `-->`
+// （结尾误成 `*/}`），注释一路吞到下一个 `-->`，净少吃一个 `<div class="set-group">`
+// 开标签：后续 `</div>` 连锁把 them-sec → #page-chat-settings → .phone 手机壳全部
+// 提前闭合，底部导航 .tabbar/音乐悬浮窗/消息弹窗等落成 body 直接子节点；body 是
+// flex 横排居中，手机壳与 tabbar 并排坐＝整壳被推左出屏 ~59px、tabbar 挤出屏右、
+// 右侧露灰底（2026-09-11 用户报「手机端 UI 完全乱了」实锤，div 总数恰好配平所以
+// 肉眼/普通 diff 查不出）。此处构建时硬校验注释标记必须成对，失衡直接退出。
+{
+  const opens = (html.match(/<!--/g) || []).length;
+  const closes = (html.match(/-->/g) || []).length;
+  if (opens !== closes) {
+    console.error('✗ 模板 HTML 注释配平失败：<!-- ' + opens + ' 个 vs --> ' + closes + ' 个——存在未闭合注释，会把后续标签吞进注释、连锁打碎 .phone 手机壳结构（#301）。用 grep -n "<!--" src/template.html 逐个核对最近的注释改动。');
+    process.exit(1);
+  }
+}
 const styles = cssFiles.map(f => minifyCss(read(join('css', f)))).join('\n');
 // 每个 JS 文件独立 try/catch 包裹：单文件运行时报错不再连坐后续所有功能
 // （如某个文件在特定设备抛错，之前会导致之后文件的绑定全部失效）
@@ -921,6 +936,8 @@ const FIX_SENTINELS = [
   { name: '#306 拍卖会「不拍了」举牌行内可见样式（删则半透明白底+白字在白卡上完全隐形＝按钮像消失）', file: 'css/chat-pages.css', needle: '.au-bids .pong-overlay-btn2 { background:rgba(0,0,0,.07); color:var(--ink,#222); }' },
   { name: '#306 小游戏共享全屏容器 .game-fs（fixed 满视口 + iOS 高度修复同款表达式，删则全屏按钮失效）', file: 'css/chat-pages.css', needle: 'height:100vh; height:min(var(--mochi-ios-h, 100dvh), 100dvh);' },
   { name: '#306 全屏切换接线·面板 toggle game-fs + 图标 ⛶/⤢（gomoku 代表登记，删则按钮点了没反应）', file: 'js/gomoku.js', needle: "panel.classList.toggle('game-fs', isFs)" },
+  // ==== 2026-09-11 #301 手机端整页 UI 错乱收口（红包注释漏 `-->` 吞标签 → .phone 提前闭合 → tabbar 落 body 层被 flex 居中挤出屏）====
+  { name: '#301 红包注释正确闭合（删则注释吞掉「红包」标题+set-group 开标签，后续 </div> 连锁提前闭合设置页与 .phone 手机壳＝整页 UI 错乱、底部导航出屏）', file: 'template.html', needle: 'chat.js trySystemAutoSend 读 cs-rp-auto-prob -->' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

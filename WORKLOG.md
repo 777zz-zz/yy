@@ -1,3 +1,18 @@
+### 2026-09-11 08:5x（#301 手机端整页 UI 错乱根因修复——红包注释漏 `-->` 吞标签连锁打碎 .phone 手机壳，底部导航被 flex 居中挤出屏——本次构建者：本会话，热修收口）
+- [AI-B 域 src/template.html（1 行）+ 跨域 build.mjs（注释配平守卫 + 哨兵 +1）+ tools/verify-dom-shell.mjs（新增 8 断言）+ FIX-REGRESSION.md（+301 行）+ WORKLOG.md + 产物 index.html/sw.js/version.json]（**构建状态：已构建·本条目内热修收口**）。
+- 用户报障「手机端 UI 位置偏离/桌面底部导航变成竖着/UI 完全乱了」+ 截图（整页被放大左裁、右侧露灰底+白浮条）。无头复现实锤：390×844 标准视口下产物 `.phone` 落 x=-59、body scrollWidth=449、`.tabbar` 落 [331,449]（视口 390）＝截图形态，与机型/浏览器无关。
+- 根因（追溯至 07a6cab 引入，4fcb012 收口构建起线上带病）：template.html「红包」注释行结尾误写 `*/}` 漏 `-->`，注释一路吞到下一个 `-->`（#297 注释尾），净吃掉「红包」标题行 + `<div class="set-group">` 开标签 + 整行 cs-rp-auto-prob；其后 `</div>` 连锁把 them-sec(function) → #page-chat-settings → **.phone 手机壳**逐一提前闭合，tabbar/sm-float/tc-mask/desk-msg 全部落成 body 直接子节点。html/body 是 `flex; justify-content:center` 横排居中：手机壳(390) 与 tabbar(min 118) 并排成 508px flex 行，居中＝壳 x=-59、tabbar 出屏右、右侧露灰底。**div 总数恰好配平**（文本计数恒定），肉眼/普通配平检查/verify-desk-layout 全查不出——只能靠真解析器；禁 JS 对照实证为纯解析层问题，与任何 JS 无关。
+- 修复：①该注释行补 `-->`（1 行）；②build.mjs 构建期硬校验模板 `<!--`/`-->` 配平，失衡退出 1（防同类）；③哨兵 +1（红包注释闭合锚，删则构建拦截）；④新增 tools/verify-dom-shell.mjs：L1 禁 JS 纯解析断言（tabbar/sm-float/tc-mask/desk-msg 父节点=.phone、设置页数据分区在设置页内）+ L2 运行时断言（phone x=0、tabbar 完整在视口内、body 无水平溢出），verify-suite 自动发现。
+- 验证：node build.mjs 构建过、哨兵全绿哑 0、verify-dom-shell 8/8（修复前产物 5/8 红＝脚本有牙）。
+- 待对方处理：无（本批独立热修；树上另有 docs/阿里云OSS 文档与 #306 会话的 tools/verify-new-games.mjs 噪音，均不入包）。【真机:待验证】手机端刷新后：桌面整体位置回正、底部导航可见、右侧灰底消失。
+
+### 2026-09-11（云端备份设计文档 v1.2：按真实代码库+浏览器协议三轮核查修订 v1.1-fixed，共 11 项——仅 docs 改动，零 src/零构建）
+- [仅 docs/阿里云OSS云端备份-设计方案-fixed.md（未跟踪文件，本会话覆写），未碰任何 src，构建状态：不适用]（本次构建者：非本会话；#302 收口构建与本条无关）。
+- 高危修正（原稿照做会 403/无法实现）：① `Date` 是浏览器禁设头（Fetch/XHR forbidden header names），签名改 `x-oss-date`——值占 StringToSign 时间戳位且同时计入 CanonicalizedOSSHeaders（对齐官方 ali-oss SDK signUtils.js，N5）；② 「301 解析 Location 重签」浏览器不可实现（自动跟随+跨域剥 Authorization+拿不到 Location）→ 降级为 List 探测预检 + 403 分类（⑤'）；③ ListObjects `?prefix=/max-keys=` 必须入 CanonicalizedResource 签名（N7）；④ 上传体钉死 `createJsonPack().finish()` Blob 单对象 `xhr.send(blob)`，Content-Type 修订为「发送头与签名串严格一致=application/json;charset=utf-8」（Blob 自动带 type，原「钉死为空」不可行）。
+- 一致性/规范修正：存储键去冒号改 `cloud-oss-*` 七根键 + contacts.js `EXCLUDE` 登记为必需项（N8，同 fish-log 惯例防 migrateLegacy 误迁）；时钟偏差 RequestTimeTooSkewed 错误映射（N9）；自动备份 ≥24h 节流+当日退避 + `cloud-oss-lastfail` 状态键（N10）；§9 哨兵按 v3.27.x 铁律改逻辑锚点（N11，弃 window.cloudOss 函数名锚）；§9 手测 11 与 §11.1 N2 行同步修订版政策（清掉「静默降级」残留）；新增 §11.2 三轮核查清单（N5~N11+核对属实项，官方依据已注明）。
+- 验证：docs-only 无需哨兵检查；全文 grep 复查 §C 悬空引用/旧行号 L423/L491/旧键名/`XMLHTTPRequest`/SSE-OOS 零残留（§11.2 小修行内对旧拼法的追溯性提及除外）。
+- 待对方处理：无。文档状态=待审阅；实现时按 §6 清单（cloud-backup.js/data-backup.js/contacts.js 均属 AI-B 域，跨域规则照旧）。
+
 ### 2026-09-11（#302 朋友圈「贴纸回复」+「回忆闪回」 / #303 心情日记本——**本批完工，并按树上各批委托完成整树收口构建**）
 - [AI-A 域 src/js/feed.js（#302）+ src/js/mood-diary.js（新建，#303）+ src/css/chat-pages.css（尾部追加两段样式）+ src/template.html（page-mood 页 + more-mood 工具按钮 + 功能介绍页 01 章三行/lg-count 22→25）+ 跨域 src/js/tabs.js（FULL_PAGES +page-mood）+ 跨域 src/js/mobile-adapt.js（FLOAT_SELECTORS +#feed-sticker-card，一词登记）+ 跨域 build.mjs（jsFiles +mood-diary.js，auction 后 sfx 前）+ src/pwa/notice.json（summary +1 条 hl）+ WORKLOG.md + 产物 index.html/sw.js/version.json]（**构建状态：已构建·sw mochi-mtw7pgd0**）。
 - #302 贴纸回复：配图动态操作栏新增「贴纸」（postCardHtml/postCardHtmlAll 两模板同加），选贴纸面板复用评论条同一贴纸来源（TA 表情包+我的表情包，只收 dataURL，#feed-sticker-card 固定底部 poke-card）；贴纸 {src|emoji,x,y,ts,role,owner,authorName} 存 post.stickers（上限 5 张），contentHtmlFor 渲染 .feed-sticker 绝对定位叠图（x/y 区块百分比）；自己贴的可点撤回（openModal 确认）；贴后 TA 按 fd-comment-prob 概率、评论速度同源延迟回贴一张（70% 用 TA 表情包、否则随机可爱 emoji）并 addNotice('comment') 进朋友圈通知。

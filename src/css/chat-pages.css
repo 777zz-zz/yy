@@ -3037,7 +3037,7 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 #chat-snake-panel { height:auto; max-height:86%; }
 #chat-snake-panel .poke-card-scroll { min-height:0; max-height:none; }
 #chat-snake-panel .poke-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.snake-head-actions { display:flex; align-items:center; gap:5px; margin-left:auto; flex-shrink:0; } /* #306：放不下时整组换行（配合 .poke-card-head 的 flex-wrap），不许压缩自身挤压标题 */
+.snake-head-actions { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:5px; margin-left:auto; flex:0 1 auto; min-width:0; } /* #306：头部放不下时自身先收缩、内部按钮换行（不收缩的话 max-content 直接溢出卡片右缘，✕ 被裁）；标题因 nowrap 不受挤压 */
 .snake-toggle { font-size:12px; font-weight:700; }
 .snake-toggle.on { background:var(--ink); color:#fff; }
 .snake-diff { font-size:13px; padding:4px 8px; border-radius:8px; border:1px solid rgba(0,0,0,.12); background:rgba(255,255,255,.6); color:var(--ink); outline:none; font-family:inherit; }

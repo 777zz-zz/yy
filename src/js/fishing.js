@@ -16,7 +16,7 @@
   function toggleFs() {
     isFs = !isFs;
     panel.classList.toggle('game-fs', isFs);
-    if (fsBtn) fsBtn.textContent = isFs ? '⤤' : '⛶';
+    if (fsBtn) fsBtn.textContent = isFs ? '⤢' : '⛶';
   }
   if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFs(); });
 

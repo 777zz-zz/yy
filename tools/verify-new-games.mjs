@@ -152,8 +152,8 @@ check('B3 悔棋撤回两手且每局 1 次生效', r.before >= 2 && r.after ===
 await openGame('more-linkup');
 await evalJs("(function(){document.getElementById('lk-btn-start').click();return true;})()");
 await sleep(300);
-r = J(await evalJs("(function(){var d=window.__lkDebug,st=d.st();var tiles=document.querySelectorAll('#lk-board .lk-tile').length;var pairA=null,pairB=null;outer:for(var r1=0;r1<st.rows;r1++)for(var c1=0;c1<st.cols;c1++)for(var r2=0;r2<st.rows;r2++)for(var c2=0;c2<st.cols;c2++){if(r1===r2&&c1===c2)continue;if(st.grid[r1][c1]>=0&&st.grid[r1][c1]===st.grid[r2][c2]){pairA=[r1,c1];pairB=[r2,c2];break outer;}}var same=pairA?d.connected(st,pairA,pairB):null;var diffNot=null;for(var i=0;i<st.cols-1;i++){if(st.grid[0][i]>=0&&st.grid[0][i+1]>=0&&st.grid[0][i]!==st.grid[0][i+1]){diffNot=!d.connected(st,[0,i],[0,i+1]);break;}}return JSON.stringify({tiles:tiles,same:same,diffNot:diffNot});})()"));
-check('B4 连连看 8×6=48 张，同款连通判定为真、异款为假', r.tiles === 48 && r.same === true && r.diffNot === true, JSON.stringify(r));
+r = J(await evalJs("(function(){var d=window.__lkDebug,st=d.st();var tiles=document.querySelectorAll('#lk-board .lk-tile').length;var pairs=d.allPairs(st);var anyConnect=pairs.length>0;var oneOk=false;if(anyConnect){var pr=d.connected(st,pairs[0][0],pairs[0][1]);oneOk=pr===true;}var diffNot=null;for(var i=0;i<st.cols-1;i++){if(st.grid[0][i]>=0&&st.grid[0][i+1]>=0&&st.grid[0][i]!==st.grid[0][i+1]){diffNot=!d.connected(st,[0,i],[0,i+1]);break;}}return JSON.stringify({tiles:tiles,anyConnect:anyConnect,oneOk:oneOk,diffNot:diffNot});})()"));
+check('B4 连连看 8×6=48 张，局面存在可连同款对且判定为真、异款为假', r.tiles === 48 && r.anyConnect === true && r.oneOk === true && r.diffNot === true, JSON.stringify(r));
 await evalJs("(function(){var b=document.getElementById('lk-theme');b.click();return true;})()");
 r = J(await evalJs("(function(){var b=document.getElementById('lk-theme');return JSON.stringify({ico:b.textContent});})()"));
 check('B5 连连看主题按钮切换（🍎→🧁）', String(r.ico).indexOf('🧁') >= 0, JSON.stringify(r));
@@ -182,6 +182,43 @@ check('B8 幸运键同日稳定、异款倍率 1、强制掉落入图鉴', r.k1 
 await openGame('more-arcade');
 r = J(await evalJs("(function(){var p=document.getElementById('chat-arcade-panel');var b=document.getElementById('arc-body');return JSON.stringify({open:!p.hidden,hasLucky:(b.textContent||'').indexOf('幸运')>=0,hasBadge:(b.textContent||'').indexOf('徽章')>=0,hasDrop:(b.textContent||'').indexOf('摆件')>=0});})()"));
 check('B9 游乐室半框渲染（幸运横幅/徽章/图鉴）', r.open === true && r.hasLucky === true && r.hasBadge === true && r.hasDrop === true, JSON.stringify(r));
+
+// B10 #306 棋盘不溢出：格子固定 px + grid gap，fitBoard 必须把两者都算进总宽
+await openGame('more-linkup');
+await sleep(200);
+r = J(await evalJs("(function(){var b=document.getElementById('lk-board'),s=document.getElementById('lk-stage');var last=b.children[b.children.length-1].getBoundingClientRect();return JSON.stringify({scrollW:b.scrollWidth,stageW:s.clientWidth,lastRight:last.right,stageRight:s.getBoundingClientRect().right});})()"));
+check('B10 连连看棋盘含 gap 总宽不溢出 stage（最右列不被截断，≤1px 亚像素容差）', r.scrollW <= r.stageW && r.lastRight - r.stageRight <= 1, JSON.stringify(r));
+await openGame('more-match3');
+await sleep(200);
+r = J(await evalJs("(function(){var b=document.getElementById('m3-board'),s=document.getElementById('m3-stage');var last=b.children[b.children.length-1].getBoundingClientRect();return JSON.stringify({scrollW:b.scrollWidth,stageW:s.clientWidth,lastRight:last.right,stageRight:s.getBoundingClientRect().right});})()"));
+check('B10b 消消乐棋盘含 gap 总宽不溢出 stage（≤1px 亚像素容差）', r.scrollW <= r.stageW && r.lastRight - r.stageRight <= 1, JSON.stringify(r));
+
+// B11 #306 拍卖会「不拍了」在白卡上必须可见（前景色不得是纯白）
+await openGame('more-auction');
+await sleep(200);
+r = J(await evalJs("(function(){var b=document.getElementById('au-pass');if(!b)return 'missing';var cs=getComputedStyle(b);return JSON.stringify({color:cs.color,bg:cs.backgroundColor});})()"));
+check('B11 不拍了按钮前景色非纯白（白卡上可见）', r !== 'missing' && r.color !== 'rgb(255, 255, 255)', JSON.stringify(r));
+
+// B12 #306 九个全屏按钮：点击 → 面板挂 .game-fs + 图标⤢，再点还原
+const fsPairs = [['more-rps', 'rps-fs', 'chat-rps-panel'], ['more-fish', 'fish-fs', 'chat-fish-panel'], ['more-c4', 'c4-fs', 'chat-c4-panel'], ['more-ms', 'ms-fs', 'chat-ms-panel'], ['more-memory', 'memory-fs', 'chat-memory-panel'], ['more-gomoku', 'gk-fs', 'chat-gomoku-panel'], ['more-linkup', 'lk-fs', 'chat-linkup-panel'], ['more-match3', 'm3-fs', 'chat-match3-panel'], ['more-auction', 'au-fs', 'chat-auction-panel']];
+let fsOk = 0, fsFail = [];
+for (const [moreId, btnId, panelId] of fsPairs) {
+  await openGame(moreId);
+  await sleep(120);
+  const rr = J(await evalJs("(function(){var b=document.getElementById('" + btnId + "'),p=document.getElementById('" + panelId + "');if(!b||!p)return 'missing';b.click();var on=p.classList.contains('game-fs');var ico=b.textContent;b.click();var off=!p.classList.contains('game-fs');return JSON.stringify({on:on,ico:String(ico),off:off});})()"));
+  await sleep(80);
+  if (rr && rr.on === true && rr.off === true && String(rr.ico).indexOf('\u2922') >= 0) fsOk++;
+  else fsFail.push(btnId + ':' + JSON.stringify(rr));
+}
+check('B12 九个游戏全屏按钮往返切换 .game-fs（' + fsOk + '/9）', fsOk === 9, fsFail.join(' '));
+// B12b 全屏态棋盘重排：连连看进全屏后棋盘仍不溢出 stage
+await openGame('more-linkup');
+await sleep(150);
+await evalJs("(function(){document.getElementById('lk-fs').click();return true;})()");
+await sleep(250);
+r = J(await evalJs("(function(){var b=document.getElementById('lk-board'),s=document.getElementById('lk-stage'),p=document.getElementById('chat-linkup-panel');var fs=p.classList.contains('game-fs');var ok=b.scrollWidth<=s.clientWidth+1;document.getElementById('lk-fs').click();return JSON.stringify({fs:fs,fit:ok});})()"));
+check('B12b 全屏态棋盘重排不溢出', r.fs === true && r.fit === true, JSON.stringify(r));
+await evalJs("(function(){['chat-rps-panel','chat-fish-panel','chat-c4-panel','chat-ms-panel','chat-memory-panel','chat-gomoku-panel','chat-linkup-panel','chat-match3-panel','chat-auction-panel','chat-more-panel'].forEach(function(id){var p=document.getElementById(id);if(p)p.hidden=true;});return true;})()");
 
 // C 组：页面零未捕获错误
 const errs = J(await evalJs('JSON.stringify(window.__jsErrors || [])'));

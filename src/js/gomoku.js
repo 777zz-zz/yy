@@ -35,7 +35,7 @@
   function toggleFs() {
     isFs = !isFs;
     panel.classList.toggle('game-fs', isFs);
-    if (fsBtn) fsBtn.textContent = isFs ? '⤤' : '⛶';
+    if (fsBtn) fsBtn.textContent = isFs ? '⤢' : '⛶';
     setTimeout(() => { try { if (typeof fitBoard === 'function') fitBoard(); } catch (e) {} }, 60);
   }
   if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFs(); });
