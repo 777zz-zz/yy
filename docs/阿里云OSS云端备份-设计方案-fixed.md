@@ -93,20 +93,22 @@ Authorization: OSS <AccessKeyId>:<Signature>
 
 `Signature = Base64( HMAC-SHA1(AccessKeySecret, StringToSign) )`
 
-`StringToSign` 规范串（不启用 STS、不用 Content-MD5 时）：
+**时间戳必须用 `x-oss-date`，不能用 `Date`（修复 N5，v1.2）**：`Date` 属于浏览器 Fetch/XHR 规范的 **forbidden header names**，`xhr.setRequestHeader('Date', …)` 会被**静默丢弃**（官方 ali-oss 浏览器版因此一律发 `x-oss-date`）。官方 V1 规则：**StringToSign 的时间戳位优先取 `x-oss-date` 的值，无 `x-oss-date` 才回退 `Date` 头**；且 `x-oss-date` 作为 `x-oss-*` 头**同时计入 CanonicalizedOSSHeaders**（与官方 ali-oss SDK `signUtils.js` 实现一致：Date 位取 `expires || headers['x-oss-date']`，CanonicalizedHeaders 不排除 x-oss-date）。`Date`/`x-oss-date` 都缺 → OSS 直接 403（官方错误码 0002-00000503）。请求头统一带 `x-oss-date: <new Date().toUTCString()>`（IMF-fixdate GMT 格式）。
+
+`StringToSign` 规范串（不启用 STS、不用 Content-MD5 时；与官方 ali-oss SDK 逐位对齐）：
 
 ```
 <VERB>\n
-\n                          // Content-MD5（空）
-\n                          // Content-Type（空，或填 application/json）
-<Date>\n                   // IMF-fixdate，如 new Date().toUTCString()
-\n                          // CanonicalizedOSSHeaders（空，无需 x-oss-* 头）
-<CanonicalizedResource>    // /<bucket>/<object> （含?子资源，本项目无）
+\n                                        // Content-MD5（空）
+<Content-Type>\n                          // 与实际发送的请求头严格一致（见下；GET 下载为空）
+<x-oss-date 的值>\n                       // 时间戳位：取 x-oss-date 头的值（N5：浏览器禁设 Date）
+x-oss-date:<同上值>\n                     // CanonicalizedOSSHeaders：x-oss-* 全量计入，小写、字典序、每行 key:value
+<CanonicalizedResource>                   // /<bucket>/<object>；列目录须带 ?子资源（N7，见 §3.3）
 ```
 
 浏览器端用 `crypto.subtle.importKey('raw', secret, {name:'HMAC', hash:'SHA-1'})` 后 `sign()`，再 `btoa` 得到签名。前提：**HTTPS 安全上下文**（GitHub Pages 天然满足）。
 
-**Content-Type 与签名严格一致（修复 N4）**：`StringToSign` 里的 Content-Type 必须与**实际发送的请求头**完全一致，否则 HMAC 校验失败 → 403。最稳做法是 **Content-Type 一律留空（不设置该请求头）**，签名串同步为空；若要携带 `application/json`，则发送头与签名串必须用同一字节串，不能一个空一个填。实现时以"空"为唯一标准，避免此坑。
+**Content-Type 与签名严格一致（修复 N4，v1.2 修订）**：`StringToSign` 里的 Content-Type 必须与**实际发送的请求头**完全一致，否则 HMAC 校验失败 → 403。注意：XHR `send(blob)` 且未手动设 Content-Type 时，浏览器会自动带上 `blob.type`（本项目导出 Blob 的 type 恒为 `application/json;charset=utf-8`），所以 v1.1 的「钉死为空」既不必要也不可行。实现标准改为：**上传统一 `setRequestHeader('Content-Type','application/json;charset=utf-8')`，签名串 Content-Type 行写同一字节串**；GET 下载无 body，该行为空。判定标准是「严格一致」，不是「必须为空」。
 
 **要求用户配置 Bucket CORS**（§7 有步骤）：`AllowedOrigin` 配 `*`（或你的 GitHub Pages 域名）、`AllowedMethod` 配 `PUT/GET/HEAD`、`AllowedHeader` 配 `*`。否则浏览器跨域直传/下载会被拦。
 
@@ -114,15 +116,17 @@ Authorization: OSS <AccessKeyId>:<Signature>
 
 * Host：`<bucket>.<region-endpoint>`，如 `mybackup.oss-cn-hangzhou.aliyuncs.com`。
 
-* 上传：`PUT https://<bucket>.<endpoint>/<object>`，body 为备份文本（单段或按 §C 分段串传）。
+* 上传：`PUT https://<bucket>.<endpoint>/<object>`，body 为 `window.exportToData()` 产出的 **Blob 单对象直传**（`xhr.send(blob)`；修复 N6——该 Blob 引用合并不经手超长字符串，天然规避 OOM；不做「分段对象+manifest」，与导入端 `doImportGo` 的单 JSON 文件路径完全对齐）。
 
-* 下载：`GET https://<bucket>.<endpoint>/<object>`，得到备份文本。
+* 下载：`GET https://<bucket>.<endpoint>/<object>` → `responseType='text'` → `JSON.parse` → 走现有 `doImportGo`，与本地文件导入同一条路。
 
-* 对象名（object key）：建议 `mochi-backup/<年-月-日__时-分-秒>.json`，按时间戳存多份。恢复时从云端列目录取最新一份（`GET ?prefix=mochi-backup/`）或由用户指定。**注意** **`ListObjects`** **返回的是 XML**：需解析 `<Key>`/`<LastModified>` 并按 `LastModified` 降序取最新（修复 §11#6）。
+* 列目录：`GET https://<bucket>.<endpoint>/?max-keys=<n>&prefix=mochi-backup/`。**`prefix`/`max-keys` 等 query 子资源必须按字典序拼进 CanonicalizedResource 参与签名**（如 `/<bucket>/?max-keys=…&prefix=…`；修复 N7——v1.1 §3.2「本项目无 ?子资源」与列目录需求自相矛盾，漏拼必 SignatureDoesNotMatch）。
+
+* 对象名（object key）：`mochi-backup/<ASCII时间戳>.json`（如 `mochi-backup/2026-09-11_073000.json`；纯 ASCII 避免中文键名的签名/URL 编码分叉），按时间戳存多份。恢复时列目录按 `LastModified` 降序取最新或由用户指定。**注意** **`ListObjects`** **返回的是 XML**：需解析 `<Key>`/`<LastModified>`（修复 §11#6）。
 
 **传输实现约定（修复 §11#2/#3/#4 + 点④/⑤/N1 相关）**：
 
-* **上传/下载一律用** **`XMLHTTPRequest`**（配 `upload.onprogress` / `onprogress` 做进度条）。`fetch` 拿不到上传进度且 body 会再占一份内存，大备份下不适用。
+* **上传/下载一律用** **`XMLHttpRequest`**（配 `upload.onprogress` / `onprogress` 做进度条；上传体 `send(blob)` 直传）。`fetch` 拿不到上传进度且 body 会再占一份内存，大备份下不适用。
 
 * **只新增、不覆盖（版本化）**：对象名带时间戳，每次上传生成新对象，自动/手动都不删除旧版（`last` 只记录本次）。这样即使某次上传的是坏备份，云端仍有历史好份可回。
 
@@ -132,9 +136,9 @@ Authorization: OSS <AccessKeyId>:<Signature>
 
   * 方案 B（保守，够用）：§7 仅 `Put/Get/Head/List` 不含删除，云备份只增不清理（靠对象小、低频，个人可接受）。
 
-* **301 重定向重签（修复点⑤）**：OSS 区域不符会返回 301（`Location` 带正确 region 端点）并要求**按新 Host 重签**。发送 PUT/GET 前应尽量先确认 region；遇 301 时解析 `Location`、对正确 region 端点**重新签名后重发**，并对用户友好报错"请检查 Bucket 的 Region/Endpoint"。若直接按旧 Host 重试会一直 301/403 且报错难懂。
+* **Region 错误检测（修复点⑤，v1.2 降级为可实现的务实版）**：v1.1 的「遇 301 解析 `Location` 重签」在浏览器做不到——浏览器自动跟随 301、跨域重定向会剥掉 `Authorization` 头（Fetch 规范），XHR/fetch 都拿不到 `Location`（`redirect:'manual'` 只返回无 Location 的 opaqueredirect）；实际表现是「配错 region → 被静默重定向到正确 region → 因 Authorization 被剥而 403」，报错难懂。务实方案：**列目录/上传前先做一次轻量 List 探测**（`max-keys=1`，探测通过才继续），探测/上传失败的 403 统一映射为友好提示「请检查 Bucket 的 Region/Endpoint 与密钥」（分类见 §5.1 失败行）。
 
-* **上传前健康 + 体积校验（默认全量，仅提示）**：校验导出数据非空、含聊天记录等关键内容；估算体积并复用现有导出常量。**默认始终完整上传**：成品超过 **120MB（`MODE_IMPORT_WARN`）** 仅提示"备份较大，新设备可能导不回"，不阻断；本机用量超过 **150MB（`MODE_ASK_BYTES`）** 仅提示"完整上传较慢/耗流量"，不删减（修复 §11#2/#3）。超大库靠分段打包（§C）全量可传。
+* **上传前健康 + 体积校验（默认全量，仅提示）**：校验导出数据非空、含聊天记录等关键内容；估算体积并复用现有导出常量。**默认始终完整上传**：成品超过 **120MB（`MODE_IMPORT_WARN`）** 仅提示"备份较大，新设备可能导不回"，不阻断；本机用量超过 **150MB（`MODE_ASK_BYTES`）** 仅提示"完整上传较慢/耗流量"，不删减（修复 §11#2/#3）。超大库靠分段打包（#104，Blob 产物）全量可传。
 
 * **下载解析的内存峰值**：下载 JSON → `JSON.parse` → `doImportGo` 遍历，为大备份手机可能会卡，属可接受取舍，界面上大文件先预警。
 
@@ -152,16 +156,19 @@ Authorization: OSS <AccessKeyId>:<Signature>
 | `xy-home-v2:cloud-oss-ak`       | AccessKeyId                                   | string     |
 | `xy-home-v2:cloud-oss-sk`       | AccessKeySecret                               | string     |
 | `xy-home-v2:cloud-oss-last`     | 最近一次成功上传的本地时间戳                                | number     |
+| `xy-home-v2:cloud-oss-lastfail` | 最近一次失败上传的本地时间戳（支撑「上次备份失败」提示，N10）    | number     |
 
 **密钥存储提示**：`ak` / `sk` 仅存本机 localStorage。文档中要告知用户"请勿在公共/他人设备勾选记住、注意设备安全"。
 
 **密钥防泄漏 + 体验闭环（修复 §11#1）**：
 
-* `cloud-oss-ak` / `cloud-oss-sk` **必须从一切全量导出（本地下载、云上传）中排除**。排除不是"导出 getter 加黑名单"，而是**导出收集循环里的键过滤（修复 N1）**：`data-backup.js` 现有对 `SNAPSHOT_KEY` 用的是 `if (k === …) continue`，且写在**两个收集阶段**——LS 收集与 IDB 收集两处都有（见源码 `src/js/data-backup.js` L423 / L491）。**两处必须同时**加上对 `cloud-oss-ak`、`cloud-oss-sk` 的过滤；只漏一处，密钥就会从另一条路径漏进备份。`bucket` / `endpoint` 非机密，**保留不排除**——云恢复后原样保留，用户只需重填密钥（修复点⑥）。
+* `cloud-oss-ak` / `cloud-oss-sk` **必须从一切全量导出（本地下载、云上传）中排除**。排除不是"导出 getter 加黑名单"，而是**导出收集循环里的键过滤（修复 N1）**：`data-backup.js` 现有对 `SNAPSHOT_KEY` 用的是 `if (k === …) continue`，且写在**两个收集阶段**——LS 收集与 IDB 收集两处都有（见源码 `src/js/data-backup.js` 收集循环两处 `if (k === SNAPSHOT_KEY) continue`，现 L429 / L499；行号会随改动漂移，以 grep 定位为准）。**两处必须同时**加上对 `cloud-oss-ak`、`cloud-oss-sk` 的过滤；只漏一处，密钥就会从另一条路径漏进备份。`bucket` / `endpoint` 非机密，**保留不排除**——云恢复后原样保留，用户只需重填密钥（修复点⑥）。
 
 * 因此**云恢复后本机密钥为空**：恢复流程结束会自动跳回「云端备份」设置，提示用户重填 `ak` / `sk`（这是预期行为，不是丢数据）；`bucket` / `endpoint` 已保留，无需重填。设置页 upload 前若发现密钥为空，也提示先填写。
 
 * 排除后，`exportToData` 产出的备份里不应出现 `cloud-oss-ak` / `cloud-oss-sk` 的**值**（bucket/endpoint 允许保留）——作为哨兵自检项之一（见 §9）。
+
+* **键名与根键登记（修复 N8，v1.2）**：上表 7 键均为**无冒号根键** `xy-home-v2:cloud-oss-*`（由 `cloud-oss:xxx` 改名——带冒号会撞 `<cid>:<key>` 命名空间观感，虽然现状 contacts.js 对「冒号前不是已知联系人 id 的未知键」保守视为命名空间键不迁移）。无冒号根键**必须**登记进 `contacts.js` 的 `EXCLUDE` 数组（同 `fish-log`/`cc-groups-public` 惯例），否则每次刷新会被 migrateLegacy 当旧顶层业务键迁进 default 桌面并删根键（#126/#233 同族事故史）。
 
 ***
 
@@ -177,7 +184,7 @@ Authorization: OSS <AccessKeyId>:<Signature>
 
 * **防重入 + 失败可见（修复点⑦）**：上传中再次触发需**加锁/去重**，恢复进行中用户退出应可 `abort` 中断（不产生半成品覆盖）；自动备份失败后要提示"上次备份失败 / 从未备份"，避免用户误以为已上传。手动上传点击后按钮置灰/显示进行中，直至结束。
 
-* **自动备份 scope（修复 N2，默认全量完整）**：自动备份与手动一致，**默认完整上传，把全部功能数据都存进云端、分毫不减**——分段打包（§C）已解决超大单字符串 OOM，即便本机超大也能全量上传（只是慢/耗流量），**不做任何静默删减**。判定沿用现有导出阈值作**提示**而非降级：
+* **自动备份 scope（修复 N2，默认全量完整）**：自动备份与手动一致，**默认完整上传，把全部功能数据都存进云端、分毫不减**——分段打包（#104，Blob 产物）已解决超大单字符串 OOM，即便本机超大也能全量上传（只是慢/耗流量），**不做任何静默删减**。判定沿用现有导出阈值作**提示**而非降级：
 
   * 取 `navigator.storage.estimate().usage` → **≤150MB（`MODE_ASK_BYTES`）→** **`full`**，无多余提示；
 
@@ -187,7 +194,7 @@ Authorization: OSS <AccessKeyId>:<Signature>
 
   * 「不含音乐 / 只文字」的**降级改为用户可选的开关（默认关）**：仅当用户主动勾选"自动备份为省流量可降级"，且本机超大时才生效；**默认保证全量**，绝不主动丢音乐/图片/语音。
 
-  * 自动备份无人值守**绝不弹窗**，但默认输出完整包；手动上传始终完整。（正确理解：分段打包已兜住 OOM，超大库全量也能传，极端如 `chat-msgs` 单键 514MB 只是慢，不因大小丢数据。）
+  * 自动备份无人值守**绝不弹窗**，但默认输出完整包；手动上传始终完整。（正确理解：分段打包（#104，Blob 产物）已兜住 OOM，超大库全量也能传，极端如 `chat-msgs` 单键数百 MB 只是慢，不因大小丢数据。）
 
 ```
 用户点「上传到云端」/ 自动备份触发
@@ -203,17 +210,18 @@ Authorization: OSS <AccessKeyId>:<Signature>
 ② 调用 window.exportToData()      ← 复用 data-backup.js 导出收集，已排除 ak/sk 密钥
         │  按 scope 收集（完整/不含音乐/只文字）
         ▼
-②b 组装上传体：复用 createJsonPack 分段打包（单段≤1M，避免超长字符串 OOM，
-        │  设计修正 C——导出不是"单个 JSON 字符串"，#104 已修该 OOM）；大数据按需串段上传
+②b 上传体：exportToData() 产物即 createJsonPack().finish() 的 **Blob**（#104 已修超长
+        │  字符串 OOM，设计修正 C）；云端上传 = xhr.send(blob) 单对象直传（N6）——不串段、不重建长字符串
         ▼
 ③ 健康 + 体积校验：非空、含聊天等；超阈值预警让用户确认（修复 §11#2/#3）
         │
         ▼
-④ XHR：PUT https://<bucket>.<endpoint>/mochi-backup/<时间戳>.<ext>（版本化，只新增不覆盖；遇 301 重签）
-        │  upload.onprogress → 进度条；手写 HMAC 签名
+④ XHR：PUT https://<bucket>.<endpoint>/mochi-backup/<ASCII时间戳>.json（版本化，只新增不覆盖；
+        │  PUT 前 List 探测已确认 Region/CORS 可用，§3.3）；send(blob)，upload.onprogress → 进度条；
+        │  手写 HMAC 签名用 x-oss-date（§3.2，N5）
         ▼
 成功 → 记录 last → 提示「已备份到云端，xx MB」
-失败 → 分类提示（网络错 / 权限错 403 / CORS 被拦 / region 错），不删旧版
+失败 → 分类提示（网络错 / 403 权限或密钥错 / RequestTimeTooSkewed→提示校准系统时钟（N9）/ CORS 被拦 / Region 错→§3.3 探测），不删旧版
 ```
 
 ### 5.2 恢复（手动）
@@ -222,7 +230,8 @@ Authorization: OSS <AccessKeyId>:<Signature>
 用户点「从云端恢复」
         │
         ▼
-① XHR 列目录（解析 XML）→ 列出 mochi-backup/* + 各自时间；默认选最新一份
+① XHR 列目录（解析 XML；`?prefix=`/`max-keys=` 参与签名 N7）→ 列出 mochi-backup/* + 各自时间；默认选最新一份。
+   该请求兼作 Region/CORS 探测（§3.3），探测通过才进入后续步骤
         ▼
 ② 新旧判断（修复 §11#4 + 点①）：以 **OSS 服务端 `Last-Modified`**（列目录 XML 已返回）而非本机
    `last` 做新旧比对（本机时钟可能不准/被改）。云端最新若【早于】本机 last → 提示
@@ -236,7 +245,7 @@ Authorization: OSS <AccessKeyId>:<Signature>
         ▼
 ⑤ 走现有 doImportGo(data)   ← 复用原子恢复 + idbRestore 回填
         ▼
-⑥ 进度面板 → 刷新页面 → 自动跳回「云端备份」设置，提示重填 ak/sk（修复 §11#1）
+⑥ 进度面板 → 刷新页面 → 回到「云端备份」设置提示重填 ak/sk（修复 §11#1；跳转实现=恢复前记 sessionStorage 标记、启动后定位，从简可只提示）
 ```
 
 ### 5.3 与现有导出的共享
@@ -258,8 +267,9 @@ Authorization: OSS <AccessKeyId>:<Signature>
 | 文件                              | 改动                                                                                                                                                |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **新增** `src/js/cloud-backup.js` | 主体：设置项读写、HMAC 签名、上传/下载/列目录、进度反馈、自动备份调度                                                                                                            |
-| `build.mjs`                     | `jsFiles` 数组在 `data-backup.js` **之前**插入 `cloud-backup.js`（其调用 `window.exportToData` / `doImportGo`，均在页面加载后、运行时调用，见 §8 顺序说明）；`FIX_SENTINELS` 加一行哨兵 |
-| `data-backup.js`                | 抽出 `window.exportToData()`（scope 收集 + `createJsonPack` 打包，**只在 LS 与 IDB 两个收集阶段**加 `ak/sk` 排除，见 N1）；暴露恢复入口（已有 `doImportGo` 可直接引用）                  |
+| `build.mjs`                     | `jsFiles` 数组在 `data-backup.js` **之后**插入 `cloud-backup.js`（其调用 `window.exportToData` / `doImportGo`，均在页面加载后、运行时调用，先插后插均可用，放后面依赖语义更直观）；`FIX_SENTINELS` 加**逻辑锚点**哨兵（v3.27.x 铁律，修复 N11，见 §9） |
+| `data-backup.js`                | 抽出 `window.exportToData()`（scope 收集 + `createJsonPack` 打包，产物即 Blob；**只在 LS 与 IDB 两个收集阶段**加 `ak/sk` 排除，见 N1）；暴露恢复入口（已有 `doImportGo` 可直接引用）                  |
+| `contacts.js`                   | `EXCLUDE` 数组登记 7 个 `cloud-oss-*` 全局根键（修复 N8，**必需项**：无冒号根键不登记会被 migrateLegacy 当旧顶层业务键迁进 default 并删根键）                                                   |
 | `src/template.html`             | 设置页「云端备份」分组**静态锚点 + JS 渲染两边同步**（本项目的设置页是 `template.html` 里的 `.page#page-*-settings` / `.set-row` 静态锚点 + JS 绑定，不是纯 JS 渲染，见设计修正 D）                  |
 | 设置 CSS（`setting.css`）           | 新增分组/输入框样式（沿用现有设置页风格）                                                                                                                             |
 | `mobile-adapt.js`               | 进度遮罩加入 `FLOAT_SELECTORS` 列表（复用 `cc-import-progress` 即可，若已有则不新增）                                                                                   |
@@ -282,7 +292,7 @@ Authorization: OSS <AccessKeyId>:<Signature>
 
    * 方法：`PUT, GET, HEAD, POST, OPTIONS`
 
-   * 允许 Headers：`*`（前端 HMAC 签名需带 `Authorization`、`Content-Type`、`Date`、`x-oss-*`）
+   * 允许 Headers：`*`（前端 HMAC 签名需带 `Authorization`、`Content-Type`、`x-oss-date` 等 `x-oss-*`；浏览器禁设 `Date`，见 §3.2）
 
    * 暴露 Headers：`ETag`（上传/下载校验）
 
@@ -304,7 +314,7 @@ Authorization: OSS <AccessKeyId>:<Signature>
    | --- | --- | --- |
    | 来源 Origin | `https://<用户名>.github.io` | 只填你的站点；可加多行容纳主域/可能路径，**不要用 `*`** |
    | 允许 Methods | `PUT`、`GET`、`HEAD`、`POST`、`OPTIONS` | `OPTIONS` 是跨域写文件的前置预检，必须带 |
-   | 允许 Headers | `*` | 前端 HMAC 签名要带 `Authorization`/`Content-Type`/`Date`/`x-oss-*` |
+   | 允许 Headers | `*` | 前端 HMAC 签名要带 `Authorization`/`Content-Type`/`x-oss-date` 等 `x-oss-*` |
    | 暴露 Headers | `ETag` | 上传/下载校验用 |
    | 缓存时间 | `600` 秒 | 预检结果缓存 |
 
@@ -316,23 +326,23 @@ Authorization: OSS <AccessKeyId>:<Signature>
 
 ## 8. 关键风险与边界
 
-* **依赖顺序**：`cloud-backup.js` 运行时才调用 `window.exportToData` / `doImportGo`，均在页面加载后可用，不受 build 顺序影响；但为清晰仍将其排在 `data-backup.js` 前。
+* **依赖顺序**：`cloud-backup.js` 运行时才调用 `window.exportToData` / `doImportGo`，均在页面加载后可用，不受 build 顺序影响；排在 `data-backup.js` **后**依赖语义更直观（v1.2 改）。
 
 * **`crypto.subtle`** **需 HTTPS**：GitHub Pages 已 HTTPS，OK；本地 `file://` 打开无法用 crypto.subtle，云端备份在 `file://` 下不可用（文档注明）。
 
-* **CORS 未配置**：报错应明确提示"请检查 Bucket 跨域设置"，而非笼统"网络错误"；region 错（301）应提示检查 Region/Endpoint（修复点⑤）。
+* **CORS 未配置**：报错应明确提示"请检查 Bucket 跨域设置"，而非笼统"网络错误"；region 错经 List 探测暴露后提示检查 Region/Endpoint（修复点⑤ v1.2：浏览器无法解析 301 Location 重签，见 §3.3）。
 
 * **超大单个对象**：OSS 单对象上限 5GB，聊天备份（含图片 base64）一般远小于此；暂不做分片，若未来超限再补。
 
 * **文件：一定不能把 AccessKey 写进任何源码/产物**，构建后哨兵检查只验证代码特征，密钥在运行时才输入。
 
-* **自动备份的触发**：建议低频（每次启动后/手动触发为主），避免频繁写 OSS 产生流量费用；默认关，用户开。**必须在本地数据就绪（`mochi-restore-done`）之后再触发**（修复点③）：启动瞬间 `idbRestore` 未回填时导出的包为空/半成品，不能覆盖云端正常备份；未就绪则延迟到就绪后补跑，并做健康校验（§5.1⓿）。自动备份失败时要提示"上次备份失败/从未备份"，避免用户误以为已上传。自动备份用**确定性 scope**（§5.1 N2），不弹交互选范围。
+* **自动备份的触发**：建议低频（每次启动后/手动触发为主），避免频繁写 OSS 产生流量费用；默认关，用户开。**必须在本地数据就绪（`mochi-restore-done`）之后再触发**（修复点③）：启动瞬间 `idbRestore` 未回填时导出的包为空/半成品，不能覆盖云端正常备份；未就绪则延迟到就绪后补跑，并做健康校验（§5.1⓿）。自动备份失败时要提示"上次备份失败/从未备份"，避免用户误以为已上传。自动备份用**确定性 scope**（§5.1 N2），不弹交互选范围。**触发节奏定量（修复 N10，v1.2）**：距 `cloud-oss-last` 成功 **≥24h** 才触发（默认档），失败当日退避（同一天最多补试 2 次），避免日用机每天全量上传的流量/请求费用；`cloud-oss-last` / `cloud-oss-lastfail` 两键支撑设置页「上次备份失败 / 从未备份」静态提示。
 
 ***
 
 ## 9. 验收与回归防线（实现后执行）
 
-* 新增 `FIX_SENTINELS` 哨兵：`cloud-backup.js` 的 `window.cloudOss` 或 HMAC 签名函数名特征。
+* 新增 `FIX_SENTINELS` 哨兵（修复 N11，v1.2）：按 v3.27.x 铁律用**逻辑锚点**——needle 必须是「逻辑生效时必然存在、被改必然消失」的表达式片段，**禁止用名字**（`window.cloudOss`/函数名在重写时可保留名字改掉实现＝哑哨兵）。建议锚：① ak/sk 排除条件表达式（`cloud-oss-ak`/`cloud-oss-sk` 的精确匹配式）；② `x-oss-date` 参与签名串构造的那行代码；③ `mochi-restore-done` 就绪门控判定式。
 
 * **抽取回归自检（修复点②）**：对同一份本地数据，比对抽取 `exportToData` **前后**产出的字段全集（逐层 key 一致、逐定点键齐全），确认抽取未少读任何 `xy-home-v2:` 键；另确认导出产物不含 `cloud-oss-ak` / `cloud-oss-sk` 的**值**（修复点⑥）。可建 `tools/verify-export-keys.mjs` 供构建者复用。
 
@@ -348,10 +358,14 @@ Authorization: OSS <AccessKeyId>:<Signature>
   8. **恢复防误覆盖**：云端最新早于本机最后一个好份时给出提示并需二次确认；展示 `backupSummary` 预览（修复 §11#4）。
   9. **上传进度**：大备份上传显示进度条（XHR `upload.onprogress`）；超阈值体积预警（修复 §11#3）。
   10. **自动备份就绪门控**（修复点③）：应用启动即触发自动备份开关，确认在 `idbRestore` 未回填时**不会上报空包**；就绪标志出现后才上传，且成功后才更新 `last`；未就绪/失败有明确提示。
-  11. **自动备份不弹窗**（修复 N2）：自动备份触发时界面无任何选范围弹窗；大数据自动降级为不含音乐/只文字。
-  12. **301 重签**（修复点⑤）：把 region 配错 → 应能重签成功或给出"检查 Region/Endpoint"的明确提示，而非笼统 403。
-  13. **Content-Type 签名一致**（修复 N4）：上传携带/不携带 `Content-Type: application/json` 时，HMAC 均通过、201；手工把发送头与签名串改得不一致时 → 403（验证钉死为空的正确性）。
+  11. **自动备份不弹窗**（修复 N2，v1.2 与修订版政策同步）：自动备份触发时界面无任何选范围弹窗；默认完整上传**不降级**——「省流量降级」仅在用户主动开开关（默认关）时生效。
+  12. **Region 错误可诊断**（修复点⑤ v1.2）：把 region 配错 → List 探测即失败，给出「检查 Bucket 的 Region/Endpoint」明确提示，而非笼统 403（浏览器无法解析 301 Location 重签，§3.3）。
+  13. **Content-Type 签名一致**（修复 N4 v1.2）：上传以 `Content-Type: application/json;charset=utf-8` 发送且签名串同行写同一字节串 → 201；把发送头或签名串**单侧**改成不一致值 → 403（验证「严格一致」，不再验证「为空」）。
   14. **清理可选**（修复 N3）：策略不含 `DeleteObject` 时，多次上传只新增不删除、不报错；含删除时，超出 N 份才滚动淘汰最旧。
+  15. **x-oss-date 实测**（修复 N5）：无头/真机抓包确认请求头含 `x-oss-date`、不含 `Date`（禁设头），上传/列目录均成功——钉死浏览器端时间戳方案。
+  16. **列目录签名含子资源**（修复 N7）：带 `?max-keys=&prefix=` 参与签名的 ListObjects 成功返回 XML；红绿对照——故意从 CanonicalizedResource 去掉 query 子串 → SignatureDoesNotMatch。
+  17. **时钟偏差映射**（修复 N9）：设备时间偏 >15 分钟 → 报错分类为「请校准系统时间」（RequestTimeTooSkewed），不误报权限/网络错。
+  18. **自动备份节流**（修复 N10）：距上次成功 <24h 再次启动不重传；存在 `cloud-oss-lastfail` 时设置页显示「上次备份失败」。
 
 ***
 
@@ -385,7 +399,7 @@ Authorization: OSS <AccessKeyId>:<Signature>
 
 | # | 缺陷                   | 说明 / 缓解（已回写）                                                  |
 | - | -------------------- | ------------------------------------------------------------- |
-| 3 | 大备份上传内存 + 无进度        | §3.3 / §5.1④：一律用 `XMLHTTPRequest` 拿 `upload.onprogress`；超阈值预警 |
+| 3 | 大备份上传内存 + 无进度        | §3.3 / §5.1④：一律用 `XMLHttpRequest` 拿 `upload.onprogress`；超阈值预警 |
 | 4 | 恢复覆盖本地保护不足           | §5.2③：二次确认 + `backupSummary` 预览 + 提示先上传保底                     |
 | 5 | 多设备并发覆盖无版本合并         | 版本化按服务端时间（§5.2②）；恢复前时间比对；低频可接受                                |
 | 6 | `ListObjects` 返回 XML | §3.3：解析 `<Key>/<LastModified>` 按时间取最新                         |
@@ -405,13 +419,31 @@ Authorization: OSS <AccessKeyId>:<Signature>
 | ②  | `exportToData` 抽取有回归风险         | §5.3 / §6 仅改封装不动字段；§9 字段全集一致自检（`tools/verify-export-keys.mjs`） |
 | ③  | 自动备份未就绪上报空包                    | §5.1⓿ / §8 以 `mochi-restore-done` 为就绪门控                        |
 | ④  | 版本化累积无清理                       | §3.3 保留最近 N 份滚动淘汰；N3：清理须授 `DeleteObject`，未授则只增积累（§7 方案 A/B）    |
-| ⑤  | Bucket region 填错 → 301 重定向     | §3.3 解析 `Location` 按正确 region 重签 + 友好报错                        |
+| ⑤  | Bucket region 填错 → 301 重定向     | §3.3 List 探测预检 + 403 分类友好报错（v1.2：浏览器无法解析 Location 重签，见下方 ⑤'） |
 | ⑥  | 密钥排除范围过大                       | §4 / §6 / §9 只排除 `ak/sk`，保留 bucket/endpoint                    |
 | ⑦  | 上传竞态 / 失败不可见                   | §5.1 加锁/去重、`abort`、失败提示、按钮置灰                                   |
-| N1 | 密钥排除落点是"收集循环两处"，非 getter       | §4 在 LS 与 IDB 两个收集阶段都加过滤（L423/L491）                            |
-| N2 | 自动备份会弹交互选范围                    | §5.1 确定性 scope：小则完整、大则静默降级不含音乐/只文字                             |
+| N1 | 密钥排除落点是"收集循环两处"，非 getter       | §4 在 LS 与 IDB 两个收集阶段都加过滤（`if (k === SNAPSHOT_KEY) continue` 同款 continue 行，现 L429/L499） |
+| N2 | 自动备份会弹交互选范围                    | §5.1 确定性 scope：默认完整**不降级**；「省流量降级」为用户可选开关、默认关（v1.2 与修订版政策同步） |
 | N3 | 版本清理依赖 `DeleteObject` 权限       | §3.3 / §7：清理可选，仅在授权删除时启用；否则只增积累                                |
-| N4 | `Content-Type` 签名与发送头不一致 → 403 | §3.2：钉死为空（不设头），签名串同步为空                                         |
+| N4 | `Content-Type` 签名与发送头不一致 → 403 | §3.2：发送头与签名串严格一致（v1.2 修订：统一 `application/json;charset=utf-8`；Blob 自动带 type，「为空」不可行） |
+
+### 11.2 三轮核查补充清单（2026-09-11，v1.2；N5~N11 均已回写正文）
+
+> 本轮对照真实代码库与浏览器协议逐条核验 v1.1-fixed 后产出。官方依据：Fetch/XHR 规范 forbidden header names 含 `Date`（浏览器静默丢弃）；阿里云 V1 签名文档「StringToSign 时间戳位优先取 `x-oss-date`」；官方 ali-oss SDK `signUtils.js`（Date 位取 `expires || headers['x-oss-date']`，CanonicalizedHeaders 不排除 x-oss-date）；错误码 0002-00000503（缺日期头 → 403）。
+
+| 点 | 缺陷 | 缓解落点 |
+| --- | --- | --- |
+| N5 | `Date` 是浏览器禁设头，v1.1「Date 头 + 空 CanonicalizedOSSHeaders」签名方案在浏览器必然 403 | §3.2 改用 `x-oss-date`：发 `x-oss-date` 头、其值占 StringToSign 时间戳位且同时计入 CanonicalizedOSSHeaders；§7 CORS 说明同步 |
+| ⑤' | 「301 解析 Location 重签」浏览器不可实现：自动跟随重定向 + 跨域剥 `Authorization` + XHR/fetch 拿不到 Location | §3.3 降级为 List 探测预检 + 403 分类友好提示；§5.2①/§8/§9 手测 12 同步 |
+| N6 | 上传体形态三处矛盾（单对象 / 「分段串传」/ 「不重建长字符串」互相打架） | §3.3/§5.1②b 钉死：`createJsonPack().finish()` 的 Blob 单对象 `xhr.send(blob)`，与 `doImportGo` 单 JSON 文件路径对齐 |
+| N7 | ListObjects 的 `?prefix=`/`max-keys=` 必须按字典序拼进 CanonicalizedResource 参与签名，v1.1 写了「本项目无 ?子资源」与列目录需求自相矛盾，漏拼必 SignatureDoesNotMatch | §3.2 规范串注释 + §3.3 列目录条目 + §9 手测 16 |
+| N8 | `cloud-oss:xxx` 带冒号键名撞 `<cid>:<key>` 命名空间观感（现状 contacts.js 保守规则兜得住，但违项目惯例）；改无冒号根键后若不登记 EXCLUDE，会被 migrateLegacy 当旧顶层业务键迁进 default 并删根键 | §4 键名改 `cloud-oss-*` 七键 + §6 contacts.js `EXCLUDE` 登记（**必需项**） |
+| N9 | 设备时钟偏差 >15 分钟所有请求 403（RequestTimeTooSkewed），v1.1 错误分类缺该映射——而 §5.2② 自己承认本机时钟可能不准 | §5.1 失败分类 + §9 手测 17 |
+| N10 | 自动备份无最小间隔（「每次启动后」＝日用机每天全量上传）；§4 缺「上次失败」状态键 | §8：距 `cloud-oss-last` ≥24h 触发 + 当日退避；§4 加 `cloud-oss-lastfail` |
+| N11 | §9 哨兵建议用 `window.cloudOss`/函数名特征，违反 AGENTS.md v3.27.x「needle 选逻辑锚点、不选名字」铁律 | §9 哨兵改逻辑表达式锚 |
+| — | 小修：SSE-OOS 错别字、「§C」悬空引用×2、L423/L491 行号漂移（现 429/499）、`XMLHTTPRequest` 拼写、对象名改纯 ASCII、§3.1 表头/断点续传行修复、§5.1 流程图与正文同步 | 随正文修订 |
+
+**核对属实项（本轮已对照源码确认，实现时不必再查）**：导出两处收集循环（data-backup.js L429/L499）；`MODE_ASK_BYTES`=150MB / `MODE_IMPORT_WARN`=120MB（L314/L315）；`createJsonPack`＝#104 Blob 分段打包（`finish()` 返回 Blob）；`mochi-restore-done`/`backupSummary`/`doImportGo`/`SNAPSHOT_KEY` 均存在；恢复走 `clearLs()` 整库清空（L1121）故「云恢复后密钥为空」成立；诊断只出键名+大小不出值（device.js 键明细）无密钥泄漏面；`build.mjs` `SCRIPT_CHUNK_LIMIT` 拆块（修正 B 成立）；设置页静态锚点 + JS 绑定（修正 D 成立）。
 
 ***
 
@@ -425,9 +457,9 @@ Authorization: OSS <AccessKeyId>:<Signature>
 | D     | 设置页是 `template.html` 静态锚点 + JS 绑定，非纯 JS 渲染                                                                                               | §6：云端设置组 = 锚点 + JS 两边同步                                     |
 | B     | `build.mjs` 已是按 `SCRIPT_CHUNK_LIMIT` 拆 script 块，非整包逐行压缩                                                                                  | §3.1：官方 SDK 理由从"撑爆"收敛为"占据/增大 script 块与包体"                   |
 | N3    | 滚动清理依赖 `DeleteObject`，最小授权不含则静默失败                                                                                                        | §3.3 / §7：清理设为可选，仅授权删除时启用；未授权只增积累（§7 方案 A/B）                |
-| N4    | `Content-Type` 与签名串不一致会导致 HMAC 403                                                                                                       | §3.2：Content-Type 钉死为空，发送头与签名串严格一致                          |
+| N4    | `Content-Type` 与签名串不一致会导致 HMAC 403                                                                                                       | §3.2：发送头与签名串严格一致（v1.2：统一 `application/json;charset=utf-8`） |
 | 阈值策略  | 按用户要求：云端默认 **full 全量、分毫不减**；150MB(ASK)/120MB(IMPORT\_WARN) 仅作**提示**不降级、不删减；降级改为可选开关默认关（初稿"超大自动降级"与 200MB 已弃用）                            | §3.3 / §5.1 N2：默认 full；>150 提示不断、>120 提 示；分段打包兜底 OOM，超大也能全量 |
-| 数据层确认 | `doExport/doImportGo/SNAPSHOT_KEY/mochi-restore-done/idbSet/idbGet`、`activePrefix`（per-cid）均存在；`data-backup.js` L423/L491 是 LS/IDB 两收集阶段 | §4 N1 落点已按此写死                                               |
+| 数据层确认 | `doExport/doImportGo/SNAPSHOT_KEY/mochi-restore-done/idbSet/idbGet`、`activePrefix`（per-cid）均存在；`data-backup.js` 两收集阶段＝`if (k === SNAPSHOT_KEY) continue` 所在行（现 L429/L499，随改动漂移，以 grep 定位） | §4 N1 落点已按此写死                                               |
 
-> N3、N4 经复核成立，已并入正文（§3.2 / §3.3 / §7 / §9 / §11.1）。初始"更多缺陷"扫描提出的其余项均已收口，**暂无后续待并入项**。
+> N3、N4 经复核成立已并入正文；**v1.2 三轮核查新增 N5~N11（见 §11.2）均已回写正文**。初始"更多缺陷"扫描提出的其余项均已收口，暂无后续待并入项。
 

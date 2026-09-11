@@ -4075,7 +4075,9 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 /* ---- 连连看：图案牌两折连线 ---- */
 .lk-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
 .lk-info { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:12px; color:var(--muted); }
-.lk-stage { position:relative; width:100%; display:flex; justify-content:center; }
+/* #308：未开局时棋盘为空 → stage 高 0 → 绝对定位的「开始对局」覆盖层被压成一条横线＝面板像打不开。
+   给舞台最小高度（开局后棋盘 5~6 行 230px+，不会被它约束），让标题+开始按钮有容身之地 */
+.lk-stage { position:relative; width:100%; min-height:190px; display:flex; justify-content:center; align-items:center; }
 .lk-board { display:grid; gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
 .lk-tile { display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg,#ffffff,#eef1f6); border:1px solid rgba(0,0,0,.1); border-radius:9px; box-shadow:0 1px 2px rgba(0,0,0,.08); cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:opacity .18s, transform .18s; }
 [data-theme="dark"] .lk-tile { background:linear-gradient(180deg,#3a4048,#2c3138); border-color:rgba(255,255,255,.12); }
@@ -4088,7 +4090,7 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 /* ---- 消消乐：8×8 三消 ---- */
 .m3-wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px 4px; }
 .m3-info { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:12px; color:var(--muted); }
-.m3-stage { position:relative; width:100%; display:flex; justify-content:center; }
+.m3-stage { position:relative; width:100%; min-height:190px; display:flex; justify-content:center; align-items:center; } /* #308：同连连看，防未开局时开始覆盖层被压扁 */
 .m3-board { display:grid; grid-template-columns:repeat(8,1fr); gap:3px; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
 .m3-tile { display:flex; align-items:center; justify-content:center; background:rgba(127,127,127,.09); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; line-height:1; transition:transform .12s; }
 [data-theme="dark"] .m3-tile { background:rgba(255,255,255,.08); }
