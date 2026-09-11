@@ -25,6 +25,18 @@
   const endBtn = document.getElementById('c4-btn-end');
   const soundBtn = document.getElementById('c4-sound');
   const closeBtn = document.getElementById('c4-close');
+  const fsBtn = document.getElementById('c4-fs');
+
+  // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
+  // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----
+  let isFs = false;
+  function toggleFs() {
+    isFs = !isFs;
+    panel.classList.toggle('game-fs', isFs);
+    if (fsBtn) fsBtn.textContent = isFs ? '⤤' : '⛶';
+    setTimeout(() => { try { if (typeof fitBoard === 'function') fitBoard(); } catch (e) {} }, 60);
+  }
+  if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFs(); });
   const partnerNameEl = document.getElementById('c4-partner-name');
   const sideNameEl = document.getElementById('c4-side-name');
 
@@ -485,6 +497,7 @@
     if (sideNameEl) sideNameEl.textContent = name;
   }
   window.openC4Panel = function () {
+    try { if (isFs) toggleFs(); } catch (e) {}
     // 先亮面板再做次要初始化：任何一步异常都不影响半框本身弹出
     if (!boardEl.children.length) { try { buildBoard(); } catch (e) {} }
     panel.hidden = false;

@@ -30,23 +30,36 @@
   const bagBtn = document.getElementById('au-bag');
   const soundBtn = document.getElementById('au-sound');
   const closeBtn = document.getElementById('au-close');
+  const fsBtn = document.getElementById('au-fs');
+
+  // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
+  // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----
+  let isFs = false;
+  function toggleFs() {
+    isFs = !isFs;
+    panel.classList.toggle('game-fs', isFs);
+    if (fsBtn) fsBtn.textContent = isFs ? '⤤' : '⛶';
+    setTimeout(() => { try { if (typeof fitBoard === 'function') fitBoard(); } catch (e) {} }, 60);
+  }
+  if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFs(); });
   const partnerNameEl = document.getElementById('au-partner-name');
 
   const STEP1 = 100, STEP5 = 500, STEP13 = 1314;      // 加价档（分）
   // 拍品池：base=底价(分)，wish=拍下后彩蛋文案；TA 心理价位 = base × 状态系数
+  // #301 mystery:1 = 蒙面拍品（开拍只给描述猜是什么，落槌/拍走才揭晓）
   const POOL = [
     { ico: '🌹', name: '永生玫瑰', desc: '不会枯的那种', base: 520, wish: '花会谢，心意不会。' },
     { ico: '🧸', name: 'Mochi 玩偶', desc: '捏起来很解压', base: 900, wish: '想我的时候就捏捏它。' },
     { ico: '🧋', name: '奶茶年卡', desc: '每天一杯半糖去冰', base: 1314, wish: '第一杯请你喝。' },
     { ico: '🎧', name: '降噪耳机', desc: '世界的开关', base: 1990, wish: '戴上就是我的世界。' },
-    { ico: '🎮', name: '复古掌机', desc: '内置 520 个小游戏', base: 2600, wish: '双人游戏留给你。' },
+    { ico: '🎮', name: '复古掌机', desc: '内置 520 个小游戏，猜猜是什么', base: 2600, wish: '双人游戏留给你。', mystery: 1 },
     { ico: '📷', name: '拍立得', desc: '把此刻留住', base: 3130, wish: '第一张拍你。' },
-    { ico: '⌚', name: '情侣对表', desc: '一对，走时一致', base: 5200, wish: '以后时间一起过。' },
+    { ico: '⌚', name: '情侣对表', desc: '一对，走时一致，猜猜是什么', base: 5200, wish: '以后时间一起过。', mystery: 1 },
     { ico: '🧣', name: '手织围巾', desc: '织错的针脚都是心意', base: 1314, wish: '歪的地方是我想你。' },
     { ico: '🍰', name: '下午茶券', desc: '双人份，周末有效', base: 520, wish: '周末不见不散。' },
-    { ico: '🎫', name: '演唱会门票', desc: '你偶像的，两张', base: 3999, wish: '合唱那首你跑调的。' },
+    { ico: '🎫', name: '演唱会门票', desc: '两张，你偶像的，猜猜是什么', base: 3999, wish: '合唱那首你跑调的。', mystery: 1 },
     { ico: '💐', name: '全明星花束', desc: '什么花都有一点', base: 1314, wish: '像你，什么都好。' },
-    { ico: '💎', name: '小钻戒', desc: '别紧张，不是那种', base: 9999, wish: '先占个位置。' }
+    { ico: '💎', name: '小钻戒', desc: '别紧张，不是那种……大概', base: 9999, wish: '先占个位置。', mystery: 1 }
   ];
   // TA 行为状态：系数=心理价位底价倍数；stepPref=TA 加价档偏好；talk=开场台词
   const TA_MODES = {
@@ -117,6 +130,29 @@
     try { const a = JSON.parse(localStorage.getItem(bagKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
   }
   function saveBag(a) { try { localStorage.setItem(bagKey(), JSON.stringify(a)); } catch (e) {} }
+  // #301 TA 回寄：TA 拍走的拍品 2~4 天后寄回给你（进你的 🎒，附一句留言）
+  function giftsKey() { return prefix() + ':au-gifts-pending'; }
+  function loadPending() { try { const a = JSON.parse(localStorage.getItem(giftsKey()) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function savePending(a) { try { localStorage.setItem(giftsKey(), JSON.stringify(a)); } catch (e) {} }
+  let giftTimer = null;
+  function checkGifts() {
+    const pend = loadPending();
+    if (!pend.length) return;
+    const now = Date.now();
+    let delivered = 0;
+    const rest = [];
+    pend.forEach((p) => {
+      if (p.due <= now) {
+        const bag = loadBag();
+        bag.unshift({ ico: p.ico, name: p.name, fen: 0, ts: Date.now(), from: 'ta' });
+        saveBag(bag);
+        delivered++;
+        try { if (window.chatAddIn) window.chatAddIn(T('TA') + ' 把之前拍走的「' + p.name + '」寄给你了，纸条上写：拍品该物归原主呀', {}); } catch (e) {}
+      } else rest.push(p);
+    });
+    if (rest.length !== pend.length) savePending(rest);
+    if (delivered && statusEl && !panel.hidden) setStatus('📬 ' + T('TA') + ' 寄来了 ' + delivered + ' 件拍品，已收进 🎒');
+  }
 
   // ---- 场次状态 ----
   let st = null;
@@ -148,9 +184,12 @@
       if (st.leader === 'none') bidTxt = '起拍价 ' + yuan(st.cur);
       else if (st.leader === 'you') bidTxt = '你的出价 ' + yuan(st.cur);
       else bidTxt = T('TA') + ' 出价 ' + yuan(st.cur);
+      // #301 蒙面拍品：开拍只给描述，落槌才揭晓
+      const showIco = item.mystery ? '🎁' : item.ico;
+      const showName = item.mystery ? '神秘拍品' : item.name;
       itemEl.innerHTML =
-        '<div class="au-ico">' + item.ico + '</div>' +
-        '<div class="au-name">' + item.name + '</div>' +
+        '<div class="au-ico">' + showIco + '</div>' +
+        '<div class="au-name">' + showName + '</div>' +
         '<div class="au-desc">' + item.desc + '</div>' +
         '<div class="au-bid">' + bidTxt + '</div>';
     }
@@ -171,6 +210,19 @@
     });
   }
   function setStatus(html) { if (statusEl) statusEl.innerHTML = html; }
+  // #301 中局 TA 泡泡（同其余小游戏）
+  let bubbleT = null;
+  function taSay(text) {
+    if (!stageEl) return;
+    try {
+      let b = stageEl.querySelector('.tg-bubble');
+      if (!b) { b = document.createElement('div'); b.className = 'tg-bubble'; stageEl.appendChild(b); }
+      b.textContent = text;
+      b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+      clearTimeout(bubbleT);
+      bubbleT = setTimeout(() => { try { b.classList.remove('show'); } catch (e) {} }, 1600);
+    } catch (e) {}
+  }
 
   // ---- 拍卖流程 ----
   function newSession() {
@@ -187,9 +239,17 @@
     const item = st.lots[st.idx];
     st.cur = item.base;
     st.leader = 'none';
-    st.limit = Math.max(100, Math.round(item.base * TA_MODES[st.mode].factor / 10) * 10);
+    let factor = TA_MODES[st.mode].factor;
+    st.lucky = (typeof window.arcadeMult === 'function') && window.arcadeMult('auction') === 2;
+    if (st.lucky) factor *= 0.8;   // #301 幸运拍卖：TA 今天手松，价位打八折
+    st.limit = Math.max(100, Math.round(item.base * factor / 10) * 10);
     renderLot();
-    setStatus('槌起！' + T('TA') + TA_MODES[st.mode].talk + '——你来出价');
+    if (st.lucky) {
+      if (typeof window.arcadeMarkLuckyPlayed === 'function') window.arcadeMarkLuckyPlayed('auction');
+      setStatus('🍀 今日幸运拍卖：' + T('TA') + '今天手松——' + TA_MODES[st.mode].talk + '，你来出价');
+    } else {
+      setStatus('槌起！' + T('TA') + TA_MODES[st.mode].talk + '——你来出价');
+    }
   }
   // 你的加价：出价 = 当前价 + step；随后轮到 TA 掂量
   function myBid(step) {
@@ -230,9 +290,11 @@
       st.leader = 'ta';
       sfxBid();
       renderLot();
+      taSay(pick(['跟！', '这件我要了', '就这点诚意？', '继续呀']));
       setStatus(T('TA') + '举牌：' + yuan(st.cur) + '——到你出价了');
       updateBidBtns();
     } else {
+      if (st.mode === 'bluff') taSay(pick(['好吧，被你看穿了', '其实……也就那样']));
       taFold();
     }
   }
@@ -251,10 +313,16 @@
     saveStats(s);
     const item = st.lots[st.idx];
     sfxHammer();
+    // #301 TA 回寄排队：2~4 天后寄回给你
+    try {
+      const pend = loadPending();
+      pend.push({ ico: item.ico, name: item.name, due: Date.now() + (2 + Math.floor(Math.random() * 3)) * 86400000 });
+      savePending(pend);
+    } catch (e) {}
     showOverlay(T('TA') + '拍得了',
       '<div class="au-ov-ico">' + item.ico + '</div>' +
       '<div class="pong-end-stat">' + item.name + ' · ' + yuan(st.cur) + ' 归 ' + T('TA') + '</div>' +
-      '<div class="pong-end-stat">TA 的钱包不动，你的心意币一分没少</div>',
+      '<div class="pong-end-stat">📬 不过 TA 拍走的拍品，过几天会寄回给你</div>',
       st.idx + 1 < st.lots.length ? '下一件' : '结算');
     setStatus(T('TA') + '把「' + item.name + '」抱走了');
     try {
@@ -303,12 +371,13 @@
     bag.push({ ico: item.ico, name: item.name, fen: st.cur, ts: Date.now() });
     saveBag(bag);
     sfxWin(); sfxHammer();
+    taSay(pick(['被你拍走了…', '亏了亏了', '那件我本来想要来着']));
     if (balanceEl) balanceEl.textContent = walletOk() ? '心意币 ' + yuan(myBalance()) : '心意币 —';
     showOverlay('落槌！',
       '<div class="au-ov-ico">' + item.ico + '</div>' +
       '<div class="pong-end-stat">' + item.name + ' · ' + yuan(st.cur) + ' 拍下</div>' +
       '<div class="pong-end-stat">💌 ' + item.wish + '</div>' +
-      '<div class="pong-end-stat">已收进 🎒 小收藏（剩 ' + yuan(myBalance()) + '）</div>',
+      '<div class="pong-end-stat">已收进 🎒 小收藏（剩 ' + yuan(myBalance()) + '）· 可在 🎒 里转赠给 ' + T('TA') + '</div>',
       st.idx + 1 < st.lots.length ? '下一件' : '结算');
     setStatus('「' + item.name + '」是你的了，花了 ' + yuan(st.cur));
     try {
@@ -356,16 +425,40 @@
     } catch (e) {}
   }
 
-  // ---- 🎒 小收藏 ----
+  // ---- 🎒 小收藏（#301 支持转赠心意柜） ----
   function showBag() {
     const bag = loadBag();
     const body = bag.length
-      ? bag.slice().reverse().map((it) =>
-          '<div class="pong-end-stat">' + it.ico + ' ' + it.name + ' · ' + yuan(it.fen) + '</div>').join('')
+      ? bag.map((it, i) =>
+          '<div class="pong-end-stat au-bag-row">' + it.ico + ' ' + it.name + ' · ' + (it.from === 'ta' ? T('TA') + ' 寄来的' : yuan(it.fen)) +
+          (it.from === 'ta' ? '' : ' <button class="pong-overlay-btn au-send-btn" data-i="' + i + '" type="button">送' + T('TA') + '</button>') + '</div>').join('')
       : '<div class="pong-end-stat">还什么都没拍到</div>';
-    showOverlay('🎒 拍品收藏（' + bag.length + '）', body, bagBtn && bagBtn.textContent === '🎒' ? '返回' : '开场拍卖');
+    showOverlay('🎒 拍品收藏（' + bag.length + '）', body, '返回');
     if (startBtn) startBtn.textContent = st && st.started && !st.over ? '返回' : '开场拍卖';
     if (endBtn) endBtn.hidden = !(st && st.started && !st.over);
+  }
+  // 转赠：写心意柜「我送TA」记录（gift-shop 的 recordGiftBox，走既有心意柜渲染），拍品移出收藏
+  function giftAway(i) {
+    const bag = loadBag();
+    const it = bag[i];
+    if (!it) return;
+    const wish = '拍卖会上抢到的，转送给你';
+    try {
+      if (typeof window.recordGiftBox === 'function') {
+        window.recordGiftBox({ id: 'au_' + Date.now(), giftId: '', name: it.name, emoji: it.ico, img: '', price: it.fen / 100, cat: '拍卖会', wish: wish }, 'out', wish);
+      }
+    } catch (e) {}
+    bag.splice(i, 1);
+    saveBag(bag);
+    sfxHammer();
+    taSay(pick(['送给我的？！', '谢谢，我很喜欢！', '怎么突然对我这么好']));
+    try {
+      if (window.chatAddSystem) window.chatAddSystem(T('心意币拍卖会') + ' · 转赠 ' + T('TA') + '「' + it.name + '」', { special: 'auction' });
+    } catch (e) {}
+    setTimeout(() => {
+      try { if (window.chatAddIn) window.chatAddIn(pick(['收下啦！超喜欢', '你也喜欢就好', '下次拍卖会我让给你一件']), { silent: true }); } catch (e) {}
+    }, 900);
+    showBag();
   }
 
   // ---- 覆盖层 ----
@@ -407,6 +500,13 @@
   if (bid13Btn) bid13Btn.addEventListener('click', (e) => { e.stopPropagation(); myBid(STEP13); });
   if (passBtn) passBtn.addEventListener('click', (e) => { e.stopPropagation(); myPass(); });
   if (bagBtn) bagBtn.addEventListener('click', (e) => { e.stopPropagation(); showBag(); });
+  // #301 转赠按钮（收藏列表内，事件委托）
+  if (ovBodyEl) ovBodyEl.addEventListener('click', (e) => {
+    const sendBtn = e.target.closest('.au-send-btn');
+    if (!sendBtn) return;
+    e.stopPropagation();
+    giftAway(parseInt(sendBtn.getAttribute('data-i'), 10) || 0);
+  });
   if (soundBtn) soundBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     soundOn = !soundOn;
@@ -424,8 +524,10 @@
     if (partnerNameEl) partnerNameEl.textContent = name;
   }
   window.openAuctionPanel = function () {
+    try { if (isFs) toggleFs(); } catch (e) {}
     panel.hidden = false;
     try { setNames(); } catch (e) {}
+    try { checkGifts(); } catch (e) {}   // #301 到期回寄投递
     // 有进行中的场次 → 接着拍（关面板期间 TA 思考的补调度）
     if (st && st.started && !st.over) {
       if (st.phase === 'bidding') { renderLot(); if (!thinkT && st.leader === 'you') scheduleTaThink('TA低头想了想……'); else updateBidBtns(); }
@@ -436,10 +538,20 @@
   };
   function closePanel() {
     clearTimeout(thinkT); thinkT = null;
+    clearInterval(giftTimer); giftTimer = null;
     if (panel) panel.hidden = true;
   }
   window.closeAuctionPanel = closePanel;
-  document.addEventListener('contact-switched', () => { try { closePanel(); } catch (e) {} });
+  // 打开期间每 30s 查一次到期回寄
+  (function watchGifts() {
+    const mo = new MutationObserver(() => {
+      if (panel.hidden) { clearInterval(giftTimer); giftTimer = null; return; }
+      if (!giftTimer) { try { checkGifts(); } catch (e) {} giftTimer = setInterval(() => { try { checkGifts(); } catch (e) {} }, 30000); }
+    });
+    mo.observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+  })();
+  // 切联系人清空进行中场次：🎒 收藏按联系人桌面隔离，跨桌续拍会把拍品收进别桌收藏
+  document.addEventListener('contact-switched', () => { try { closePanel(); st = null; } catch (e) {} });
 
   // ---- 入口：聊天更多功能 → 小游戏 → 心意币拍卖会（自绑定，chat.js 不改） ----
   (function bindEntry() {
@@ -474,7 +586,7 @@
 
   // 半框互斥清单（全部聊天页浮层面板；各游戏文件各自维护一份含其余全部面板的列表）
   function siblingIds(self) {
-    return ['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-more-panel'].filter((id) => id !== self);
+    return ['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-arcade-panel', 'chat-more-panel'].filter((id) => id !== self);
   }
   function hideSiblingPanels(self) {
     siblingIds(self).forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });

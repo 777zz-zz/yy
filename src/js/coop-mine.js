@@ -33,6 +33,18 @@
   const modeBtn = document.getElementById('ms-mode');
   const bagBtn = document.getElementById('ms-bag');
   const closeBtn = document.getElementById('ms-close');
+  const fsBtn = document.getElementById('ms-fs');
+
+  // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
+  // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----
+  let isFs = false;
+  function toggleFs() {
+    isFs = !isFs;
+    panel.classList.toggle('game-fs', isFs);
+    if (fsBtn) fsBtn.textContent = isFs ? '⤤' : '⛶';
+    setTimeout(() => { try { if (typeof fitBoard === 'function') fitBoard(); } catch (e) {} }, 60);
+  }
+  if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFs(); });
   const partnerNameEl = document.getElementById('ms-partner-name');
 
   const MAX_LIVES = 3;
@@ -743,6 +755,7 @@
     if (partnerNameEl) partnerNameEl.textContent = name;
   }
   window.openMsPanel = function () {
+    try { if (isFs) toggleFs(); } catch (e) {}
     panel.hidden = false;
     try { setNames(); } catch (e) {}
     try { fitBoard(); } catch (e) {}

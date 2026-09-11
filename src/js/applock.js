@@ -24,6 +24,8 @@
   // v3.31.x 开屏问答门（可不设数字密码单独用；本机输暗号 QA_SKIP_CODE 永久跳过问答层）
   const K_QA_EN = 'applock-qa-en';
   const K_QA_SKIP = 'applock-qaskip';
+  // 应用锁数字密码一次性提醒标记：问答门通过后本机未设密码时提示一次（#299）
+  const K_PIN_HINT = 'applock-pinhint';
 
   // ---------- 存储（根命名空间，localStorage 直读兜底） ----------
   function gGet(k) {
@@ -93,6 +95,16 @@
   function qaSetEn(v) { gSet(K_QA_EN, v ? '1' : '0'); }
   function qaSkipped() { return gGet(K_QA_SKIP) === '1'; }  // 本机已输暗号 → 永久跳过问答层
   function qaSkipSet(v) { gSet(K_QA_SKIP, v ? '1' : '0'); }
+  // #299：问答门通过（答对或输暗号）后，本机未设数字密码锁 → 提醒一次「应用锁」自定义锁屏密码功能（每台设备只提示一次）
+  function pinHintThen(next) {
+    if (pinHash() || gGet(K_PIN_HINT) === '1') { if (next) next(); return; }
+    gSet(K_PIN_HINT, '1');
+    padOpen({
+      kind: 'info', title: '小提醒：应用锁', ico: ICON_SHIELD, okLabel: '知道了',
+      sub: '新增了【应用锁】的自定义锁屏密码功能，可用于防止被人偷看手机聊天记录。问答层只拦「不知道答案的人」，开启数字密码后每次打开还需输密码，更稳妥。可在 设置 → 应用锁 里开启。',
+      onPrimary: function () { if (next) next(); }
+    });
+  }
   function qaAnswerOk(v, h) { return h53(String(v == null ? '' : v).trim()) === h; }
 
   function sessOk() { try { return sessionStorage.getItem(SESS) === '1'; } catch (e) { return false; } }
@@ -489,8 +501,10 @@
     // 会话标记 sessOk 仅供数字密码锁使用（保持「同标签刷新不重锁」原行为）。
     if (needQa) {
       qaStart(function () {
-        if (needPin && !sessOk()) showLock();
-        else { sessMark(); maskEl().hidden = true; }
+        pinHintThen(function () {
+          if (needPin && !sessOk()) showLock();
+          else { sessMark(); maskEl().hidden = true; }
+        });
       });
       return;
     }

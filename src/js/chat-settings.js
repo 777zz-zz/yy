@@ -17,6 +17,32 @@
   // 壁纸铺满整个聊天页（含顶部栏/输入栏）
   const chatPage = document.getElementById('page-chat');
 
+  // v3.27.x 聊天壁纸图库的存储小助手（必须放 applySettings 首次调用之前——
+  // applySettings 回显图库张数会读 csBgList，放后面会 TDZ 报错）
+  const CS_BG_GLIST = 'cs-bg-glist';
+  const CS_BG_MAX = 12; // 图库容量上限（每张压缩后可达 MB 级，防无上限堆爆 IDB）
+  const csBgList = () => {
+    try { const v = JSON.parse(store.get(CS_BG_GLIST) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+  };
+  const csBgSaveList = (arr) => store.set(CS_BG_GLIST, JSON.stringify(arr));
+  // v3.27.x 优化①：active-id——记录图库里哪张是当前生效壁纸，面板高亮/删除判断只看 id，
+  // 不再为对比把每张 MB 级全图读进内存（打开 12 张的面板从几十 MB 堆占用降到只解码缩略图）
+  const CS_BG_ACTIVE = 'cs-bg-active-id';
+  const csBgActiveId = () => store.get(CS_BG_ACTIVE) || '';
+  // 对账：cs-bg 有值但 active-id 缺失/失配（升级首次、美化方案直写 cs-bg、清除壁纸）时
+  // 读一轮全图找回匹配项；稳态只做 1 次内存读 + 1 次字符串比对（memoryCache 返引用，零拷贝）
+  function csBgReconcileActive() {
+    const list = csBgList();
+    const cur = store.get('cs-bg');
+    if (!cur) { if (csBgActiveId()) store.remove(CS_BG_ACTIVE); return ''; }
+    const aid = csBgActiveId();
+    if (aid && list.indexOf(aid) >= 0 && store.get('cs-bg-item-' + aid) === cur) return aid;
+    for (let i = 0; i < list.length; i++) {
+      if (store.get('cs-bg-item-' + list[i]) === cur) { store.set(CS_BG_ACTIVE, list[i]); return list[i]; }
+    }
+    return '';
+  }
+
   const FONT_SIZES = [
     { label: '小', value: '13px' },
     { label: '标准', value: '14px' },
@@ -179,6 +205,8 @@
     const rn = BUBBLE_RADII.find(p => p.value === rad);
     set('cs-bubble-radius-val', rn ? rn.label : (rad === '0px' ? '方形' : rad));
     set('cs-bg-val', bg ? '已设置' : '');
+    // v3.27.x：回显带上图库张数（提示图库里有存货，点行可切换）
+    try { const gl = csBgList(); if (gl.length) set('cs-bg-val', '已设置 · 库 ' + gl.length + ' 张'); } catch (e) {}
     const rm = document.getElementById('cs-bg-remove');
     if (rm) rm.hidden = !bg;
     _ensureBubbleContrast();
@@ -194,51 +222,276 @@
 
   // 各设置行
   const row = (id) => document.getElementById(id);
+  // ================= 聊天壁纸图库（多张保存 + 点击切换） =================
+  // v3.27.x：此前 cs-bg 只有一张，换图必须重新上传旧图即丢。现在图库存多张：
+  //   cs-bg-glist = JSON 数组（图库条目 id 列表，小键）；cs-bg-item-<id> = 全图（大键走
+  //   idb.js >200KB 只进 IDB 的既有通道）；cs-bg-item-thb-<id> = 240px 缩略图（面板渲染
+  //   只解码小图，避免一次打开面板解码 N 张 4MB 原图把低端机拖卡）。当前生效壁纸仍是
+  //   cs-bg（聊天页 applySettings / 美化方案导出 / 渲染防护等既有链路零改动）。
+  //   旧数据自动迁移：cs-bg 有值而图库为空时，首次打开面板把 cs-bg 收为第 1 张。
+  // 240px JPEG 缩略图：面板网格渲染专用（与全图分开存，抽屉/面板只碰小图）
+  function csBgMakeThumb(dataUrl, maxSide) {
+    return new Promise((resolve) => {
+      if (typeof dataUrl !== 'string' || dataUrl.length > 50 * 1024 * 1024) { resolve(null); return; }
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(c.toDataURL('image/jpeg', 0.8));
+        } catch (e) { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  }
+  // 压缩：v3.5.126 按设备物理像素定上限——之前固定 900px，
+  // 在 2-3x 高分屏（物理宽 1080-1440）铺满时被放大发糊
+  function csBgCompress(dataUrl) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const dpr = Math.max(1, window.devicePixelRatio || 1);
+          const screenH = (window.screen && window.screen.height) || 1920;
+          const maxSide = Math.min(4096, Math.max(2160, Math.round(screenH * dpr)));
+          const c = document.createElement('canvas');
+          const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+          c.width = Math.max(1, Math.round(img.width * scale));
+          c.height = Math.max(1, Math.round(img.height * scale));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          resolve(c.toDataURL('image/jpeg', 0.85));
+        } catch (e) { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  }
+  // 入库一张并设为当前壁纸（上传/迁移共用）；返回 null 表示压缩失败
+  async function csBgAdd(dataRaw) {
+    const data = await csBgCompress(dataRaw);
+    if (!data) return null;
+    const id = 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const list = csBgList();
+    if (list.length >= CS_BG_MAX) { toast('图库已满（' + CS_BG_MAX + ' 张），请先在列表里删除几张'); return null; }
+    list.push(id);
+    csBgSaveList(list);
+    store.set('cs-bg-item-' + id, data);
+    // 缩略图失败不阻塞入库（面板渲染时兜底现生成）
+    csBgMakeThumb(data, 240).then(th => { if (th) store.set('cs-bg-item-thb-' + id, th); });
+    store.set('cs-bg', data);
+    store.set(CS_BG_ACTIVE, id);
+    applySettings();
+    return id;
+  }
+  // 持久化多选 input：一次可加多张，逐张按序入库（压缩本身异步，串行防内存叠加）
+  const csBgFileInput = document.createElement('input');
+  csBgFileInput.type = 'file'; csBgFileInput.accept = 'image/*'; csBgFileInput.multiple = true;
+  csBgFileInput.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
+  document.body.appendChild(csBgFileInput);
+  csBgFileInput.onchange = () => {
+    const fs = Array.prototype.slice.call(csBgFileInput.files || []);
+    csBgFileInput.value = ''; // 允许重选同一文件
+    if (!fs.length) return;
+    let ok = 0;
+    toast('正在处理 ' + fs.length + ' 张图片…');
+    let chain = Promise.resolve();
+    fs.forEach((f) => {
+      chain = chain.then(() => new Promise((res) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          csBgAdd(reader.result).then((id) => { if (id) ok++; res(); });
+        };
+        reader.onerror = () => res();
+        reader.readAsDataURL(f);
+      }));
+    });
+    chain.then(() => {
+      if (ok) { toast('已加入 ' + ok + ' 张壁纸'); }
+      if (document.getElementById('cs-bg-panel') && document.getElementById('cs-bg-panel').style.display === 'flex') openCsBgPanel();
+    });
+  };
+  // 壁纸图库面板：缩略图网格（点图切换 / × 删除 + 5 秒内可撤销）+ 多选上传 + 同步到全部联系人
+  // 优化①：高亮只看 active-id，渲染不读全图（缩略图缺失时才读对应一张现生成）
+  // 优化⑤：删除改为单击即删 + 底部「撤销」条（5 秒后作废），比两击确认更不怕手滑
+  function openCsBgPanel() {
+    let m = document.getElementById('cs-bg-panel');
+    if (!m) {
+      m = document.createElement('div'); m.id = 'cs-bg-panel';
+      m.style.cssText = 'position:fixed;inset:0;z-index:89;align-items:center;justify-content:center;background:rgba(0,0,0,.4);display:none';
+      document.body.appendChild(m);
+      m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; });
+    }
+    m.innerHTML = '';
+    const box = document.createElement('div');
+    box.style.cssText = 'width:min(90vw,400px);max-height:82vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--card-bg,#fff);color:var(--ink,#111);border-radius:16px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.2)';
+    const hd = document.createElement('div');
+    hd.innerHTML = '<div style="font-size:16px;font-weight:600">聊天壁纸</div><div style="font-size:12px;color:var(--muted,#888);margin-top:4px">可存多张，点缩略图即切换；误删 5 秒内可撤销</div>';
+    box.appendChild(hd);
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0';
+    const cur = store.get('cs-bg') || '';
+    const aid = csBgReconcileActive();
+    const list = csBgList();
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'grid-column:1/-1;font-size:13px;color:var(--muted,#999);text-align:center;padding:24px 0';
+      empty.textContent = '图库还是空的，点下方「上传新图」加入';
+      grid.appendChild(empty);
+    }
+    list.forEach((id) => {
+      const cell = document.createElement('div');
+      cell.style.cssText = 'position:relative;border-radius:10px;overflow:hidden;border:2px solid transparent;cursor:pointer;aspect-ratio:9/16;background:var(--bg-b,#f2f2f2)';
+      const thb = store.get('cs-bg-item-thb-' + id);
+      const isActive = id === aid;
+      if (isActive) cell.style.borderColor = 'var(--btn-bg,#111)';
+      const im = document.createElement('img');
+      im.alt = '';
+      im.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
+      if (thb) { im.src = thb; }
+      else {
+        // 缩略图缺失（旧迁移/上次生成被打断）：读这一张全图现生成再回填，本次先用小占位
+        const full = store.get('cs-bg-item-' + id);
+        im.src = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
+        cell.style.background = 'var(--muted,#888)';
+        if (full) csBgMakeThumb(full, 240).then((th) => { if (th) { store.set('cs-bg-item-thb-' + id, th); im.src = th; cell.style.background = ''; } });
+      }
+      cell.appendChild(im);
+      cell.addEventListener('click', () => {
+        // 只在此刻读被点中的那一张全图（active-id 判断已由对账保证一致）
+        const full = store.get('cs-bg-item-' + id);
+        if (full) { store.set('cs-bg', full); store.set(CS_BG_ACTIVE, id); applySettings(); toast('已切换壁纸'); m.style.display = 'none'; }
+      });
+      const del = document.createElement('div');
+      del.textContent = '×';
+      del.style.cssText = 'position:absolute;top:2px;right:2px;width:20px;height:20px;line-height:18px;text-align:center;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:14px';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const full = store.get('cs-bg-item-' + id);
+        const thb2 = store.get('cs-bg-item-thb-' + id);
+        const wasActive = id === aid;
+        csBgSaveList(csBgList().filter(x => x !== id));
+        store.remove('cs-bg-item-' + id);
+        store.remove('cs-bg-item-thb-' + id);
+        if (wasActive) { store.remove('cs-bg'); applySettings(); }
+        // 优化⑤：留底 5 秒，面板底部出「撤销」条；每次删除覆盖上一条留底（只保最近一张）
+        if (full) {
+          m.__undoItem = { id, full, thb: thb2, wasActive };
+          if (m.__undoTimer) clearTimeout(m.__undoTimer);
+          m.__undoTimer = setTimeout(() => { m.__undoItem = null; if (m.style.display === 'flex') openCsBgPanel(); }, 5000);
+        }
+        toast('已删除，5 秒内可撤销');
+        openCsBgPanel();
+      });
+      cell.appendChild(del);
+      grid.appendChild(cell);
+    });
+    box.appendChild(grid);
+    // 优化⑤：撤销条——恢复刚删除的那张（含它是否当时正被使用）
+    if (m.__undoItem) {
+      const strip = document.createElement('div');
+      strip.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--bg-b,#f6f6f6);margin-bottom:8px';
+      const st = document.createElement('span'); st.style.cssText = 'flex:1;font-size:12px;color:var(--muted,#888)'; st.textContent = '刚删除了 1 张壁纸，可撤销'; strip.appendChild(st);
+      const ub = document.createElement('button'); ub.textContent = '撤销'; ub.style.cssText = 'padding:5px 14px;border:none;border-radius:8px;background:var(--ink,#111);color:#fff;font-size:12px;font-weight:600';
+      ub.addEventListener('click', () => {
+        const u = m.__undoItem;
+        m.__undoItem = null;
+        if (m.__undoTimer) { clearTimeout(m.__undoTimer); m.__undoTimer = null; }
+        if (u && u.full) {
+          csBgSaveList(csBgList().concat([u.id]));
+          store.set('cs-bg-item-' + u.id, u.full);
+          if (u.thb) store.set('cs-bg-item-thb-' + u.id, u.thb);
+          if (u.wasActive) { store.set('cs-bg', u.full); store.set(CS_BG_ACTIVE, u.id); applySettings(); }
+          toast('已撤销删除');
+        }
+        openCsBgPanel();
+      });
+      strip.appendChild(ub);
+      box.appendChild(strip);
+    }
+    const upBtn = document.createElement('button');
+    upBtn.textContent = '＋ 上传新图（可多选）';
+    upBtn.style.cssText = 'width:100%;padding:11px;border:none;border-radius:10px;background:var(--ink,#111);color:var(--bg-b,#fff);font-size:14px;font-weight:600;margin-bottom:8px';
+    upBtn.addEventListener('click', () => { try { csBgFileInput.click(); } catch (e) { toast('无法打开相册，请重试'); } });
+    box.appendChild(upBtn);
+    if (cur) {
+      const rmBtn = document.createElement('button');
+      rmBtn.textContent = '清除当前壁纸（图库保留）';
+      rmBtn.style.cssText = 'width:100%;padding:10px;border:1px solid rgba(163,45,45,.35);border-radius:10px;background:var(--danger-soft,#fff5f5);color:var(--danger-ink,#a32d2d);font-size:13px;margin-bottom:8px';
+      rmBtn.addEventListener('click', () => { store.remove('cs-bg'); store.remove(CS_BG_ACTIVE); applySettings(); toast('已清除，图库里的图还在'); openCsBgPanel(); });
+      box.appendChild(rmBtn);
+    }
+    // 优化②：聊天壁纸/图库是 per-联系人独立的——一键同步到其他联系人桌面，
+    // 换聊天对象不用逐个重新设壁纸。会覆盖对方现有聊天壁纸，openModal 二次确认。
+    if (list.length && window.getContacts && window.xyStore && window.openModal) {
+      const syncBtn = document.createElement('button');
+      syncBtn.textContent = '把壁纸和图库同步到全部联系人';
+      syncBtn.style.cssText = 'width:100%;padding:10px;border:1px solid var(--card-border,#ddd);border-radius:10px;background:var(--btn-cancel-bg,#fafafa);color:var(--ink,#111);font-size:13px;margin-bottom:8px';
+      syncBtn.addEventListener('click', () => {
+        const me = window.getActiveContact ? window.getActiveContact() : 'default';
+        const others = window.getContacts().filter(c => c.id && c.id !== me);
+        if (!others.length) { toast('现在只有这一个联系人，无需同步'); return; }
+        window.openModal('同步到全部联系人', '', (v) => {
+          if (v !== '__yes__') return;
+          const fullNow = store.get('cs-bg');
+          const glist = csBgList();
+          const aidNow = csBgActiveId();
+          let n = 0;
+          others.forEach((c) => {
+            try {
+              const st = window.xyStore('xy-home-v2:' + c.id);
+              glist.forEach((gid) => {
+                const f = store.get('cs-bg-item-' + gid); if (f) st.set('cs-bg-item-' + gid, f);
+                const t = store.get('cs-bg-item-thb-' + gid); if (t) st.set('cs-bg-item-thb-' + gid, t);
+              });
+              st.set('cs-bg-glist', JSON.stringify(glist));
+              if (aidNow) st.set('cs-bg-active-id', aidNow); else st.remove('cs-bg-active-id');
+              if (fullNow) st.set('cs-bg', fullNow); else st.remove('cs-bg');
+              n++;
+            } catch (e) {}
+          });
+          toast('已同步到 ' + n + ' 个联系人（切到对应桌面即可看到）');
+        }, { noInput: true, pills: [{ label: '确认同步（覆盖对方的聊天壁纸）', value: '__yes__' }, { label: '取消', value: '__no__' }] });
+      });
+      box.appendChild(syncBtn);
+    }
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '关闭';
+    closeBtn.style.cssText = 'width:100%;padding:10px;border:1px solid var(--card-border,#eee);border-radius:10px;background:var(--btn-cancel-bg,#fafafa);color:var(--btn-cancel-ink,#555);font-size:13px';
+    closeBtn.addEventListener('click', () => { m.style.display = 'none'; });
+    box.appendChild(closeBtn);
+    m.appendChild(box);
+    m.style.display = 'flex';
+  }
   const csBg = row('cs-bg-upload');
   if (csBg) {
     // v3.9.x：红米/真我等 Android Edge 对「点击时动态创建 + 立即 click()」的 file input
     // 会静默忽略（不弹系统选择器）。改为持久化 input（初始化时创建一次、永久挂 body、
     // 移出屏幕、每次复用），与 avatar-lib.js bindPoolUpload 已验证可用套路一致。
-    const bgInput = document.createElement('input');
-    bgInput.type = 'file'; bgInput.accept = 'image/*';
-    bgInput.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
-    document.body.appendChild(bgInput);
-    bgInput.onchange = () => {
-      const f = bgInput.files && bgInput.files[0];
-      bgInput.value = ''; // 允许重选同一文件
-      if (!f) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        // 压缩：v3.5.126 按设备物理像素定上限——之前固定 900px，
-        // 在 2-3x 高分屏（物理宽 1080-1440）铺满时被放大发糊
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const dpr = Math.max(1, window.devicePixelRatio || 1);
-            const screenH = (window.screen && window.screen.height) || 1920;
-            const maxSide = Math.min(4096, Math.max(2160, Math.round(screenH * dpr)));
-            const c = document.createElement('canvas');
-            const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-            c.width = Math.max(1, Math.round(img.width * scale));
-            c.height = Math.max(1, Math.round(img.height * scale));
-            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-            const data = c.toDataURL('image/jpeg', 0.85);
-            store.set('cs-bg', data);
-            applySettings();
-          } catch (e) {}
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(f);
-    };
+    // v3.27.x：入口改为壁纸图库面板（多张保存+点击切换）；上传逻辑挪进面板
+    // （csBgFileInput 持久化 input 保留——真机已验证的「初始化即创建」套路不变）。
     csBg.addEventListener('click', () => {
-      try { bgInput.click(); } catch (e) { toast('无法打开相册，请重试'); }
+      // 旧数据自动迁移：已有单张壁纸但图库为空 → 收进图库成为第 1 张（异步，不挡面板打开）
+      if (store.get('cs-bg') && !csBgList().length) {
+        const seed = store.get('cs-bg');
+        const id = 'g' + Date.now().toString(36);
+        csBgSaveList([id]);
+        store.set('cs-bg-item-' + id, seed);
+        store.set(CS_BG_ACTIVE, id);
+        csBgMakeThumb(seed, 240).then(th => { if (th) store.set('cs-bg-item-thb-' + id, th); });
+      }
+      openCsBgPanel();
     });
   }
   const csBgRm = row('cs-bg-remove');
   if (csBgRm) {
     csBgRm.addEventListener('click', () => {
       store.remove('cs-bg');
+      try { store.remove(CS_BG_ACTIVE); } catch (e) {}
       applySettings();
     });
   }

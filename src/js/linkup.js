@@ -26,6 +26,18 @@
   const shufBtn = document.getElementById('lk-shuffle');
   const soundBtn = document.getElementById('lk-sound');
   const closeBtn = document.getElementById('lk-close');
+  const fsBtn = document.getElementById('lk-fs');
+
+  // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
+  // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----
+  let isFs = false;
+  function toggleFs() {
+    isFs = !isFs;
+    panel.classList.toggle('game-fs', isFs);
+    if (fsBtn) fsBtn.textContent = isFs ? '⤤' : '⛶';
+    setTimeout(() => { try { if (typeof fitBoard === 'function') fitBoard(); } catch (e) {} }, 60);
+  }
+  if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFs(); });
   const diffSel = document.getElementById('lk-diff');
   const partnerNameEl = document.getElementById('lk-partner-name');
 
@@ -34,7 +46,16 @@
     normal: { rows: 6, cols: 8, kinds: 12, pairPerKind: 2, label: '🌙 普通 8×6', coin: 1314 },
     hard:   { rows: 6, cols: 10, kinds: 15, pairPerKind: 2, label: '⭐ 挑战 10×6', coin: 5200 }
   };
-  const KINDS = ['🍎', '🍐', '🍇', '🍒', '🍓', '🍑', '🍍', '🥝', '🍉', '🍌', '🧁', '🍰', '🍀', '🌈', '🐬'];
+  // #301 图案主题包：水果 / 甜品 / 海洋（头部 🎨 循环切换，按联系人桌面记住选择）
+  const THEMES = {
+    fruit:   { ico: '🍎', kinds: ['🍎', '🍐', '🍇', '🍒', '🍓', '🍑', '🍍', '🥝', '🍉', '🍌', '🧁', '🍰', '🍀', '🌈', '🐬'] },
+    dessert: { ico: '🧁', kinds: ['🍰', '🧁', '🍩', '🍪', '🍫', '🍬', '🍭', '🍮', '🍦', '🧇', '🥞', '🍓', '🍯', '🫖', '☕'] },
+    ocean:   { ico: '🌊', kinds: ['🐬', '🐟', '🐠', '🦈', '🐙', '🦀', '🐡', '🦐', '🐳', '🐚', '🌊', '⛵', '🪸', '⭐', '🫧'] }
+  };
+  const THEME_ORDER = ['fruit', 'dessert', 'ocean'];
+  let themeKey = 'fruit';
+  function themeKinds() { return (THEMES[themeKey] || THEMES.fruit).kinds; }
+  function themeBtn() { return document.getElementById('lk-theme'); }
   const THINK_LINES = ['TA正在找能连的……', 'TA扫视着棋盘', 'TA歪头想了想'];
   const TURN_MIN = 900, TURN_VAR = 800;
 
@@ -84,7 +105,8 @@
       myPairs: 0, taPairs: 0, misPicks: 0,
       hints: 3, shuffles: 2,
       seen: [],                // TA 的「记忆」：近期被翻看过的位置（滚动上限）
-      mode: 'smart'
+      mode: 'smart',
+      combo: 0, maxCombo: 0    // #301 连击：连续配对次数（点错/提示断连）
     };
   }
 
@@ -205,8 +227,11 @@
     if (!stageEl || panel.hidden || !st) return;
     const w = stageEl.clientWidth;
     if (!w) return;
-    const cellPx = Math.max(26, Math.min(46, Math.floor(w / st.cols)));
-    boardEl.style.width = (cellPx * st.cols) + 'px';
+    // #306：格子是固定 px 宽，grid 又有 3px gap——cellPx 若只按 w/cols 取整，
+    // 实际总宽会多出 (cols-1)*3px 从右缘溢出截断（最右一列被裁掉）。先扣掉 gap 再取整。
+    const GAP = 3;
+    const cellPx = Math.max(24, Math.min(46, Math.floor((w - (st.cols - 1) * GAP) / st.cols)));
+    boardEl.style.width = (cellPx * st.cols + (st.cols - 1) * GAP) + 'px';
     const tiles = boardEl.querySelectorAll('.lk-tile');
     for (let i = 0; i < tiles.length; i++) { tiles[i].style.width = cellPx + 'px'; tiles[i].style.height = cellPx + 'px'; tiles[i].style.fontSize = Math.round(cellPx * 0.52) + 'px'; }
   }
@@ -219,7 +244,7 @@
       const v = st.grid[r][c];
       el.classList.remove('lk-gone', 'lk-sel', 'lk-hint');
       if (v < 0) { el.classList.add('lk-gone'); el.textContent = ''; }
-      else el.textContent = KINDS[v];
+      else el.textContent = themeKinds()[v];
     }
     updateInfo();
   }
@@ -228,15 +253,31 @@
       '<span>剩余 ' + st.remaining + ' 张</span>' +
       '<span>💡 ' + st.hints + '</span>' +
       '<span>🔀 ' + st.shuffles + '</span>' +
+      (st.combo >= 2 ? '<span>🔥 连击 ×' + st.combo + '</span>' : '') +
       '<span>💕 ' + chemNow() + '</span>';
   }
   function chemNow() {
     if (!st.totalPairs) return 60;
     const share = st.myPairs / Math.max(1, st.myPairs + st.taPairs);
     const acc = Math.max(0, 1 - st.misPicks / Math.max(4, st.totalPairs));
-    return Math.max(0, Math.min(100, Math.round(60 + share * 20 + acc * 20 - st.misPicks * 2)));
+    // #301 连击加成：本场最高连击折算默契加成（上限 +10）
+    const comboBonus = Math.min(10, (st.maxCombo || 0) * 2);
+    return Math.max(0, Math.min(100, Math.round(60 + share * 20 + acc * 20 - st.misPicks * 2 + comboBonus)));
   }
   function setStatus(html) { if (statusEl) statusEl.innerHTML = html; }
+  // #301 中局 TA 泡泡（同 gomoku 的 DOM 冒泡语义）
+  let bubbleT = null;
+  function taSay(text) {
+    if (!stageEl) return;
+    try {
+      let b = stageEl.querySelector('.tg-bubble');
+      if (!b) { b = document.createElement('div'); b.className = 'tg-bubble'; stageEl.appendChild(b); }
+      b.textContent = text;
+      b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+      clearTimeout(bubbleT);
+      bubbleT = setTimeout(() => { try { b.classList.remove('show'); } catch (e) {} }, 1600);
+    } catch (e) {}
+  }
   function dot(side) { return '<i class="c4-dot ' + (side === 1 ? 'c4-dot-you' : 'c4-dot-ta') + '"></i>'; }
   function showTurnStatus() {
     if (!statusEl || !st || st.over) return;
@@ -292,10 +333,15 @@
     const a = st.sel;
     if (st.grid[a[0]][a[1]] === st.grid[r][c] && connected(st, a, [r, c])) {
       sfxMatch();
+      st.combo++;
+      if (st.combo > (st.maxCombo || 0)) st.maxCombo = st.combo;
+      if (st.combo >= 2) taSay(pick(['连击 ×' + st.combo + '，好默契！', '又连上啦！', '手气不错嘛']));
       removePair(a, [r, c], true);
+      updateInfo();
       afterClear(true);
     } else {
       st.misPicks++;
+      st.combo = 0;
       sfxBad();
       const ea = tileAt(a[0], a[1]);
       if (ea) { ea.classList.remove('lk-shake'); void ea.offsetWidth; ea.classList.add('lk-shake'); }
@@ -336,6 +382,7 @@
     const pairs = allPairs(st);
     if (st.mode === 'smart') {
       pair = pairs.length ? pick(pairs) : null;
+      if (pair && Math.random() < 0.3) taSay(pick(['找到一对！', '看我的']));
     } else if (st.mode === 'memory') {
       // 只在「记得」的牌里找一对同款（找不到就再想想，不放空枪）
       const seenAlive = st.seen.filter((p) => st.grid[p[0]][p[1]] >= 0);
@@ -362,6 +409,7 @@
           // 点错了：抖一下提示，再认真找一对
           if (a) { const ea = tileAt(a[0], a[1]); if (ea) { ea.classList.remove('lk-shake'); void ea.offsetWidth; ea.classList.add('lk-shake'); } }
           sfxBad();
+          taSay(pick(['哎呀，点错了…', '这两张连不上呀']));
           pair = pairs.length ? pick(pairs) : null;
         }
       }
@@ -392,28 +440,40 @@
     s.lastDiff = st.diff;
     saveStats(s);
     sfxWin();
-    // 心意币：按难度发放，日封顶 ¥104，双方同步同额（同四子棋口径）
+    taSay(pick(['一起清完啦！', '收工！好默契', '最后几张藏得好深']));
+    // 心意币：按难度发放，日封顶 ¥104，双方同步同额（同四子棋口径）；#301 幸运日 ×2
     var coinLine = '';
+    var dropLine = '';
     try {
       var COIN_CAP = 10400;
       var day = new Date().toISOString().slice(0, 10);
       var ck = prefix() + ':ml2_coin_linkup_' + day;
       var cur = Number(localStorage.getItem(ck)) || 0;
       if (cur < COIN_CAP) {
-        var real = Math.min(DIFFS[st.diff].coin, COIN_CAP - cur);
+        var mult = (typeof window.arcadeMult === 'function') ? window.arcadeMult('linkup') : 1;
+        var real = Math.min(Math.round(DIFFS[st.diff].coin * mult), COIN_CAP - cur);
         try { localStorage.setItem(ck, String(cur + real)); } catch (e2) {}
         if (real > 0 && typeof window.giftWalletChange === 'function') {
           if (window.giftWalletChange(real, real, '连连看')) {
-            coinLine = '🪙 双方心意币各 +¥' + (real / 100).toFixed(2);
+            if (typeof window.arcadeMarkLuckyPlayed === 'function') window.arcadeMarkLuckyPlayed('linkup');
+            coinLine = '🪙 双方心意币各 +¥' + (real / 100).toFixed(2) + (mult > 1 ? '（🍀 幸运 ×2）' : '');
           }
         }
       }
     } catch (e) {}
+    // #301 跨游戏掉落：通关 8% 概率掉限定摆件
+    if (typeof window.arcadeTryDrop === 'function') {
+      try {
+        var dr = window.arcadeTryDrop('linkup');
+        if (dr) { dropLine = '<div class="pong-end-stat">🌠 掉落限定摆件「' + dr.ico + ' ' + dr.name + '」！游乐室图鉴 +1</div>'; taSay('哇，掉了「' + dr.name + '」！'); }
+      } catch (e) {}
+    }
     const body =
       '<div class="pong-end-stat">💕 默契 ' + chem + '</div>' +
-      '<div class="pong-end-stat">你 ' + st.myPairs + ' 对 · ' + T('TA') + ' ' + st.taPairs + ' 对 · 点错 ' + st.misPicks + ' 次</div>' +
+      '<div class="pong-end-stat">你 ' + st.myPairs + ' 对 · ' + T('TA') + ' ' + st.taPairs + ' 对 · 点错 ' + st.misPicks + ' 次 · 最高连击 ×' + (st.maxCombo || 0) + '</div>' +
       '<div class="pong-end-stat">累计完成 ' + s.clears + ' 局 · 历史最佳默契 ' + s.bestChem + '</div>' +
-      (coinLine ? '<div class="pong-end-stat">' + coinLine + '</div>' : '');
+      (coinLine ? '<div class="pong-end-stat">' + coinLine + '</div>' : '') +
+      dropLine;
     showOverlay('清完整张棋盘！', body, '再来一局');
     if (startBtn) startBtn.textContent = '再来一局';
     if (endBtn) endBtn.hidden = false;
@@ -469,6 +529,7 @@
     const pairs = allPairs(st);
     if (!pairs.length) return;
     st.hints--;
+    st.combo = 0;   // #301 提示断连击
     const pr = pick(pairs);
     [pr[0], pr[1]].forEach((p) => {
       const el = tileAt(p[0], p[1]);
@@ -493,6 +554,17 @@
     soundBtn.textContent = soundOn ? '🔊' : '🔇';
     soundBtn.classList.toggle('pong-sound-off', !soundOn);
   });
+  // #301 图案主题循环切换（对局中切换=剩余牌即刻换肤，配对逻辑不受影响）
+  const themeBtnEl = themeBtn();
+  if (themeBtnEl) themeBtnEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    themeKey = THEME_ORDER[(THEME_ORDER.indexOf(themeKey) + 1) % THEME_ORDER.length];
+    try { localStorage.setItem(prefix() + ':linkup-theme', themeKey); } catch (e2) {}
+    themeBtnEl.textContent = THEMES[themeKey].ico;
+    themeBtnEl.title = '图案主题：' + { fruit: '水果', dessert: '甜品', ocean: '海洋' }[themeKey] + '（点击切换）';
+    if (st && st.started) renderBoard();
+    beep(520, 0.06, 0.12);
+  });
 
   // ---- 打开 / 关闭 ----
   function setNames() {
@@ -504,6 +576,10 @@
     if (partnerNameEl) partnerNameEl.textContent = name;
   }
   window.openLinkupPanel = function () {
+    try { if (isFs) toggleFs(); } catch (e) {}
+    // #301 主题恢复（缺省水果）
+    try { const t = localStorage.getItem(prefix() + ':linkup-theme'); if (t && THEMES[t]) themeKey = t; } catch (e) {}
+    if (themeBtnEl) { themeBtnEl.textContent = THEMES[themeKey].ico; }
     if (!st || !st.started) { try { const s = loadStats(); if (DIFFS[s.lastDiff] && diffSel) diffSel.value = s.lastDiff; } catch (e) {} }
     panel.hidden = false;
     try { setNames(); } catch (e) {}
@@ -558,7 +634,7 @@
 
   // 半框互斥清单（全部聊天页浮层面板；各游戏文件各自维护一份含其余全部面板的列表）
   function siblingIds(self) {
-    return ['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-more-panel'].filter((id) => id !== self);
+    return ['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-arcade-panel', 'chat-more-panel'].filter((id) => id !== self);
   }
   function hideSiblingPanels(self) {
     siblingIds(self).forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });

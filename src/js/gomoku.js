@@ -25,7 +25,20 @@
   const startBtn = document.getElementById('gk-btn-start');
   const endBtn = document.getElementById('gk-btn-end');
   const soundBtn = document.getElementById('gk-sound');
+  const undoBtn = document.getElementById('gk-undo');
   const closeBtn = document.getElementById('gk-close');
+  const fsBtn = document.getElementById('gk-fs');
+
+  // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
+  // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----
+  let isFs = false;
+  function toggleFs() {
+    isFs = !isFs;
+    panel.classList.toggle('game-fs', isFs);
+    if (fsBtn) fsBtn.textContent = isFs ? '⤤' : '⛶';
+    setTimeout(() => { try { if (typeof fitBoard === 'function') fitBoard(); } catch (e) {} }, 60);
+  }
+  if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFs(); });
   const partnerNameEl = document.getElementById('gk-partner-name');
   const sideNameEl = document.getElementById('gk-side-name');
 
@@ -104,7 +117,8 @@
       mode: 'normal',           // TA 本回合行为状态（每回合重抽）
       lastPlayer: null,         // 玩家最后一手（失误状态贴着下）
       lastTaPt: null,
-      missedBlocks: 0           // 玩家成五点被无视的连续次数（底线计数）
+      missedBlocks: 0,          // 玩家成五点被无视的连续次数（底线计数）
+      undoUsed: false           // #301 悔棋每局 1 次
     };
   }
   function newGrid() {
@@ -322,6 +336,19 @@
   }
 
   function setStatus(html) { if (statusEl) statusEl.innerHTML = html; }
+  // #301 中局 TA 泡泡：半框棋盘上方冒一句台词，1.6s 自动消散（同打砖块场内泡泡语义）
+  let bubbleT = null;
+  function taSay(text) {
+    if (!stageEl) return;
+    try {
+      let b = stageEl.querySelector('.tg-bubble');
+      if (!b) { b = document.createElement('div'); b.className = 'tg-bubble'; stageEl.appendChild(b); }
+      b.textContent = text;
+      b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+      clearTimeout(bubbleT);
+      bubbleT = setTimeout(() => { try { b.classList.remove('show'); } catch (e) {} }, 1600);
+    } catch (e) {}
+  }
   function dot(side) { return '<i class="c4-dot ' + (side === 1 ? 'c4-dot-you' : 'c4-dot-ta') + '"></i>'; }
   function showTurnStatus() {
     if (!statusEl || !st || st.over) return;
@@ -341,6 +368,7 @@
     st.started = true;
     clearBoardDom();
     hideOverlay();
+    if (undoBtn) undoBtn.classList.remove('gk-undo-used');
     const s = loadStats();
     st.turn = s.nextFirst === 'ta' ? 2 : 1;
     setStatus(st.turn === 1 ? dot(1) + '你的回合，点棋盘落子' : T('TA') + '先手');
@@ -355,15 +383,17 @@
   function taMove() {
     if (!st || st.over || st.turn !== 2) return;
     st.mode = rollMode();
-    let pt = pickTaPt(st.mode);
-    if (!pt) { endGame(0); return; }
-    pt = applyFloor(pt);
+    const picked = pickTaPt(st.mode);
+    if (!picked) { endGame(0); return; }
+    const pt = applyFloor(picked);
+    const forced = pt[0] !== picked[0] || pt[1] !== picked[1];
     st.grid[pt[0]][pt[1]] = 2;
     st.moves++;
     st.lastTaPt = pt;
     sfxDropTa();
     drawStone(pt[0], pt[1], 2);
     markLast(pt[0], pt[1]);
+    if (forced) taSay(pick(['这手我不能装没看见～', '堵你！别想连五']));
     const line = winLineAt(st.grid, pt[0], pt[1], 2);
     if (line) { highlightWin(line); endGame(2); return; }
     if (isFull(st.grid)) { endGame(0); return; }
@@ -385,6 +415,24 @@
     st.turn = 2;
     scheduleTaMove(THINK_MIN + Math.random() * THINK_VAR);
   }
+  // #301 悔棋：撤回 TA 的最后一手 + 自己的最后一手，每局 1 次（自己回合才可用）
+  function undoMove() {
+    if (!st || !st.started || st.over || st.turn !== 1 || st.undoUsed) return;
+    if (!st.lastPlayer || !st.lastTaPt) return;
+    clearTimeout(thinkT); thinkT = null;
+    [st.lastTaPt, st.lastPlayer].forEach((p) => {
+      st.grid[p[0]][p[1]] = 0;
+      st.moves = Math.max(0, st.moves - 1);
+      const cell = cellAt(p[0], p[1]);
+      if (cell) { const s = cell.querySelector('.gk-stone'); if (s) s.remove(); }
+    });
+    st.lastTaPt = null; st.lastPlayer = null; st.winCells = null;
+    st.undoUsed = true;
+    if (undoBtn) undoBtn.classList.add('gk-undo-used');
+    beep(440, 0.08, 0.14);
+    boardEl.querySelectorAll('.gk-last').forEach((el) => el.classList.remove('gk-last'));
+    setStatus(dot(1) + '已悔棋（每局 1 次），重新想');
+  }
 
   // ---- 结束：结果 / 战绩 / 聊天联动 ----
   function endGame(winner) {
@@ -396,30 +444,45 @@
     else { s.d++; s.nextFirst = Math.random() < 0.5 ? 'you' : 'ta'; }
     saveStats(s);
     if (winner === 1) sfxWin(); else if (winner === 2) sfxLose(); else sfxDraw();
+    // 中局情绪收尾（#301 泡泡）
+    if (winner === 1) taSay(pick(['让你赢啦…', '下次没这么容易！']));
+    else if (winner === 2) taSay(pick(['五连，赢啦！', '承让承让～']));
     // 奖励对齐红包金额体系：胜 80% ¥13.14 / 20% ¥52，平 ¥5.2（日封顶 ¥104，双方同步同额）
+    // #301：幸运游戏日该游戏奖励 ×2（arcade.js 提供 arcadeMult，缺省恒 1）
     var coinLine = '';
+    var dropLine = '';
     try {
       var COIN_CAP = 10400;
       var day = new Date().toISOString().slice(0, 10);
       var ck = prefix() + ':ml2_coin_gomoku_' + day;
       var cur = Number(localStorage.getItem(ck)) || 0;
       if (cur < COIN_CAP) {
-        var winFen = Math.random() < 0.2 ? 5200 : 1314;
-        var real = Math.min(winner === 0 ? 520 : winFen, COIN_CAP - cur);
+        var mult = (typeof window.arcadeMult === 'function') ? window.arcadeMult('gomoku') : 1;
+        var winFen = Math.round((Math.random() < 0.2 ? 5200 : 1314) * mult);
+        var real = Math.min(winner === 0 ? Math.round(520 * mult) : winFen, COIN_CAP - cur);
         try { localStorage.setItem(ck, String(cur + real)); } catch (e2) {}
         if (real > 0 && typeof window.giftWalletChange === 'function') {
           if (window.giftWalletChange(real, real, '五子棋')) {
-            coinLine = '🪙 双方心意币各 +¥' + (real / 100).toFixed(2);
+            if (typeof window.arcadeMarkLuckyPlayed === 'function') window.arcadeMarkLuckyPlayed('gomoku');
+            coinLine = '🪙 双方心意币各 +¥' + (real / 100).toFixed(2) + (mult > 1 ? '（🍀 幸运 ×2）' : '');
           }
         }
       }
     } catch (e) {}
+    // #301 跨游戏掉落：玩家胜利 8% 概率掉限定摆件（arcade.js）
+    if (winner === 1 && typeof window.arcadeTryDrop === 'function') {
+      try {
+        var dr = window.arcadeTryDrop('gomoku');
+        if (dr) { dropLine = '<div class="pong-end-stat">🌠 掉落限定摆件「' + dr.ico + ' ' + dr.name + '」！游乐室图鉴 +1</div>'; taSay('哇，掉了「' + dr.name + '」！'); }
+      } catch (e) {}
+    }
     const title = winner === 1 ? '🏆 你赢了！' : winner === 2 ? T('TA') + '赢了' : '平局';
     const body =
       '<div class="pong-end-stat">本局共 ' + st.moves + ' 手</div>' +
       '<div class="pong-end-stat">' + statsLine() + '</div>' +
       '<div class="pong-end-stat">下一局 ' + (s.nextFirst === 'you' ? '你' : T('TA')) + '先手</div>' +
       (coinLine ? '<div class="pong-end-stat">' + coinLine + '</div>' : '') +
+      dropLine +
       pillsHtml() +
       '<div class="ms-cur" id="gk-cur">' + diffHint() + '</div>';
     showOverlay(title, body, '再来一局');
@@ -477,6 +540,7 @@
     playerDrop(parseInt(cell.getAttribute('data-r'), 10) || 0, parseInt(cell.getAttribute('data-c'), 10) || 0);
   });
   if (startBtn) startBtn.addEventListener('click', (e) => { e.stopPropagation(); newGame(); });
+  if (undoBtn) undoBtn.addEventListener('click', (e) => { e.stopPropagation(); undoMove(); });
   if (endBtn) endBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
   if (closeBtn) closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
   if (ovBodyEl) ovBodyEl.addEventListener('click', (e) => {
@@ -513,6 +577,7 @@
     if (sideNameEl) sideNameEl.textContent = name;
   }
   window.openGomokuPanel = function () {
+    try { if (isFs) toggleFs(); } catch (e) {}
     // 先亮面板再做次要初始化：任何一步异常都不影响半框本身弹出
     if (!boardEl.children.length) { try { buildBoard(); } catch (e) {} }
     panel.hidden = false;
@@ -572,7 +637,7 @@
 
   // 半框互斥清单（全部聊天页浮层面板；各游戏文件各自维护一份含其余全部面板的列表）
   function siblingIds(self) {
-    return ['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-more-panel'].filter((id) => id !== self);
+    return ['poke-card', 'emoji-panel', 'chat-search', 'chat-ask-panel', 'chat-divine-panel', 'chat-decision-panel', 'chat-gdecision-panel', 'chat-rps-panel', 'chat-rp-panel', 'chat-call-panel', 'chat-pong-panel', 'chat-snake-panel', 'chat-brick-panel', 'chat-c4-panel', 'chat-ms-panel', 'chat-fish-panel', 'chat-memory-panel', 'chat-gift-panel', 'chat-gomoku-panel', 'chat-linkup-panel', 'chat-match3-panel', 'chat-auction-panel', 'chat-arcade-panel', 'chat-more-panel'].filter((id) => id !== self);
   }
   function hideSiblingPanels(self) {
     siblingIds(self[0]).forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });

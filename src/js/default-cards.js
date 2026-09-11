@@ -76,6 +76,74 @@
   // 数据（提取自星言 08_default_cards_data.js）
   const DATA = (window.DEFAULT_CARD_DATA) || { main: [], kaomoji: [], emoji: [] };
 
+  // ================= v3.28.x #301：词典自建词条（词典 tab 内自由新增/删除） =================
+  // 存储：全局命名空间 xy-home-v2:dict-custom-quotes / dict-custom-words（JSON 数组）——
+  // 词典是语言资源，不随联系人桌面隔离。语录并入「语录·自建」分组（进拼字抽句池），
+  // 词并入「词库·自建」分组（进切词词典）；内置词条不可删（可单卡关闭），自建词条可删。
+  // v3.28.x #301 v3：词典扩展——DEFAULT_CARD_DATA.dict_ext（dict-ext-data.js，jieba 高频
+  // ~3.8 万词按字数分组）并入词典分类；拼接规则＝组名前缀：语录* 进抽句池、词库* 进切词。
+  const DICT_CUST_QKEY = 'dict-custom-quotes';
+  const DICT_CUST_WKEY = 'dict-custom-words';
+  // 页面加载时的内置词典快照（基础 dict + 扩展 dict_ext）：每次并组都从它重建，避免重复追加
+  const PRESET_DICT = (DATA.dict || []).concat(DATA.dict_ext || []).map(g => [g[0], (g[1] || []).slice()]);
+  function dictCustRead(key) {
+    try {
+      const raw = window.xyStore('xy-home-v2').get(key);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter(x => typeof x === 'string' && x) : [];
+    } catch (e) { return []; }
+  }
+  function dictCustWrite(key, arr) {
+    try { window.xyStore('xy-home-v2').set(key, JSON.stringify(arr)); } catch (e) {}
+  }
+  // 内置（基础+扩展）+自建并成 DATA.dict（重复调用安全：每次从 PRESET_DICT 重建）；
+  // 同时刷新 window.__dictCustomSet（列表「自建」徽标依据，makeNode 读）
+  function mergeDictCustom() {
+    try {
+      const qs = dictCustRead(DICT_CUST_QKEY);
+      const ws = dictCustRead(DICT_CUST_WKEY);
+      const base = PRESET_DICT.map(g => [g[0], g[1].slice()]);
+      const gq = base.find(g => g[0] === '语录');
+      if (gq) gq[1] = gq[1].concat(qs); else base.push(['语录·自建', qs.slice()]);
+      const gw = base.find(g => g[0] === '词库·自建');
+      if (gw) gw[1] = gw[1].concat(ws); else base.push(['词库·自建', ws.slice()]);
+      DATA.dict = base;
+      window.__dictCustomSet = new Set(qs.concat(ws));
+    } catch (e) {}
+  }
+  mergeDictCustom();
+  function dictCustomAdd(kind, text) {
+    const v = String(text == null ? '' : text).replace(/\s+/g, '');
+    if (!v) return { ok: false, msg: '内容为空，先输入再保存' };
+    if (v.indexOf('data:') === 0 || v.indexOf('|||') >= 0) return { ok: false, msg: '该内容不能作为词典词条' };
+    const pref = kind === 'quote' ? '语录' : '词库';
+    const dupPreset = PRESET_DICT.some(g => g[0].indexOf(pref) === 0 && g[1].indexOf(v) >= 0);
+    if (dupPreset) return { ok: false, msg: '内置词典已有这条' };
+    const key = kind === 'quote' ? DICT_CUST_QKEY : DICT_CUST_WKEY;
+    const arr = dictCustRead(key);
+    if (arr.indexOf(v) >= 0) return { ok: false, msg: '已存在这条自建词条' };
+    arr.push(v);
+    dictCustWrite(key, arr);
+    mergeDictCustom();
+    try { if (window.quoteSpellResetDict) window.quoteSpellResetDict(); } catch (e) {}
+    return { ok: true, msg: (kind === 'quote' ? '已存为语录：' : '已存为词：') + v };
+  }
+  function dictCustomRemove(text) {
+    const v = String(text == null ? '' : text).replace(/\s+/g, '');
+    if (!v) return false;
+    let n = 0;
+    [DICT_CUST_QKEY, DICT_CUST_WKEY].forEach(k => {
+      const arr = dictCustRead(k);
+      const i = arr.indexOf(v);
+      if (i >= 0) { arr.splice(i, 1); dictCustWrite(k, arr); n++; }
+    });
+    if (n) {
+      mergeDictCustom();
+      try { if (window.quoteSpellResetDict) window.quoteSpellResetDict(); } catch (e) {}
+    }
+    return n > 0;
+  }
+
   // v3.16.x：字卡库入口角标数量动态化——template.html 里写死的「3260」早已过期
   //（主字卡现 4621，全库含互动回应/摸鱼/吃什么/经期/喝水/花园等同源功能池共 5800+），
   // 改为按 DEFAULT_CARD_DATA 全部分类实时合计；后续新增分类角标自动跟上不再写死。
@@ -85,9 +153,9 @@
   // deskcheck（联系人跨桌面查岗）独立成系统预设字卡里的单独入口，见 page-deskcheck。
   const FUNC_KEYS = ['fish', 'eat', 'period', 'water', 'garden', 'sync', 'reach', 'cjian', 'room', 'piggy', 'drift', 'interact', 'music'];
   // v3.28.x #298：BASE_KEYS 并入「词典」分类（dict，语录+切词词库，见 default-cards-data.js）——
-  // 进系统预设字卡页 tab/跨库搜索/角标统计；普通回复混入仍走 drawCards 硬编码四分类，
-  // 词典不会混进普通回复，只有词典拼字（quote-spell.js）按需消费语录分组。
-  const BASE_KEYS = ['main', 'kaomoji', 'emoji', 'touch', 'dict'];
+  // 普通回复混入仍走 drawCards 硬编码四分类，词典不会混进普通回复，只有词典拼字（quote-spell.js）消费。
+  // v3.28.x #301：词典排第一位（用户要求：系统预设字卡顶部就是【词典】大分类，页开默认落在词典 tab）
+  const BASE_KEYS = ['dict', 'main', 'kaomoji', 'emoji', 'touch'];
   // v3.26.x：搜索跨全库（聊天默认字卡页 + 其他互动功能字卡页全部 tab），
   // 不再局限于当前 tab——用户搜「轻轻抵着」在任意页面都能找到经期温柔动作字卡。
   const ALL_KEYS = BASE_KEYS.concat(FUNC_KEYS);
@@ -409,9 +477,9 @@
       } else {
         const off = isCardOff(it.cat, it.c);
         d.className = 'cc-item glass' + (off ? ' off' : '');
-        // 整页为系统预设字卡，统一标【系统】与自定义字卡区分；
+        // 整页为系统预设字卡，统一标【系统】与自定义字卡区分（#301：词典自建词条标「自建」）；
         // 右侧单卡开关——逐张开启/关闭该字卡（关闭后功能/聊天回复不再抽取）
-        d.innerHTML = '<div class="cc-txt"><div class="t">' + it.c + ' <span class="tc-known">系统</span></div></div>' +
+        d.innerHTML = '<div class="cc-txt"><div class="t">' + it.c + ' <span class="tc-known">' + (window.__dictCustomSet && window.__dictCustomSet.has(it.c) ? '自建' : '系统') + '</span></div></div>' +
           '<label class="toggle ccard-toggle"><input type="checkbox"' + (off ? '' : ' checked') + '><span class="tk"></span></label>';
       }
       d.dataset.idx = i;
@@ -594,13 +662,50 @@
       renderGroupsBar();
       render();
     }
-    return { view, ensureRendered };
+    return { view, ensureRendered, render };
   }
 
   // 聊天默认字卡页：仅四大基础分类（搜索跨全库，可在本页搜到功能字卡）
   const dcView = mountCardView({
     list: 'dc-list', tabs: 'dc-tabs', groupsBar: 'dc-groups-bar', search: 'dc-search-input', page: 'page-default-cards'
   }, BASE_KEYS, '暂无默认字卡', ALL_KEYS);
+  // #301 词典 tab 自建词条行：仅词典 tab 显示；「存为语录/存为词」进词典分组与拼字引擎，
+  // 「删自建」按原文精确删除（内置词条不可删，走单卡关闭）
+  (function () {
+    const row = document.getElementById('dc-dict-add');
+    if (!row || !dcView) return;
+    const inp = document.getElementById('dc-dict-input');
+    const sync = function () { try { row.hidden = dcView.view.cur !== 'dict'; } catch (e) {} };
+    const tabs = document.getElementById('dc-tabs');
+    if (tabs) tabs.addEventListener('click', function (e) {
+      const t = e.target.closest('.cc-tab[data-type]');
+      if (t) setTimeout(sync, 0);
+    });
+    const origEnsure = dcView.ensureRendered;
+    dcView.ensureRendered = function () { const r = origEnsure.apply(null, arguments); sync(); return r; };
+    const commit = function (kind) {
+      const r = dictCustomAdd(kind, inp ? inp.value : '');
+      toast(r.msg);
+      if (r.ok) {
+        if (inp) inp.value = '';
+        if (dcView.render) dcView.render();
+      }
+    };
+    const bq = document.getElementById('dc-dict-add-q');
+    const bw = document.getElementById('dc-dict-add-w');
+    if (bq) bq.addEventListener('click', () => commit('quote'));
+    if (bw) bw.addEventListener('click', () => commit('word'));
+    const bd = document.getElementById('dc-dict-del');
+    if (bd) bd.addEventListener('click', () => {
+      if (!window.openModal) { toast('弹窗组件不可用'); return; }
+      window.openModal('删除自建词典词条', '', function (v) {
+        if (v && dictCustomRemove(v)) {
+          toast('已删除：' + String(v).replace(/\s+/g, ''));
+          if (dcView.render) dcView.render();
+        } else toast('未找到这条自建词条（内置词条不可删，可在列表里逐张关闭）');
+      }, { staticText: '输入要删除的自建语录或词的原文（精确匹配）。内置词条无法删除，但可以在列表里逐张关闭。' });
+    });
+  })();
   // 其他互动功能字卡页：仅功能分类（模板已预置全部功能 tab；搜索同样跨全库）
   const fcView = mountCardView({
     list: 'fc-list', tabs: 'fc-tabs', groupsBar: 'fc-groups-bar', search: 'fc-search-input', page: 'page-fun-cards'

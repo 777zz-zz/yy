@@ -15,9 +15,11 @@
 (function () {
   const MIN_SEGS = 2;   // 切出 2~7 段才走拼字（<2 段没意义，>7 段刷屏）
   const MAX_SEGS = 7;
-  const MAX_WORD = 4;   // 词典最长词长（正向最大匹配窗口）
+  const MAX_WORD = 4;   // 内置词典最长词长（正向最大匹配窗口下限）
+  const MAX_WORD_CAP = 8; // 自建词可到 8 字（用户要求词典自由扩充；超 8 字按截断处理）
   let lastQuote = '';   // 连续防复读：上一条拼字句不立刻重抽
   let dictSet = null;   // 切词词典缓存（词库分组构建一次）
+  let dictMax = MAX_WORD; // 实际匹配窗口：随词典（含自建词）最长词增长
 
   // 中英文标点 + 空白（标点吸附判定用）
   function PUNCT(ch) {
@@ -31,13 +33,23 @@
   function getDict() {
     if (dictSet) return dictSet;
     dictSet = new Set();
+    dictMax = MAX_WORD;
     try {
       const grps = (window.getDefaultCardGroups && window.getDefaultCardGroups('dict')) || [];
-      const g = grps.find ? grps.find(x => x[0] === '词库') : null;
-      ((g && g[1]) || []).forEach(w => { if (typeof w === 'string' && w.length >= 2) dictSet.add(w); });
+      // 组名「词库*」前缀匹配：基础词库 + 扩展词库（dict-ext-data.js）+ 自建词，全进切词
+      grps.forEach(g => {
+        if (!g || typeof g[0] !== 'string' || g[0].indexOf('词库') !== 0) return;
+        (g[1] || []).forEach(w => {
+          if (typeof w !== 'string' || w.length < 2) return;
+          dictSet.add(w);
+          if (w.length > dictMax && w.length <= MAX_WORD_CAP) dictMax = w.length;
+        });
+      });
     } catch (e) {}
     return dictSet;
   }
+  // #301：词典 tab 新增/删除自建词后由 default-cards.js 调用，强制重建词典缓存
+  window.quoteSpellResetDict = function () { dictSet = null; };
   // 正向最大匹配切词：词典命中最长 4 字词；英文/数字连续段整体成词；标点吸附到前段；
   // 未命中回落单字。返回非空段数组（拼接后 = 原句去空白）。
   function splitWords(s) {
@@ -62,7 +74,7 @@
       }
       let len = 0;
       const dict = getDict();
-      for (let L = Math.min(MAX_WORD, str.length - i); L >= 2; L--) {
+      for (let L = Math.min(dictMax, str.length - i); L >= 2; L--) {
         if (dict.has(str.slice(i, i + L))) { len = L; break; }
       }
       if (len) { raw.push({ t: str.slice(i, i + len), p: false }); i += len; }
@@ -93,8 +105,11 @@
     try {
       if (window.defaultCardCat && window.defaultCardCat('dict') === false) return quotes;
       const grps = (window.getDefaultCardGroups && window.getDefaultCardGroups('dict')) || [];
-      const g = grps.find ? grps.find(x => x[0] === '语录') : null;
-      quotes = ((g && g[1]) || []).slice();
+      // 组名「语录*」前缀匹配：内置语录 + 自建语录，全进抽句池
+      grps.forEach(g => {
+        if (!g || typeof g[0] !== 'string' || g[0].indexOf('语录') !== 0) return;
+        (g[1] || []).forEach(q => { if (typeof q === 'string') quotes.push(q); });
+      });
     } catch (e) { quotes = []; }
     try {
       if (window.isDefaultCardOff) quotes = quotes.filter(q => !window.isDefaultCardOff('dict', q));

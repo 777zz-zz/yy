@@ -3037,7 +3037,7 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 #chat-snake-panel { height:auto; max-height:86%; }
 #chat-snake-panel .poke-card-scroll { min-height:0; max-height:none; }
 #chat-snake-panel .poke-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.snake-head-actions { display:flex; align-items:center; gap:5px; }
+.snake-head-actions { display:flex; align-items:center; gap:5px; margin-left:auto; flex-shrink:0; } /* #306：放不下时整组换行（配合 .poke-card-head 的 flex-wrap），不许压缩自身挤压标题 */
 .snake-toggle { font-size:12px; font-weight:700; }
 .snake-toggle.on { background:var(--ink); color:#fff; }
 .snake-diff { font-size:13px; padding:4px 8px; border-radius:8px; border:1px solid rgba(0,0,0,.12); background:rgba(255,255,255,.6); color:var(--ink); outline:none; font-family:inherit; }
@@ -4045,6 +4045,18 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
    全部复用 .poke-card 半框 + .pong-overlay 覆盖层 + .ms-diffs/.ms-diff 难度 pills +
    .c4-dot 回合指示 + .pong-foot 脚注 + .snake-head-actions/.snake-icon-btn/.snake-diff 头部控件 */
 
+/* ===== #306 小游戏共享全屏：面板 fixed 满视口（形态同 pong-fs/snake-fs/brick-fs，共用一个类）
+   各游戏头部 ⛶ 按钮切换 .game-fs；高度用 iOS 修复同款 min(var(--mochi-ios-h,100dvh),100dvh) ===== */
+.poke-card.game-fs {
+  position:fixed; inset:0; z-index:9999; border-radius:0; max-height:none;
+  height:100vh; height:min(var(--mochi-ios-h, 100dvh), 100dvh);
+  background:#fff; overscroll-behavior:none;
+  padding-top:max(env(safe-area-inset-top, 0px), 8px);
+  padding-bottom:max(var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)), 8px);
+}
+.poke-card.game-fs .poke-card-scroll { flex:1; max-height:none; min-height:0; }
+[data-theme="dark"] .poke-card.game-fs { background:#15151a; }
+
 /* ---- 五子棋：11×11 木质迷你盘 ---- */
 .gk-wrap { display:flex; flex-direction:column; align-items:center; gap:10px; padding:6px 4px 4px; }
 .gk-stage { position:relative; width:100%; display:flex; justify-content:center; }
@@ -4103,5 +4115,69 @@ body.mail-emoji-mode #emoji-panel { bottom: calc(64px + var(--mochi-safe-bottom,
 .au-bids { display:flex; gap:7px; width:100%; }
 .au-bids .pong-overlay-btn { flex:1; padding-left:2px; padding-right:2px; }
 .au-bids button:disabled { opacity:.45; }
+/* #306：「不拍了」(btn2) 的半透明白底+白字是给深色 .pong-overlay 覆盖层用的，
+   在白卡上一字看不见＝按钮像凭空消失。举牌行里的次按钮改浅底深字（暗色反向）。 */
+.au-bids .pong-overlay-btn2 { background:rgba(0,0,0,.07); color:var(--ink,#222); }
+[data-theme="dark"] .au-bids .pong-overlay-btn2 { background:rgba(255,255,255,.16); color:#f0f0f0; }
 .au-status { min-height:20px; font-size:13px; color:var(--muted); text-align:center; }
-.au-ov-ico { font-size:44px; margin-bottom:4px; line-height:1.2; }
+.au-ov-ico { font-size:44px; margin-bottom:4px; line-height:1.2; }/* ===== #302 朋友圈贴纸回复 + 回忆闪回 ===== */
+.feed-imgs { position: relative; }
+.feed-sticker { position: absolute; width: 44px; height: 44px; transform: translate(-50%, -50%); cursor: pointer; z-index: 2; filter: drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
+.feed-sticker img { width: 100%; height: 100%; object-fit: contain; }
+.feed-sticker-emoji { font-size: 30px; line-height: 44px; }
+.feed-mem-card { position: relative; margin: 0 0 12px; padding: 12px 30px 12px 14px; border-radius: 14px; cursor: pointer; }
+.feed-mem-label { font-size: 12px; font-weight: 600; color: #ff6b9d; margin-bottom: 6px; }
+.feed-mem-body { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #444; }
+.feed-mem-body img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex: 0 0 auto; }
+.feed-mem-body span { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.feed-mem-dismiss { position: absolute; top: 8px; right: 8px; border: none; background: none; color: #999; font-size: 13px; padding: 4px; cursor: pointer; }
+.feed-post.feed-hl { outline: 2px solid rgba(255,107,157,.55); outline-offset: 2px; border-radius: 14px; animation: feedHl 2.4s ease; }
+@keyframes feedHl { 0%,60% { background: rgba(255,107,157,.08); } 100% { background: transparent; } }
+/* ===== #303 心情日记 ===== */
+.mood-emoji-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 10px 0; }
+.mood-emoji-item { border: 1.5px solid transparent; border-radius: 12px; padding: 8px 2px 6px; background: rgba(255,255,255,.5); text-align: center; cursor: pointer; }
+.mood-emoji-item.sel { border-color: #ff6b9d; background: rgba(255,107,157,.1); }
+.mood-emoji-face { font-size: 24px; display: block; }
+.mood-emoji-name { font-size: 11px; color: #666; }
+.mood-note-input { width: 100%; box-sizing: border-box; border: 1px solid rgba(0,0,0,.1); border-radius: 10px; padding: 8px 10px; font-size: 13px; background: rgba(255,255,255,.6); }
+.mood-save-btn { margin-top: 8px; width: 100%; border: none; border-radius: 10px; padding: 9px 0; font-size: 14px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #ff6b9d, #ff9a76); cursor: pointer; }
+.mood-ta-line { margin-top: 8px; font-size: 12px; color: #888; text-align: center; }
+.mood-month-nav { display: flex; justify-content: flex-end; gap: 6px; }
+.mood-month-nav button { border: 1px solid rgba(0,0,0,.1); background: rgba(255,255,255,.6); border-radius: 8px; width: 28px; height: 24px; font-size: 14px; cursor: pointer; }
+.mood-legend { display: flex; gap: 14px; font-size: 11px; color: #777; margin-top: 2px; }
+.ml-me { color: #ff6b9d; }
+.ml-ta { color: #6ba7ff; }
+.mood-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 10px; }
+.mood-cell { min-height: 40px; border-radius: 8px; background: rgba(255,255,255,.45); text-align: center; font-size: 10px; }
+.mood-dow { min-height: 18px; background: none; color: #999; line-height: 18px; }
+.mood-day.today { outline: 1.5px solid #ff6b9d; }
+.mood-dnum { display: block; color: #999; margin-top: 2px; }
+.mood-dfaces { display: flex; justify-content: center; gap: 2px; font-style: normal; font-size: 13px; }
+.mood-dfaces i { font-style: normal; }
+.mood-month-stats { margin-top: 8px; font-size: 12px; color: #666; }
+
+/* ===== 小游戏丰富度 #301：TA 气泡 / 消消乐炸弹 / 游乐室 ===== */
+/* 中局 TA 气泡：半框 stage 顶部冒一句台词（gomoku/linkup/match3/auction 共用） */
+.tg-bubble { position:absolute; top:6px; left:50%; transform:translate(-50%,-6px); max-width:82%; background:rgba(20,20,24,.86); color:#fff; font-size:12px; line-height:1.5; padding:5px 11px; border-radius:12px; z-index:6; opacity:0; pointer-events:none; transition:opacity .22s, transform .22s; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; box-shadow:0 3px 10px rgba(0,0,0,.22); }
+.tg-bubble.show { opacity:1; transform:translate(-50%,0); }
+/* 消消乐炸弹：💥 外圈警示环 */
+.m3-tile.m3-bomb { box-shadow:inset 0 0 0 2px #ff9d4d; }
+/* 游乐室 */
+.arc-wrap { padding:4px 2px; display:flex; flex-direction:column; gap:10px; }
+.arc-lucky { font-size:13px; background:rgba(255,179,71,.14); border:1px solid rgba(255,179,71,.4); border-radius:10px; padding:8px 12px; text-align:center; }
+.arc-lucky.done { opacity:.66; }
+.arc-sec { font-size:13px; font-weight:600; margin-top:2px; }
+.arc-sec .arc-sub { font-size:11px; font-weight:400; color:var(--muted); margin-left:8px; }
+.arc-row { display:flex; align-items:center; gap:10px; padding:5px 2px; border-bottom:1px dashed rgba(127,127,127,.16); font-size:13px; }
+.arc-ico { width:22px; text-align:center; }
+.arc-name { width:104px; flex:none; }
+.arc-line { color:var(--muted); font-size:12px; }
+.arc-badges { display:flex; flex-wrap:wrap; gap:6px; }
+.arc-badge { font-size:11px; padding:4px 9px; border-radius:99px; background:rgba(127,127,127,.12); color:var(--muted); }
+.arc-badge.on { background:rgba(255,179,71,.2); color:#b7791f; font-weight:600; }
+[data-theme="dark"] .arc-badge.on { color:#ffc98a; }
+.arc-drops { display:flex; flex-wrap:wrap; gap:6px; }
+.arc-drop { font-size:11px; padding:4px 9px; border-radius:9px; background:rgba(127,127,127,.1); color:var(--muted); }
+.arc-drop.on { background:rgba(91,143,249,.16); color:#3a7fd5; font-weight:600; }
+[data-theme="dark"] .arc-drop.on { color:#8fb8ff; }
+.au-bag-row .au-send-btn { display:inline-block; margin-left:6px; padding:2px 10px; font-size:11px; }

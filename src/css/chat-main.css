@@ -644,8 +644,10 @@ body.cs-time-divider .msg-time-divider { display:flex; }
 }
 .poke-card-head {
   display:flex; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; row-gap:6px; /* #306：控件过多时整组换到第二行（放得下时形态不变），防止把标题挤成一字一行竖排 */
   font-size:15px; font-weight:700; margin-bottom:10px;
 }
+.poke-card-head > span { white-space:nowrap; } /* #306：标题不许被压缩换行（竖排字的根因） */
 .poke-card-head-actions {
   display:flex; align-items:center; gap:8px; margin-left:auto;
 }

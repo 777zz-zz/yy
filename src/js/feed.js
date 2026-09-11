@@ -650,9 +650,23 @@
     content = content.replace(/((?:sticker|image):)?(https?:\/\/[^\s"'<>]+|data:image\/[a-zA-Z0-9.+-]+(?:;[a-zA-Z0-9.+-]*(?:=[^;,]*)?)*,[^\s"'<>]+)/g, (m, pre, u) => { if (u.indexOf('http') === 0 && pre !== 'sticker:' && pre !== 'image:') return m; imgs.push(u); return ' '; });
     let html = inlineBody(content, (p.role || p.by) === 'me' ? '' : p.owner);
     if (imgs.length) {
-      html += '<div class="feed-imgs">' + imgs.map(u => '<img src="' + attrEsc(u) + '" alt="图片" loading="lazy">').join('') + '</div>';
+      // #302：贴纸回复——贴纸绝对定位叠在配图区上（x/y 为区块百分比），随卡片一起局部刷新
+      html += '<div class="feed-imgs">' + imgs.map(u => '<img src="' + attrEsc(u) + '" alt="图片" loading="lazy">').join('') + feedStickersHtml(p) + '</div>';
     }
     return html;
+  }
+  // #302 贴纸回复：配图上的贴纸层（仅贴过才有输出）；我贴的可点撤回
+  function feedStickersHtml(p) {
+    const list = Array.isArray(p.stickers) ? p.stickers : [];
+    if (!list.length) return '';
+    return list.map((s, i) => {
+      const who = s.authorName || ((s.role || s.owner) === 'me' ? feedUserName() : 'TA');
+      const inner = s.src
+        ? '<img src="' + attrEsc(s.src) + '" alt="贴纸">'
+        : '<span class="feed-sticker-emoji">' + esc(s.emoji || '❤️') + '</span>';
+      const del = (s.role || s.owner) === 'me' ? ' data-sticker-del="' + esc(p.id) + '|' + i + '"' : '';
+      return '<span class="feed-sticker"' + del + ' style="left:' + Number(s.x || 0) + '%;top:' + Number(s.y || 0) + '%" title="' + esc(who) + ' 贴的贴纸">' + inner + '</span>';
+    }).join('');
   }
   // 评论区 HTML（v3.5.95：提升到模块作用域，主列表 + 全部朋友圈共用）
   // v3.14.x：回复目标按对话轮次解析——不再一律指向原评论作者（旧版 TA 回应我的回复
@@ -799,6 +813,8 @@
       '<div class="feed-actions">' +
       '<button class="feed-act' + (liked ? ' liked' : '') + '" data-like="' + p.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 21s-7.5-4.7-9.3-9A5.3 5.3 0 0112 6.4a5.3 5.3 0 019.3 5.6c-1.8 4.3-9.3 9-9.3 9z"/></svg>赞</button>' +
       '<button class="feed-act" data-comment="' + p.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4v8z"/><circle cx="8.5" cy="10.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="10.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="10.5" r="1.2" fill="currentColor" stroke="none"/></svg>评论</button>' +
+      // #302：贴纸回复——仅配图动态出现，把表情贴纸贴到照片上
+      (((p.imgs && p.imgs.length) || p.img) ? '<button class="feed-act" data-sticker="' + p.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 007 0"/><circle cx="9" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9.5" r="1" fill="currentColor" stroke="none"/></svg>贴纸</button>' : '') +
       '<button class="feed-act feed-fav' + (faved ? ' faved' : '') + '" data-fav="' + p.id + '"><svg viewBox="0 0 24 24" fill="' + (faved ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 2l2.4 5 5.6.8-4 4 .9 5.6-4.9-2.6-4.9 2.6.9-5.6-4-4 5.6-.8z"/></svg>收藏</button>' +
       '</div>' + likes + commentsHtmlFor(p, name) + '</div>';
   }
@@ -851,10 +867,13 @@
     const posts = feedSortedAll();
     feedShownMain = Math.min(posts.length, FEED_RENDER_MAX);
     const name = partnerName();
-    listEl.innerHTML = posts.length
+    // #302：回忆闪回——那年今天的动态以记忆卡形式置顶（今日点 ✕ 后当天不再出现）
+    const memPost = feedMemoryPost();
+    const memHtml = (memPost && !feedMemDismissed()) ? feedMemBannerHtml(memPost) : '';
+    listEl.innerHTML = memHtml + (posts.length
       ? posts.slice(0, feedShownMain).map(p => postCardHtml(p, name)).join('') +
         (posts.length > feedShownMain ? feedMoreBtnHtml(posts.length - feedShownMain) : '')
-      : '<div class="ta-empty">还没有动态，TA 会不定期分享生活</div>';
+      : '<div class="ta-empty">还没有动态，TA 会不定期分享生活</div>');
     const clearBtn = document.getElementById('feed-head-clear');
     if (clearBtn) clearBtn.hidden = !posts.length;
     bindEvents(listEl);
@@ -882,6 +901,163 @@
   function renderVisible() {
     const fa = document.getElementById('page-feed-all');
     if (fa && !fa.hidden) { try { renderFeedAll(); } catch (e) {} } else { render(); }
+  }
+  // ===== #302 贴纸回复 =====
+  // 贴纸来源：TA 的表情包 + 我的表情包（复用评论条同一来源，只收 dataURL）
+  function feedAllStickers() {
+    const savedTab = comStickerTab;
+    const out = [];
+    try {
+      comStickerTab = 'ta'; comStickerGroups().forEach(g => (g[1] || []).forEach(s => out.push(s)));
+      comStickerTab = 'mine'; comStickerGroups().forEach(g => (g[1] || []).forEach(s => out.push(s)));
+    } catch (e) {}
+    comStickerTab = savedTab;
+    return out;
+  }
+  let feedStickerCard = null;
+  function openFeedStickerPanel(pid) {
+    if (!feedStickerCard) {
+      feedStickerCard = document.createElement('div');
+      feedStickerCard.id = 'feed-sticker-card';
+      feedStickerCard.className = 'poke-card emoji-card';
+      feedStickerCard.style.position = 'fixed';
+      feedStickerCard.style.left = '8px';
+      feedStickerCard.style.right = '8px';
+      feedStickerCard.style.bottom = '10px';
+      feedStickerCard.style.maxHeight = '46vh';
+      feedStickerCard.style.zIndex = '3000';
+      feedStickerCard.hidden = true;
+      feedStickerCard.innerHTML =
+        '<div class="emoji-head">' +
+          '<div class="emoji-tabs"><span class="emoji-tab sel">选个贴纸贴到照片上</span></div>' +
+          '<button class="poke-card-close" data-fsc="1">✕</button>' +
+        '</div>' +
+        '<div class="poke-card-scroll" style="min-height:100px;max-height:36vh" id="feed-sticker-list"></div>';
+      document.body.appendChild(feedStickerCard);
+      feedStickerCard.querySelector('[data-fsc]').addEventListener('click', () => { feedStickerCard.hidden = true; });
+      feedStickerCard.addEventListener('click', (e) => { if (e.target === feedStickerCard) feedStickerCard.hidden = true; });
+    }
+    feedStickerCard.dataset.pid = pid;
+    feedStickerCard.hidden = false;
+    const list = document.getElementById('feed-sticker-list');
+    const srcs = feedAllStickers();
+    list.innerHTML = '';
+    if (!srcs.length) {
+      list.innerHTML = '<div class="ta-empty">暂无表情包，请到自定义字卡 → 表情包 上传</div>';
+      return;
+    }
+    const grid = document.createElement('div');
+    grid.className = 'emoji-grid';
+    srcs.forEach(src => {
+      const d = document.createElement('div');
+      d.className = 'emoji-item';
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = '贴纸';
+      d.appendChild(img);
+      d.addEventListener('click', (e) => {
+        e.stopPropagation();
+        addFeedSticker(feedStickerCard.dataset.pid, { src });
+        feedStickerCard.hidden = true;
+      });
+      grid.appendChild(d);
+    });
+    list.appendChild(grid);
+  }
+  function feedRandStickerPos() {
+    return { x: Math.round(6 + Math.random() * 74), y: Math.round(6 + Math.random() * 70) };
+  }
+  // 我贴一张：每条动态上限 5 张；贴完 TA 有概率（评论回应概率同源）回贴一张并进通知
+  function addFeedSticker(pid, st) {
+    const list = load();
+    const p = list.find(x => x.id === pid);
+    if (!p) { toast('这条动态不存在了'); return; }
+    p.stickers = Array.isArray(p.stickers) ? p.stickers : [];
+    if (p.stickers.length >= 5) { toast('这张照片上贴纸够多啦（最多 5 张）'); return; }
+    const pos = feedRandStickerPos();
+    p.stickers.push({ src: st.src || '', emoji: st.emoji || '', x: pos.x, y: pos.y, ts: Date.now(), role: 'me', owner: 'me', authorName: feedUserName() });
+    save(list);
+    refreshPostCard(pid);
+    const cid = p.owner || 'default';
+    const cfg = feedCfgFor(cid);
+    if (Math.random() * 100 < cfg.commentProb) {
+      setTimeout(() => {
+        const l2 = load();
+        const p2 = l2.find(x => x.id === pid);
+        if (!p2) return;
+        p2.stickers = Array.isArray(p2.stickers) ? p2.stickers : [];
+        if (p2.stickers.length >= 5) return;
+        const taSt = feedTaPickSticker();
+        const pos2 = feedRandStickerPos();
+        const nm = p2.taName || taFeedNameFor(cid);
+        p2.stickers.push({ src: taSt.src || '', emoji: taSt.emoji || '', x: pos2.x, y: pos2.y, ts: Date.now(), role: 'ta', owner: cid, authorName: nm });
+        save(l2);
+        refreshPostCard(pid);
+        addNotice('comment', pid, nm + ' 在配图上贴了一张贴纸', cid);
+      }, (cfg.commentSpeedMin + Math.random() * Math.max(1, cfg.commentSpeedMax - cfg.commentSpeedMin)) * 1000);
+    }
+  }
+  function feedTaPickSticker() {
+    const saved = comStickerTab;
+    comStickerTab = 'ta';
+    const g = comStickerGroups();
+    comStickerTab = saved;
+    const srcs = [];
+    g.forEach(x => (x[1] || []).forEach(s => srcs.push(s)));
+    if (srcs.length && Math.random() < 0.7) return { src: srcs[Math.floor(Math.random() * srcs.length)] };
+    const EM = ['❤️', '😘', '🥰', '👍', '😂', '🌈', '✨', '🎀', '😻', '🤗'];
+    return { emoji: EM[Math.floor(Math.random() * EM.length)] };
+  }
+  function removeFeedSticker(pid, i) {
+    if (!window.openModal) return;
+    window.openModal('撤回这张贴纸？', '', () => {
+      const list = load();
+      const p = list.find(x => x.id === pid);
+      if (!p || !p.stickers || !p.stickers[i]) return;
+      p.stickers.splice(i, 1);
+      save(list);
+      refreshPostCard(pid);
+    }, { noInput: true });
+  }
+  // ===== #302 回忆闪回（那年今天）=====
+  function feedMemoryPost() {
+    const now = new Date();
+    const mmdd = (now.getMonth() + 1) + '-' + now.getDate();
+    let best = null;
+    feedSortedAll().forEach(p => {
+      const d = new Date(p.ts);
+      if (d.getFullYear() >= now.getFullYear()) return;
+      if ((d.getMonth() + 1) + '-' + d.getDate() !== mmdd) return;
+      if (!best || p.ts > best.ts) best = p;
+    });
+    return best;
+  }
+  function feedMemDismissed() {
+    try { return store.get('feed-mem-dismiss') === new Date().toDateString(); } catch (e) { return false; }
+  }
+  function feedMemBannerHtml(p) {
+    const y = new Date(p.ts).getFullYear();
+    const txt = String(p.content || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    const th = (p.imgs && p.imgs[0]) || p.img || '';
+    return '<div class="feed-mem-card glass" id="feed-mem-card" data-pid="' + esc(p.id) + '">' +
+      '<div class="feed-mem-label">📅 回忆闪回 · ' + y + ' 年的今天</div>' +
+      '<div class="feed-mem-body">' + (th ? '<img src="' + attrEsc(th) + '" alt="">' : '') + '<span>' + esc(txt || '（图片动态）') + '</span></div>' +
+      '<button class="feed-mem-dismiss" type="button">✕</button></div>';
+  }
+  // 点击回忆卡：定位到那条动态并高亮；「查看更早」窗口没渲染到就扩窗重渲染后再定位
+  function revealFeedPost(pid) {
+    const posts = feedSortedAll();
+    const idx = posts.findIndex(p => p.id === pid);
+    if (idx < 0) return;
+    if (idx >= feedShownMain) {
+      feedShownMain = Math.min(posts.length, idx + 20);
+      render();
+    }
+    const el = document.getElementById('feed-post-' + pid);
+    if (!el) return;
+    try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { try { el.scrollIntoView(); } catch (e2) {} }
+    el.classList.add('feed-hl');
+    setTimeout(() => el.classList.remove('feed-hl'), 2400);
   }
   // v3.10.x：单卡局部刷新——评论/回复/点赞只改动一条动态，原实现走 renderVisible()
   //   全量重渲染整个列表：所有卡片 HTML 字符串重建 + 全部 dataURL 配图重新解码 +
@@ -949,6 +1125,30 @@
     listEl.querySelectorAll('.feed-act[data-comment]').forEach(b => b.addEventListener('click', () => {
       showCommentBar(b.dataset.comment);
     }));
+    // #302：贴纸回复——打开选贴纸面板 / 点击我贴的贴纸撤回
+    listEl.querySelectorAll('.feed-act[data-sticker]').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openFeedStickerPanel(b.dataset.sticker);
+    }));
+    listEl.querySelectorAll('.feed-sticker[data-sticker-del]').forEach(el2 => el2.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const parts = String(el2.dataset.stickerDel).split('|');
+      removeFeedSticker(parts[0], parseInt(parts[1], 10));
+    }));
+    // #302：回忆闪回卡——点击定位到那年今天的动态，✕ 今日不再显示
+    const memCard = listEl.querySelector('.feed-mem-card');
+    if (memCard) {
+      memCard.addEventListener('click', (e) => {
+        if (e.target && e.target.closest && e.target.closest('.feed-mem-dismiss')) return;
+        revealFeedPost(memCard.dataset.pid);
+      });
+      const dis = memCard.querySelector('.feed-mem-dismiss');
+      if (dis) dis.addEventListener('click', (e) => {
+        e.stopPropagation();
+        try { store.set('feed-mem-dismiss', new Date().toDateString()); } catch (err) {}
+        memCard.remove();
+      });
+    }
     // 收藏：收藏到桌面收藏夹（我的收藏-朋友圈），按动态 ts 去重
     listEl.querySelectorAll('.feed-act[data-fav]').forEach(b => b.addEventListener('click', () => {
       const pid = b.dataset.fav;
@@ -1940,6 +2140,8 @@ if (comInput) comInput.addEventListener('keydown', (e) => { if (e.key === 'Enter
       '<div class="feed-actions">' +
       '<button class="feed-act' + (liked ? ' liked' : '') + '" data-like="' + p.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 21s-7.5-4.7-9.3-9A5.3 5.3 0 0112 6.4a5.3 5.3 0 019.3 5.6c-1.8 4.3-9.3 9-9.3 9z"/></svg>赞</button>' +
       '<button class="feed-act" data-comment="' + p.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4v8z"/><circle cx="8.5" cy="10.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="10.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="10.5" r="1.2" fill="currentColor" stroke="none"/></svg>评论</button>' +
+      // #302：贴纸回复——仅配图动态出现，把表情贴纸贴到照片上
+      (((p.imgs && p.imgs.length) || p.img) ? '<button class="feed-act" data-sticker="' + p.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 007 0"/><circle cx="9" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9.5" r="1" fill="currentColor" stroke="none"/></svg>贴纸</button>' : '') +
       '<button class="feed-act feed-fav' + (faved ? ' faved' : '') + '" data-fav="' + p.id + '"><svg viewBox="0 0 24 24" fill="' + (faved ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 2l2.4 5 5.6.8-4 4 .9 5.6-4.9-2.6-4.9 2.6.9-5.6-4-4 5.6-.8z"/></svg>收藏</button>' +
       '</div>' + likes +
       commentsHtmlFor(p, author) + '</div>';

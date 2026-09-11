@@ -17,6 +17,18 @@
   const diffSel = document.getElementById('memory-diff');
   const soundBtn = document.getElementById('memory-sound');
   const closeBtn = document.getElementById('memory-close');
+  const fsBtn = document.getElementById('memory-fs');
+
+  // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
+  // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----
+  let isFs = false;
+  function toggleFs() {
+    isFs = !isFs;
+    panel.classList.toggle('game-fs', isFs);
+    if (fsBtn) fsBtn.textContent = isFs ? '⤤' : '⛶';
+    setTimeout(() => { try { if (typeof fitBoard === 'function') fitBoard(); } catch (e) {} }, 60);
+  }
+  if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFs(); });
   const partnerNameEl = document.getElementById('memory-partner-name');
   const turnEl = document.getElementById('memory-turn');
   const chemEl = document.getElementById('memory-chem');
@@ -462,6 +474,7 @@
 
   // ---- 入口（供 chat.js 调用） ----
   window.openMemoryPanel = function () {
+    try { if (isFs) toggleFs(); } catch (e) {}
     if (!panel) return;
     if (partnerNameEl) {
       try {

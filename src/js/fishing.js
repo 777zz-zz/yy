@@ -9,6 +9,17 @@
   if (window.__fishInit) return;
   window.__fishInit = true;
 
+  // ---- #306 全屏：面板 fixed 满屏（共享 .game-fs 类，同 pong-fs 机制）。 ----
+  // 重开面板无论上次怎么关的（含兄弟互斥直接 hidden）都先退出，防全屏残留 ----
+  const fsBtn = document.getElementById('fish-fs');
+  let isFs = false;
+  function toggleFs() {
+    isFs = !isFs;
+    panel.classList.toggle('game-fs', isFs);
+    if (fsBtn) fsBtn.textContent = isFs ? '⤤' : '⛶';
+  }
+  if (fsBtn) fsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFs(); });
+
   // ---- 基础工具 ----
   function store() { try { return window.activeStore(); } catch (e) { return null; } }
   function toast(msg) {
@@ -746,6 +757,7 @@
     } catch (e) {}
   })();
   window.openFishPanel = function () {
+    try { if (isFs) toggleFs(); } catch (e) {}
     if (!panel) return;
     hideSiblings();
     resetTa();

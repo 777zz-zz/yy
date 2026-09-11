@@ -4034,12 +4034,21 @@ if (window.closeAvlib) window.closeAvlib();
 if (window.openPongPanel) window.openPongPanel();
 return;
 }
-if (kind === 'snake') { if (window.openSnakePanel) window.openSnakePanel(); }
+if (kind === 'snake') { if (window.openSnakePanel) window.openSnakePanel(); return; }
+// #301：四款新游戏邀请直达（面板 open 前游戏文件各自收兄弟半框）
+if (kind === 'gomoku') { if (window.openGomokuPanel) window.openGomokuPanel(); return; }
+if (kind === 'linkup') { if (window.openLinkupPanel) window.openLinkupPanel(); return; }
+if (kind === 'match3') { if (window.openMatch3Panel) window.openMatch3Panel(); return; }
+if (kind === 'auction') { if (window.openAuctionPanel) window.openAuctionPanel(); return; }
 }
 const INVITE_KIND_META = {
 rps: { title: '猜拳邀请' },
 pong: { title: '游戏邀请' },
 snake: { title: '游戏邀请' },
+gomoku: { title: '游戏邀请' },
+linkup: { title: '游戏邀请' },
+match3: { title: '游戏邀请' },
+auction: { title: '游戏邀请' },
 cuddle: { title: '贴贴邀请' }
 };
 function sendTaInvite(inv, name) {
@@ -4061,7 +4070,16 @@ if (window.taInviteDraw) {
 inv = window.taInviteDraw(c);
 } else {
 if (cfgn(c, 'ai-rps-en', 1) === 1 && hit(cfgn(c, 'ai-rps-prob', 8))) inv = { kind: 'rps', text: '想和你猜拳，来一局？' };
-else if (cfgn(c, 'ai-game-en', 1) === 1 && hit(cfgn(c, 'ai-game-prob', 5))) inv = Math.random() < 0.5 ? { kind: 'pong', text: '想和你玩一局 Pong，来吗？' } : { kind: 'snake', text: '想和你玩双人贪吃蛇，来吗？' };
+else if (cfgn(c, 'ai-game-en', 1) === 1 && hit(cfgn(c, 'ai-game-prob', 5))) { // #301：邀请池扩到六款（原 pong/snake 二选一）
+const GINV_POOL = [
+{ kind: 'pong', text: '想和你玩一局 Pong，来吗？' },
+{ kind: 'snake', text: '想和你玩双人贪吃蛇，来吗？' },
+{ kind: 'gomoku', text: '想和你玩一局五子棋，来吗？' },
+{ kind: 'linkup', text: '来玩连连看嘛，一起清完整张棋盘' },
+{ kind: 'match3', text: '一起玩消消乐呀，冲个目标分' },
+{ kind: 'auction', text: '拍卖会上新啦，来跟我抢拍品呀' }
+];
+inv = GINV_POOL[Math.floor(Math.random() * GINV_POOL.length)]; }
 }
 if (!inv || !inv.text) return false;
 sendTaInvite(inv, name);
@@ -4713,6 +4731,16 @@ openPokeCard();
 }
 const rpsPanel = document.getElementById('chat-rps-panel');
 const rpsCloseBtn = document.getElementById('chat-rps-close');
+// #306 全屏：猜拳面板 fixed 满屏（共享 .game-fs 类）。重开面板先退出，防全屏残留
+const rpsFsBtn = document.getElementById('rps-fs');
+let rpsIsFs = false;
+function rpsToggleFs() {
+if (!rpsPanel) return;
+rpsIsFs = !rpsIsFs;
+rpsPanel.classList.toggle('game-fs', rpsIsFs);
+if (rpsFsBtn) rpsFsBtn.textContent = rpsIsFs ? '⤢' : '⛶';
+}
+if (rpsFsBtn) rpsFsBtn.addEventListener('click', (e) => { e.stopPropagation(); rpsToggleFs(); });
 const rpsScoreEl = document.getElementById('rps-score');
 const rpsHintEl = document.getElementById('rps-hint');
 const rpsNameEl = document.getElementById('rps-partner-name');
@@ -4728,6 +4756,7 @@ rpsScoreEl.textContent = '胜 ' + s.w + ' · 负 ' + s.l + ' · 平 ' + s.d;
 }
 function openRpsPanel() {
 if (!rpsPanel) return;
+try { if (rpsIsFs) rpsToggleFs(); } catch (e) {}
 const pc = document.getElementById('poke-card'); if (pc) pc.hidden = true;
 const ep = document.getElementById('emoji-panel'); if (ep) ep.hidden = true;
 const askP = document.getElementById('chat-ask-panel'); if (askP) closeChatAskPanel();

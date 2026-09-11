@@ -779,6 +779,8 @@ try {
   const syncBgUI = () => {
     const has = !!store.get('phone-bg');
     if (bgVal) bgVal.textContent = has ? '已设置' : '';
+    // v3.27.x：回显带上图库张数（pbgList 声明在本函数之后，早期调用会 TDZ——try/catch 兜过）
+    try { const gl = pbgList(); if (bgVal && gl.length) bgVal.textContent = has ? '已设置 · 库 ' + gl.length + ' 张' : '库 ' + gl.length + ' 张'; } catch (e) {}
     if (bgRemove) bgRemove.hidden = !has;
   };
   const clearPhoneBg = () => {
@@ -796,6 +798,8 @@ try {
     store.remove('phone-bg-pos-x');
     store.remove('phone-bg-pos-y');
     store.remove('phone-bg-size');
+    // v3.27.x 优化①：壁纸被清/切预设后图库 active-id 失效，同步清掉（面板对账也会兜）
+    try { store.remove(PBG_ACTIVE); } catch (e) {}
     syncBgUI();
     const pv = document.getElementById('bg-preset-val'); if (pv) pv.textContent = '默认';
   };
@@ -863,6 +867,16 @@ try {
     picker.addEventListener('input', () => { clearPhoneBg(); store.set('phone-bg-solid', picker.value); applyPhoneBgPreset(picker.value); syncBgPresetUI(); });
 
     pickerRow.appendChild(picker);
+    // v3.27.x：手输色值兜底——取色器打不开的手机（内置浏览器/WebView）从这填 #RRGGBB
+    const pickerHex = document.createElement('button'); pickerHex.textContent = '手输色值'; pickerHex.style.cssText = 'font-size:12px;padding:5px 10px;border:1px solid var(--card-border,#ddd);border-radius:8px;background:var(--btn-cancel-bg,#fafafa);color:var(--ink,#111)';
+    pickerHex.addEventListener('click', () => {
+      openHexColorModal('输入纯色色值', (store.get('phone-bg-solid') || '#ffffff'), (c) => {
+        clearPhoneBg(); store.set('phone-bg-solid', c); applyPhoneBgPreset(c); syncBgPresetUI();
+        try { picker.value = c; } catch (e) {}
+        toast('已应用纯色 ' + c.toUpperCase());
+      });
+    });
+    pickerRow.appendChild(pickerHex);
     const pickerOk = document.createElement('button'); pickerOk.textContent = '应用'; pickerOk.style.cssText = 'font-size:12px;padding:5px 12px;border:none;border-radius:8px;background:var(--ink,#111);color:#fff';
     pickerOk.addEventListener('click', () => { toast('已应用自定义纯色'); m.style.display = 'none'; });
     pickerRow.appendChild(pickerOk);
@@ -875,37 +889,270 @@ try {
   if (bgPresetRow) {
     bgPresetRow.addEventListener('click', openBgPanel);
   }
+  // ================= v3.27.x：壁纸图库（多张保存 + 点击切换） =================
+  // 此前 phone-bg 只有一张，换图即丢旧图。图库结构与聊天壁纸图库同构：
+  //   phone-bg-glist = JSON 数组（条目 id）；phone-bg-item-<id> = 全图（大键走 IDB）；
+  //   phone-bg-item-thb-<id> = 240px 缩略图（面板只解码小图，防 N 张 4MB 原图同时解码卡顿）。
+  // 当前生效壁纸仍是 phone-bg（常驻图层/定位缩放/预设互斥/方案导入等既有链路零改动）。
+  // 旧数据自动迁移：phone-bg 有值而图库为空时，首次打开面板把当前壁纸收为第 1 张。
+  const PBG_GLIST = 'phone-bg-glist';
+  const PBG_MAX = 12; // 图库容量上限
+  const pbgList = () => {
+    try { const v = JSON.parse(store.get(PBG_GLIST) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+  };
+  const pbgSaveList = (arr) => store.set(PBG_GLIST, JSON.stringify(arr));
+  // v3.27.x 优化①：active-id——记录图库里哪张是当前生效壁纸，面板高亮/删除判断只看 id，
+  // 不再为对比把每张 MB 级全图读进内存；对账失配（升级首次/方案导入直写 phone-bg/预设覆盖）时
+  // 读一轮全图找回，稳态只做 1 次内存读 + 1 次字符串比对（memoryCache 返引用，零拷贝）
+  const PBG_ACTIVE = 'phone-bg-active-id';
+  const pbgActiveId = () => store.get(PBG_ACTIVE) || '';
+  function pbgReconcileActive() {
+    const list = pbgList();
+    const cur = store.get('phone-bg');
+    if (!cur) { if (pbgActiveId()) store.remove(PBG_ACTIVE); return ''; }
+    const aid = pbgActiveId();
+    if (aid && list.indexOf(aid) >= 0 && store.get('phone-bg-item-' + aid) === cur) return aid;
+    for (let i = 0; i < list.length; i++) {
+      if (store.get('phone-bg-item-' + list[i]) === cur) { store.set(PBG_ACTIVE, list[i]); return list[i]; }
+    }
+    return '';
+  }
+  const pbgEnsureSeed = () => {
+    if (store.get('phone-bg') && !pbgList().length) {
+      const seed = store.get('phone-bg');
+      const id = 'g' + Date.now().toString(36);
+      pbgSaveList([id]);
+      store.set('phone-bg-item-' + id, seed);
+      store.set(PBG_ACTIVE, id);
+      compressImage(seed, 240).then(th => { if (th) store.set('phone-bg-item-thb-' + id, th); });
+    }
+  };
+  // 入库一张并设为当前壁纸（面板上传用）；返回 null = 压缩失败/图库已满
+  const pbgAdd = (dataRaw) => compressImageFit(dataRaw, phoneBgMaxSide(), 4.5 * 1024 * 1024).then((data) => {
+    if (!data) return null;
+    if (pbgList().length >= PBG_MAX) { toast('图库已满（' + PBG_MAX + ' 张），请先删除几张'); return null; }
+    const id = 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const list = pbgList();
+    list.push(id);
+    pbgSaveList(list);
+    store.set('phone-bg-item-' + id, data);
+    compressImage(data, 240).then(th => { if (th) store.set('phone-bg-item-thb-' + id, th); });
+    applyPhoneBg(data);
+    store.set('phone-bg', data);
+    store.set(PBG_ACTIVE, id);
+    store.remove('phone-bg-preset');
+    syncBgUI();
+    syncBgPresetUI();
+    // v3.5.111：上传后立即同步一次桌面可见性，确保回桌面时壁纸已应用
+    //（配合内存缓存修复：大壁纸不写 localStorage，靠内存缓存当前会话内读回）
+    applyBgVisibility();
+    return id;
+  });
+  // 壁纸图库面板：缩略图网格（点图切换 / × 删除两击确认）+ 多选上传 + 清除当前
+  // 壁纸图库面板：缩略图网格（点图切换 / × 删除 + 5 秒内可撤销）+ 多选上传 + 同步到全部联系人
+  // 优化①：高亮只看 active-id（pbgReconcileActive 对账），渲染不读全图
+  // 优化⑤：删除单击即删 + 底部「撤销」条（5 秒后作废）
+  const openPhoneBgPanel = () => {
+    pbgEnsureSeed();
+    let m = document.getElementById('phone-bg-gallery-panel');
+    if (!m) { m = document.createElement('div'); m.id = 'phone-bg-gallery-panel'; m.style.cssText = 'position:fixed;inset:0;z-index:90;align-items:center;justify-content:center;background:rgba(0,0,0,.4);display:none'; document.body.appendChild(m); m.addEventListener('click', (e) => { if (e.target === m) m.style.display = 'none'; }); }
+    m.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'width:min(90vw,400px);max-height:84vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--card-bg,#fff);color:var(--ink,#111);border-radius:16px;padding:16px;box-shadow:0 14px 40px rgba(0,0,0,.25)';
+    const hd = document.createElement('div');
+    hd.innerHTML = '<div style="font-size:15px;font-weight:700">我的壁纸图库</div><div style="font-size:12px;color:var(--muted,#888);margin-top:4px">可存多张壁纸，点缩略图即切换；误删 5 秒内可撤销</div>';
+    wrap.appendChild(hd);
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0';
+    const cur = store.get('phone-bg') || '';
+    const aid = pbgReconcileActive();
+    const list = pbgList();
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'grid-column:1/-1;font-size:13px;color:var(--muted,#999);text-align:center;padding:24px 0';
+      empty.textContent = '图库还是空的，点下方「上传新图」加入';
+      grid.appendChild(empty);
+    }
+    list.forEach((id) => {
+      const cell = document.createElement('div');
+      cell.style.cssText = 'position:relative;border-radius:10px;overflow:hidden;border:2px solid transparent;cursor:pointer;aspect-ratio:9/19;background:var(--bg-b,#f2f2f2)';
+      const thb = store.get('phone-bg-item-thb-' + id);
+      if (id === aid) cell.style.borderColor = 'var(--btn-bg,#111)';
+      const im = document.createElement('img');
+      im.alt = '';
+      im.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
+      if (thb) { im.src = thb; }
+      else {
+        const full = store.get('phone-bg-item-' + id);
+        im.src = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
+        cell.style.background = 'var(--muted,#888)';
+        if (full) compressImage(full, 240).then((th) => { if (th) { store.set('phone-bg-item-thb-' + id, th); im.src = th; cell.style.background = ''; } });
+      }
+      cell.appendChild(im);
+      cell.addEventListener('click', () => {
+        // 只读被点中的这一张全图（active-id 对账保证高亮一致）
+        const full = store.get('phone-bg-item-' + id);
+        if (!full) return;
+        applyPhoneBg(full);
+        store.set('phone-bg', full);
+        store.set(PBG_ACTIVE, id);
+        store.remove('phone-bg-preset');
+        syncBgUI();
+        syncBgPresetUI();
+        applyBgVisibility();
+        toast('已切换壁纸');
+        m.style.display = 'none';
+      });
+      const del = document.createElement('div');
+      del.textContent = '×';
+      del.style.cssText = 'position:absolute;top:2px;right:2px;width:20px;height:20px;line-height:18px;text-align:center;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:14px';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const full = store.get('phone-bg-item-' + id);
+        const thb2 = store.get('phone-bg-item-thb-' + id);
+        const wasActive = id === aid;
+        pbgSaveList(pbgList().filter(x => x !== id));
+        store.remove('phone-bg-item-' + id);
+        store.remove('phone-bg-item-thb-' + id);
+        if (wasActive) { clearPhoneBg(); store.remove('phone-bg-pos-x'); store.remove('phone-bg-pos-y'); store.remove('phone-bg-size'); }
+        // 优化⑤：留底 5 秒，面板底部出「撤销」条；每次删除覆盖上一条留底（只保最近一张）
+        if (full) {
+          m.__undoItem = { id, full, thb: thb2, wasActive };
+          if (m.__undoTimer) clearTimeout(m.__undoTimer);
+          m.__undoTimer = setTimeout(() => { m.__undoItem = null; if (m.style.display === 'flex') openPhoneBgPanel(); }, 5000);
+        }
+        toast('已删除，5 秒内可撤销');
+        openPhoneBgPanel();
+      });
+      cell.appendChild(del);
+      grid.appendChild(cell);
+    });
+    wrap.appendChild(grid);
+    // 优化⑤：撤销条——恢复刚删除的那张（含它是否当时正被使用）
+    if (m.__undoItem) {
+      const strip = document.createElement('div');
+      strip.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--bg-b,#f6f6f6);margin-bottom:8px';
+      const st = document.createElement('span'); st.style.cssText = 'flex:1;font-size:12px;color:var(--muted,#888)'; st.textContent = '刚删除了 1 张壁纸，可撤销'; strip.appendChild(st);
+      const ub = document.createElement('button'); ub.textContent = '撤销'; ub.style.cssText = 'padding:5px 14px;border:none;border-radius:8px;background:var(--ink,#111);color:#fff;font-size:12px;font-weight:600';
+      ub.addEventListener('click', () => {
+        const u = m.__undoItem;
+        m.__undoItem = null;
+        if (m.__undoTimer) { clearTimeout(m.__undoTimer); m.__undoTimer = null; }
+        if (u && u.full) {
+          pbgSaveList(pbgList().concat([u.id]));
+          store.set('phone-bg-item-' + u.id, u.full);
+          if (u.thb) store.set('phone-bg-item-thb-' + u.id, u.thb);
+          if (u.wasActive) {
+            applyPhoneBg(u.full);
+            store.set('phone-bg', u.full);
+            store.set(PBG_ACTIVE, u.id);
+            store.remove('phone-bg-preset');
+            syncBgUI(); syncBgPresetUI(); applyBgVisibility();
+          }
+          toast('已撤销删除');
+        }
+        openPhoneBgPanel();
+      });
+      strip.appendChild(ub);
+      wrap.appendChild(strip);
+    }
+    const upBtn = document.createElement('button');
+    upBtn.textContent = '＋ 上传新图（可多选）';
+    upBtn.style.cssText = 'width:100%;padding:11px;border:none;border-radius:10px;background:var(--ink,#111);color:var(--bg-b,#fff);font-size:14px;font-weight:600;margin-bottom:8px';
+    upBtn.addEventListener('click', () => {
+      // input 现挂 body 再 click（v3.15.x 套路：未挂 DOM 的 input.click() 部分真机不弹选择器）
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
+      input.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
+      document.body.appendChild(input);
+      input.onchange = () => {
+        const fs = Array.prototype.slice.call(input.files || []);
+        try { if (input.parentNode) input.remove(); } catch (e) {}
+        if (!fs.length) return;
+        let ok = 0;
+        toast('正在处理 ' + fs.length + ' 张图片…');
+        let chain = Promise.resolve();
+        fs.forEach((f) => {
+          chain = chain.then(() => new Promise((res) => {
+            const reader = new FileReader();
+            reader.onload = () => { pbgAdd(reader.result).then((id) => { if (id) ok++; res(); }); };
+            reader.onerror = () => res();
+            reader.readAsDataURL(f);
+          }));
+        });
+        chain.then(() => {
+          if (ok) toast('已加入 ' + ok + ' 张壁纸');
+          if (document.getElementById('phone-bg-gallery-panel') && document.getElementById('phone-bg-gallery-panel').style.display === 'flex') openPhoneBgPanel();
+        });
+      };
+      input.onblur = () => { setTimeout(() => { try { if (input.parentNode) input.remove(); } catch (e) {} }, 1500); };
+      try { input.click(); } catch (e) { try { input.remove(); } catch (e2) {} toast('无法打开相册，请重试'); }
+    });
+    wrap.appendChild(upBtn);
+    if (cur) {
+      const rmBtn = document.createElement('button');
+      rmBtn.textContent = '清除当前壁纸（图库保留）';
+      rmBtn.style.cssText = 'width:100%;padding:10px;border:1px solid rgba(163,45,45,.35);border-radius:10px;background:var(--danger-soft,#fff5f5);color:var(--danger-ink,#a32d2d);font-size:13px;margin-bottom:8px';
+      rmBtn.addEventListener('click', () => { clearPhoneBg(); store.remove('phone-bg-pos-x'); store.remove('phone-bg-pos-y'); store.remove('phone-bg-size'); toast('已清除，图库里的图还在'); openPhoneBgPanel(); });
+      wrap.appendChild(rmBtn);
+    }
+    // 优化②：壁纸同样是 per-联系人独立的——一键把壁纸和图库同步到其他联系人桌面
+    //（含定位/缩放参数；目标端清掉预设/纯色键，保证显示的是同步过去的这张图）
+    if (list.length && window.getContacts && window.xyStore && window.openModal) {
+      const syncBtn = document.createElement('button');
+      syncBtn.textContent = '把壁纸和图库同步到全部联系人';
+      syncBtn.style.cssText = 'width:100%;padding:10px;border:1px solid var(--card-border,#ddd);border-radius:10px;background:var(--btn-cancel-bg,#fafafa);color:var(--ink,#111);font-size:13px;margin-bottom:8px';
+      syncBtn.addEventListener('click', () => {
+        const me = window.getActiveContact ? window.getActiveContact() : 'default';
+        const others = window.getContacts().filter(c => c.id && c.id !== me);
+        if (!others.length) { toast('现在只有这一个联系人，无需同步'); return; }
+        window.openModal('同步到全部联系人', '', (v) => {
+          if (v !== '__yes__') return;
+          const fullNow = store.get('phone-bg');
+          const glist = pbgList();
+          const aidNow = pbgActiveId();
+          const pos = { x: store.get('phone-bg-pos-x'), y: store.get('phone-bg-pos-y'), s: store.get('phone-bg-size') };
+          let n = 0;
+          others.forEach((c) => {
+            try {
+              const st = window.xyStore('xy-home-v2:' + c.id);
+              glist.forEach((gid) => {
+                const f = store.get('phone-bg-item-' + gid); if (f) st.set('phone-bg-item-' + gid, f);
+                const t = store.get('phone-bg-item-thb-' + gid); if (t) st.set('phone-bg-item-thb-' + gid, t);
+              });
+              st.set('phone-bg-glist', JSON.stringify(glist));
+              if (aidNow) st.set('phone-bg-active-id', aidNow); else st.remove('phone-bg-active-id');
+              if (fullNow) {
+                st.set('phone-bg', fullNow);
+                st.remove('phone-bg-preset');
+                st.remove('phone-bg-solid');
+                if (pos.x) st.set('phone-bg-pos-x', pos.x); else st.remove('phone-bg-pos-x');
+                if (pos.y) st.set('phone-bg-pos-y', pos.y); else st.remove('phone-bg-pos-y');
+                if (pos.s) st.set('phone-bg-size', pos.s); else st.remove('phone-bg-size');
+              } else st.remove('phone-bg');
+              n++;
+            } catch (e) {}
+          });
+          toast('已同步到 ' + n + ' 个联系人（切到对应桌面即可看到）');
+        }, { noInput: true, pills: [{ label: '确认同步（覆盖对方的桌面壁纸）', value: '__yes__' }, { label: '取消', value: '__no__' }] });
+      });
+      wrap.appendChild(syncBtn);
+    }
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '关闭';
+    closeBtn.style.cssText = 'width:100%;padding:10px;border:1px solid var(--card-border,#eee);border-radius:10px;background:var(--btn-cancel-bg,#fafafa);color:var(--btn-cancel-ink,#555);font-size:13px';
+    closeBtn.addEventListener('click', () => { m.style.display = 'none'; });
+    wrap.appendChild(closeBtn);
+    m.innerHTML = ''; m.appendChild(wrap); m.style.display = 'flex';
+  };
   if (bgRow) {
+    // 启动渲染防护 + 恢复已存壁纸（原逻辑保留：坏大值自动清除回默认）
     const savedBg = sanitizeBg('phone-bg', BG_SAFE_LIMIT);
     if (savedBg) applyPhoneBg(savedBg);
     syncBgUI();
-    bgRow.addEventListener('click', () => {
-      const input = document.createElement('input');
-      input.type = 'file'; input.accept = 'image/*';
-      input.onchange = () => {
-        const f = input.files && input.files[0];
-        if (!f) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          // v3.10.x：压缩并保证 <=4.5MB（渲染防护 6MB 留余量），超限自动降边长重压
-          compressImageFit(reader.result, phoneBgMaxSide(), 4.5 * 1024 * 1024).then(data => {
-            // v3.6.x：压缩失败/图片过大返回 null——不存原图（防 iOS 解码崩溃）
-            if (!data) { toast('图片过大或格式不支持，请换一张小图'); return; }
-            applyPhoneBg(data);
-            store.set('phone-bg', data);
-            store.remove('phone-bg-preset');
-            syncBgUI();
-            syncBgPresetUI();
-            // v3.5.111：上传后立即同步一次桌面可见性，确保回桌面时壁纸已应用
-            //（配合内存缓存修复：大壁纸不写 localStorage，靠内存缓存当前会话内读回）
-            applyBgVisibility();
-            toast('壁纸已设置');
-          });
-        };
-        reader.readAsDataURL(f);
-      };
-      input.click();
-    });
+    // v3.27.x：入口改为壁纸图库面板（多张保存+点击切换）；原「点了直接选一张」的
+    // 单图上传挪进面板（pbgAdd 沿用 compressImageFit + phoneBgMaxSide 既有压缩链）
+    bgRow.addEventListener('click', openPhoneBgPanel);
   }
   if (bgRemove) {
     bgRemove.addEventListener('click', () => clearPhoneBg());
@@ -914,7 +1161,12 @@ try {
   const bgAdjustRow = document.getElementById('row-bg-adjust');
   if (bgAdjustRow) {
     bgAdjustRow.addEventListener('click', () => {
-      if (!store.get('phone-bg')) { toast('请先上传背景图片'); return; }
+      // v3.27.x：没有当前壁纸时不再干巴巴提示——图库有存货直接打开图库选一张
+      if (!store.get('phone-bg')) {
+        try { if (pbgList().length) { toast('请先在图库里选一张壁纸'); openPhoneBgPanel(); return; } } catch (e) {}
+        toast('请先上传背景图片');
+        return;
+      }
       let m = document.getElementById('bg-adjust-panel');
       if (!m) { m = document.createElement('div'); m.id = 'bg-adjust-panel'; m.style.cssText = 'position:fixed;inset:0;z-index:90;align-items:center;justify-content:center;background:rgba(0,0,0,.4);display:none'; document.body.appendChild(m); m.addEventListener('click', (e) => { if (e.target === m) { m.style.display = 'none'; } }); }
       const pos = bgPosOf();
@@ -1133,6 +1385,29 @@ try {
   // 移出 .app-grid（如群聊开启时占卜移到隐藏池，或用户拖到其他页），grid click 监听器
   // 不触发；暴露 window.openIconMenu 供各图标自身监听器兜底调用
   window.openIconMenu = function (app) {
+    // v3.27.x：批量换图队列——「批量上传图标图片」载入多张后，依次点桌面图标按顺序
+    // 换上（每点一个消耗一张），队列清空自动恢复正常图标菜单。绕过弹窗直接换图，
+    // 是批量场景的专用快路径；透明度沿用该图标已存设置。
+    if (window.__iconBatchQ && window.__iconBatchQ.length) {
+      const bData = window.__iconBatchQ.shift();
+      const bKey = app.dataset.app;
+      // 优化④：换图前留底旧图标（prev=null 表示原本是默认 SVG），供「撤销上次批量换图」
+      ;(window.__iconBatchUndo = window.__iconBatchUndo || []).push({ key: bKey, prev: store.get('app-icon-' + bKey) || null });
+      const bIco = app.querySelector('.app-ico');
+      if (bIco) {
+        bIco.innerHTML = '';
+        const bImg = document.createElement('img');
+        bImg.src = bData; bImg.alt = '';
+        bIco.appendChild(bImg);
+      }
+      store.set('app-icon-' + bKey, bData);
+      const bOp = store.get('app-icon-opacity-' + bKey);
+      if (bOp) applyAppIconOpacity(app, parseInt(bOp, 10));
+      const bLeft = window.__iconBatchQ.length;
+      if (bLeft) toast('已换上，还剩 ' + bLeft + ' 张——继续点下一个图标');
+      else { toast('批量换图完成，共 ' + (window.__iconBatchTotal || '?') + ' 张'); window.__iconBatchQ = null; }
+      return;
+    }
     const grid = app.closest('.app-grid');
     const key = app.dataset.app;
     const ico = app.querySelector('.app-ico');
@@ -1193,6 +1468,8 @@ try {
     const pills = [];
     pills.push({ label: hasCustom ? '更换图片' : '上传图片', value: '1' });
     if (hasCustom) pills.push({ label: '清除图片', value: '2' });
+    // 优化④：统一图标风格——把当前这张图应用到桌面全部图标（每个图标保留各自的透明度设置）
+    if (hasCustom) pills.push({ label: '同图应用到全部图标', value: 'all' });
     if (hasCustom) pills.push({ label: '图标透明度', value: 'opacity' });
     if (grid) { pills.push({ label: '上移', value: 'up' }); pills.push({ label: '下移', value: 'down' }); }
     pills.push({ label: '隐藏图标', value: 'hide' });
@@ -1203,6 +1480,28 @@ try {
           store.remove('app-icon-' + key);
           if (ico && ico.dataset.orig) ico.innerHTML = ico.dataset.orig;
           toast('已恢复默认图标');
+        } else if (v === 'all' && hasCustom) {
+          // 优化④：同图应用到全部图标——喜欢单色图标套装的一次到位。
+          // 每个图标自己的透明度设置（app-icon-opacity-<key>）保留不变。
+          const srcData = store.get('app-icon-' + key);
+          if (!srcData) { toast('读取图标失败，请重试'); return; }
+          let n = 0;
+          document.querySelectorAll('.app').forEach((a2) => {
+            const k2 = a2.dataset.app;
+            if (!k2) return;
+            store.set('app-icon-' + k2, srcData);
+            const ico2 = a2.querySelector('.app-ico');
+            if (ico2) {
+              ico2.innerHTML = '';
+              const im2 = document.createElement('img');
+              im2.src = srcData; im2.alt = '';
+              ico2.appendChild(im2);
+            }
+            const op2 = store.get('app-icon-opacity-' + k2);
+            if (op2) applyAppIconOpacity(a2, parseInt(op2, 10));
+            n++;
+          });
+          toast('已把同图应用到 ' + n + ' 个图标（可在装修模式逐个改回）');
         } else if (v === 'opacity' && hasCustom) {
           // v3.27.x：自定义图标图片透明度——slider 实时预览 + 预设 pills
           const curOp = parseInt(store.get('app-icon-opacity-' + key) || '100', 10);
@@ -1288,6 +1587,74 @@ try {
   if (iconRow) {
     iconRow.addEventListener('click', enterDecor);
   }
+  // v3.27.x：批量上传图标图片——一次选多张（按相册顺序），载入后切到桌面装修模式，
+  // 用户按顺序点图标、每点一个换上一张（消费逻辑在 openIconMenu 队列分支）。
+  // 队列挂 window（__iconBatchQ）而非闭包：openIconMenu 已提取为全局函数，
+  // 图标可能在任意网格/独立组件被点击，队列必须跨作用域可见。
+  const iconBatchRow = document.getElementById('row-icon-batch');
+  if (iconBatchRow) {
+    iconBatchRow.addEventListener('click', () => {
+      // 批量进行中再点 = 取消
+      if (window.__iconBatchQ && window.__iconBatchQ.length) { window.__iconBatchQ = null; toast('已取消批量换图'); return; }
+      // 优化④：撤销上次批量换图——按留底栈把每个图标恢复成换图前的样子
+      //（prev 为 null 表示原本是默认 SVG，删键后 restoreAppIcons 会还原原始 innerHTML）
+      const doBatchUndo = () => {
+        const stack = window.__iconBatchUndo || [];
+        if (!stack.length) { toast('没有可撤销的批量换图'); return; }
+        stack.forEach((it) => {
+          if (it.prev) store.set('app-icon-' + it.key, it.prev);
+          else store.remove('app-icon-' + it.key);
+        });
+        window.__iconBatchUndo = [];
+        try { restoreAppIcons(); } catch (e) {}
+        toast('已撤销，' + stack.length + ' 个图标恢复原样');
+      };
+      // 上次批量留下的撤销栈还在 → 先问清楚是开新批量还是撤销
+      if ((window.__iconBatchUndo || []).length && window.openModal) {
+        window.openModal('批量上传图标', '', (v) => {
+          if (v === 'undo') doBatchUndo();
+          else if (v === 'new') startPick();
+        }, { noInput: true, pills: [{ label: '选择图片，开始新批量', value: 'new' }, { label: '撤销上次批量换图', value: 'undo' }] });
+        return;
+      }
+      function startPick() {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
+        input.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
+        document.body.appendChild(input);
+        input.onchange = () => {
+          const fs = Array.prototype.slice.call(input.files || []);
+          try { if (input.parentNode) input.remove(); } catch (e) {}
+          if (!fs.length) return;
+          toast('正在处理 ' + fs.length + ' 张图片…');
+          const imgs = [];
+          let chain = Promise.resolve();
+          fs.forEach((f) => {
+            chain = chain.then(() => new Promise((res) => {
+              const r = new FileReader();
+              r.onload = () => {
+                // 串行压缩（256px，与单个图标上传同规格），防多张原图同时解码卡顿
+                compressImage(r.result, 256).then((d) => { if (d) imgs.push(d); res(); });
+              };
+              r.onerror = () => res();
+              r.readAsDataURL(f);
+            }));
+          });
+          chain.then(() => {
+            if (!imgs.length) { toast('图片过大或格式不支持，请换小图'); return; }
+            window.__iconBatchQ = imgs;
+            window.__iconBatchTotal = imgs.length;
+            window.__iconBatchUndo = []; // 撤销栈只保最近一次批量
+            enterDecor();
+            toast('已载入 ' + imgs.length + ' 张——到桌面按顺序点图标，每点一个换一张');
+          });
+        };
+        input.onblur = () => { setTimeout(() => { try { if (input.parentNode) input.remove(); } catch (e) {} }, 1500); };
+        try { input.click(); } catch (e) { try { input.remove(); } catch (e2) {} toast('无法打开相册，请重试'); }
+      }
+      startPick();
+    });
+  }
   // v3.27.x：快捷面板（项5）——美化页常用项直达，避免进多层菜单
   (function bindQuickPanel() {
     const bind = (id, targetId) => { const b = document.getElementById(id); const t = document.getElementById(targetId); if (b && t) b.addEventListener('click', () => t.click()); };
@@ -1314,15 +1681,30 @@ try {
     hd.appendChild(closeBtn); d.appendChild(hd);
     const mkColorRow = (label, key, varName, isGlobal) => {
       const r = document.createElement('div'); r.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+      const curGet = () => { try { return (isGlobal ? localStorage.getItem(key) : store.get(key)) || '#111111'; } catch (e) { return '#111111'; } };
+      const curSet = (v) => {
+        document.documentElement.style.setProperty(varName, v);
+        if (isGlobal) { try { localStorage.setItem(key, v); } catch (e) {} } else { store.set(key, v); }
+      };
       const lb = document.createElement('div'); lb.style.cssText = 'font-size:12px;color:var(--muted,#888)'; lb.textContent = label; r.appendChild(lb);
+      const rowH = document.createElement('div'); rowH.style.cssText = 'display:flex;align-items:center;gap:6px';
+      // v3.27.x：色块预览 + 当前色值文字——部分手机 input[type=color] 渲染成透明/文本框
+      // （「看不见颜色」），独立色块保证任何设备都能看到当前颜色
+      const sw = document.createElement('div'); sw.style.cssText = 'width:34px;height:34px;flex:none;border-radius:8px;border:1px solid var(--card-border,#ddd);background:' + curGet(); rowH.appendChild(sw);
       const inp = document.createElement('input'); inp.type = 'color';
-      try { inp.value = isGlobal ? (localStorage.getItem(key) || '#111111') : (store.get(key) || '#111111'); } catch (e) { inp.value = '#111111'; }
-      inp.style.cssText = 'width:100%;height:36px;border:1px solid var(--card-border,#ddd);border-radius:8px;cursor:pointer';
-      inp.addEventListener('input', () => {
-        document.documentElement.style.setProperty(varName, inp.value);
-        if (isGlobal) { try { localStorage.setItem(key, inp.value); } catch (e) {} } else { store.set(key, inp.value); }
+      inp.value = curGet();
+      inp.style.cssText = 'flex:1;height:36px;border:1px solid var(--card-border,#ddd);border-radius:8px;cursor:pointer;min-width:0';
+      const vv = document.createElement('span'); vv.style.cssText = 'font-size:11px;color:var(--muted,#999);flex:none'; vv.textContent = curGet().toUpperCase();
+      const syncUi = (c) => { sw.style.background = c; vv.textContent = String(c).toUpperCase(); try { inp.value = c; } catch (e) {} };
+      inp.addEventListener('input', () => { curSet(inp.value); sw.style.background = inp.value; vv.textContent = inp.value.toUpperCase(); });
+      rowH.appendChild(inp); rowH.appendChild(vv);
+      // v3.27.x：手输兜底——取色器打不开的手机（内置浏览器/WebView）从这填 #RRGGBB
+      const hexBtn = document.createElement('button'); hexBtn.textContent = '手输'; hexBtn.style.cssText = 'flex:none;padding:6px 10px;border:1px solid var(--card-border,#ddd);border-radius:8px;background:var(--btn-cancel-bg,#fafafa);color:var(--ink,#111);font-size:12px';
+      hexBtn.addEventListener('click', () => {
+        openHexColorModal('输入' + label + '色值', curGet(), (c) => { curSet(c); syncUi(c); toast(label + '已设为 ' + c.toUpperCase()); });
       });
-      r.appendChild(inp); return r;
+      rowH.appendChild(hexBtn);
+      r.appendChild(rowH); return r;
     };
     d.appendChild(mkColorRow('主题色', 'xy-home-v2:accent-color', '--btn-bg', true));
     d.appendChild(mkColorRow('组件背景色', 'widget-bg-color', '--widget-bg', false));
@@ -2676,6 +3058,71 @@ try {
 
   // ===== v3.6.x：主题色（全局，覆盖按钮/激活态颜色） =====
   const ACCENT_KEY = 'xy-home-v2:accent-color';
+  // v3.27.x：手输色值通用弹窗——部分手机（厂商内置浏览器 / APP 内嵌 WebView / 旧内核）
+  // 不支持或打不开 <input type=color> 原生取色器，表现为「点自定义颜色没反应 / 颜色块
+  // 看不见也调不了」。原生取色器是否可用无法可靠探测（type 属性存在≠能弹窗），所以
+  // 手动输入 #RRGGBB 必须作为常驻兜底入口，而不是探测失败才出现。
+  const openHexColorModal = (title, cur, apply) => {
+    if (!window.openModal) return;
+    const ctl = window.openModal(title, (cur || '').toUpperCase(), (v) => {
+      let c = (v || '').trim().toLowerCase();
+      if (c && c.charAt(0) !== '#') c = '#' + c; // 容错：允许不带 # 直接输 6 位
+      if (!/^#[0-9a-f]{6}$/.test(c)) { ctl.hint('格式不对：# + 6 位十六进制（0-9 / a-f），如 #e05555'); ctl.stay(); return; }
+      apply(c);
+    }, { maxlength: 7, placeholder: '#RRGGBB，如 #e05555' });
+  };
+  // v3.27.x 优化③：从壁纸取主色做主题色——对不会查色值的用户，比手输 #RRGGBB 友好。
+  // 24×24 降采样 + 4bit/通道桶计数，按「出现次数 × 饱和度」挑主色桶（纯平均会得到灰蒙蒙
+  // 的杂色，饱和度加权让彩色区域胜出）；接近纯白/纯黑的像素不参与（跳过留白和暗角）。
+  function sampleWallpaperColor(dataUrl) {
+    return new Promise((resolve) => {
+      if (typeof dataUrl !== 'string' || dataUrl.length > 50 * 1024 * 1024) { resolve(null); return; }
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const N = 24;
+          const c = document.createElement('canvas'); c.width = N; c.height = N;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0, N, N);
+          const d = ctx.getImageData(0, 0, N, N).data;
+          const buckets = {};
+          for (let i = 0; i < d.length; i += 4) {
+            const r = d[i], g = d[i + 1], b = d[i + 2];
+            const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+            if (mx > 250 && mn > 235) continue; // 纯白留白
+            if (mx < 18) continue;              // 纯黑暗角
+            const sat = mx === 0 ? 0 : (mx - mn) / mx;
+            const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+            if (!buckets[key]) buckets[key] = { n: 0, r: 0, g: 0, b: 0, sat: 0 };
+            const bk = buckets[key];
+            bk.n++; bk.r += r; bk.g += g; bk.b += b; bk.sat += sat;
+          }
+          let best = null, bestScore = 0;
+          Object.keys(buckets).forEach((k) => {
+            const bk = buckets[k];
+            const score = bk.n * (0.25 + bk.sat / bk.n);
+            if (score > bestScore) { bestScore = score; best = bk; }
+          });
+          if (!best) { resolve(null); return; }
+          const hx = (v) => ('0' + Math.round(v).toString(16)).slice(-2);
+          resolve('#' + hx(best.r / best.n) + hx(best.g / best.n) + hx(best.b / best.n));
+        } catch (e) { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  }
+  const applyAccentFromWallpaper = () => {
+    const src = store.get('phone-bg') || store.get('cs-bg'); // 优先桌面壁纸，其次聊天壁纸
+    if (!src) { toast('请先在桌面美化或聊天美化里设置一张壁纸'); return; }
+    toast('正在从壁纸取色…');
+    sampleWallpaperColor(src).then((c) => {
+      if (!c || !/^#[0-9a-fA-F]{6}$/.test(c)) { toast('取色失败，请改用「手动输入色值」'); return; }
+      try { localStorage.setItem(ACCENT_KEY, c); } catch (e) {}
+      applyAccentColor(c);
+      toast('已从壁纸取色 ' + c.toUpperCase() + '（不满意可再点色块微调）');
+    });
+  };
   const accentRow = document.getElementById('row-accent-color');
   const accentVal = document.getElementById('accent-color-val');
   const ACCENT_PRESETS = [
@@ -2711,6 +3158,17 @@ try {
       const current = getAccentColor();
       window.openModal('主题色', '', (v) => {
         if (v === '__reset__') { try { localStorage.removeItem(ACCENT_KEY); } catch (e) {} applyAccentColor(''); return; }
+        // v3.27.x 优化③：从壁纸取主色一键应用（先桌面壁纸，其次聊天壁纸）
+        if (v === '__pick_wall__') { applyAccentFromWallpaper(); return; }
+        // v3.27.x：手输色值入口——二级弹窗输入 #RRGGBB（取色器打不开的手机靠这个）
+        if (v === '__hex__') {
+          openHexColorModal('手动输入主题色', current || '#e05555', (c) => {
+            try { localStorage.setItem(ACCENT_KEY, c); } catch (e) {}
+            applyAccentColor(c);
+            toast('主题色已设置 ' + c.toUpperCase());
+          });
+          return;
+        }
         const color = (typeof v === 'number' && ACCENT_PRESETS[v]) ? ACCENT_PRESETS[v].color : v;
         if (!color || !/^#[0-9a-fA-F]{6}$/.test(color)) return;
         try { localStorage.setItem(ACCENT_KEY, color); } catch (e) {}
@@ -2720,7 +3178,13 @@ try {
         colorPicker: true,
         color: current,
         swatches: ACCENT_PRESETS,
-        pills: [{ label: '恢复默认', value: '__reset__' }],
+        // v3.27.x：详细说明——预置色块任何手机都能用；系统取色器部分手机弹不出来
+        staticText: '点色块=一键选用，最简单可靠。「从壁纸取色」自动挑壁纸主色配成主题色。「自定义颜色」调起手机系统取色器，部分手机（内置浏览器/APP内打开）不支持、点了没反应——请改用「手动输入色值」，填 6 位色值如 #e05555（网上搜「颜色代码」可查任意颜色的色值）。',
+        pills: [
+          { label: '从壁纸取色', value: '__pick_wall__' },
+          { label: '手动输入色值', value: '__hex__' },
+          { label: '恢复默认', value: '__reset__' },
+        ],
       });
     });
   }
@@ -4853,6 +5317,9 @@ try {
     if (phone) phone.classList.remove('decor-on');
     const bar = document.getElementById('decor-bar');
     if (bar) bar.hidden = true;
+    // v3.27.x：批量换图队列没点完就退出装修 → 队列作废（留在队列里会让下次进
+    // 装修点的第一个图标莫名被换图）
+    if (window.__iconBatchQ && window.__iconBatchQ.length) { window.__iconBatchQ = null; toast('批量换图未点完，已作废'); }
     try { document.dispatchEvent(new Event('decor-exited')); } catch (e) {}
   }
   // v3.5.131：暴露给 tabs.js 返回键（返回时退出编辑态，防止"点了没反应"）
